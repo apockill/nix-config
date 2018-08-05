@@ -114,7 +114,7 @@ end
 myawesomemenu = {
    { "hotkeys", function() return false, hotkeys_popup.show_help end},
    { "manual", terminal .. " -e man awesome" },
-   { "edit config", editor_cmd .. " " .. awesome.conffile },
+   { "edit config", editor .. " " .. awesome.conffile},
    { "restart", awesome.restart },
    { "quit", function() awesome.quit() end}
 }
@@ -316,7 +316,7 @@ globalkeys = gears.table.join(
               {description = "open a terminal", group = "launcher"}),  ---Mod1 == Alt
     awful.key({ "Control", "Shift"}, "Escape", function () awful.spawn("gnome-system-monitor") end,
               {description = "open system monitor", group = "launcher"}),
-    awful.key({ modkey,           }, "e", function () awful.spawn("nautilus") end,
+    awful.key({ modkey,           }, "e", function () awful.spawn("nautilus /home/alex/ssd") end,
               {description = "open file explorer", group = "launcher"}),
 
     awful.key({ modkey, "Control" }, "r", awesome.restart,
@@ -601,9 +601,10 @@ client.connect_signal("unfocus", function(c) c.border_color = beautiful.border_n
 -- }}}
 
 -- Open up my widgets
-run_once("pasystray")  -- Volume (package: pasystray)
-run_once("nm-applet")  -- Bluetooth applet (package: blueman-applet)
+run_once("pasystray")       -- Volume (package: pasystray)
+run_once("nm-applet")       -- Bluetooth applet (package: blueman-applet)
 run_once("blueman-applet")  -- Network controls and whatnot. (package: network-manager-gnome)
+run_once("insync")          -- Google drive client (package: Download from browser)
 
 
 -- Make notifications not be so huge
