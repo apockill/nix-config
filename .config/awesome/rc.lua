@@ -345,9 +345,12 @@ globalkeys = gears.table.join(
     awful.key({}, "Prior", function() awful.util.spawn_with_shell("pactl set-sink-volume @DEFAULT_SINK@ +3%") end),
     awful.key({}, "Next", function() awful.util.spawn_with_shell("pactl set-sink-volume @DEFAULT_SINK@ -3%") end),
 
-    -- ENGAGE LOCK
+    -- Engage lockscreen
     awful.key({modkey}, "Escape", function()
 	      awful.util.spawn_with_shell("i3lock") end),
+    -- Turn off monitor
+    awful.key({modkey}, "l", function()
+	      awful.util.spawn_with_shell("xset dpms force off") end),
 
     awful.key({ modkey, "Control" }, "n",
               function ()
