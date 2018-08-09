@@ -1,0 +1,37 @@
+diff --git a/chrome-remote-desktop b/chrome-remote-desktop
+index 2f58e83..0e74db5 100644
+--- a/chrome-remote-desktop
++++ b/chrome-remote-desktop
+@@ -101,7 +101,7 @@ SESSION_FILE_PATH = os.path.join(HOME_DIR, ".chrome-remote-desktop-session")
+ SYSTEM_SESSION_FILE_PATH = "/etc/chrome-remote-desktop-session"
+ 
+ X_LOCK_FILE_TEMPLATE = "/tmp/.X%d-lock"
+-FIRST_X_DISPLAY_NUMBER = 20
++FIRST_X_DISPLAY_NUMBER = 1
+ 
+ # Amount of time to wait between relaunching processes.
+ SHORT_BACKOFF_TIME = 5
+@@ -433,8 +433,8 @@ class Desktop:
+     """Return a candidate display number for which there is currently no
+     X Server lock file"""
+     display = FIRST_X_DISPLAY_NUMBER
+-    while os.path.exists(X_LOCK_FILE_TEMPLATE % display):
+-      display += 1
++    # while os.path.exists(X_LOCK_FILE_TEMPLATE % display):
++    #   display += 1
+     return display
+ 
+   def _init_child_env(self):
+@@ -720,8 +720,10 @@ class Desktop:
+     self._init_child_env()
+     self._setup_pulseaudio()
+     self._setup_gnubby()
+-    self._launch_x_server(x_args)
+-    self._launch_x_session()
++    # self._launch_x_server(x_args)
++    # self._launch_x_session()
++    display = self.get_unused_display_number()
++    self.child_env["DISPLAY"] = ":%d" % display
+ 
+   def launch_host(self, host_config, extra_start_host_args):
+     # Start remoting host
