@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 git clone https://github.com/PandorasFox/i3lock-color.git
 cd i3lock-color
