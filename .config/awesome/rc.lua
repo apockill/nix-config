@@ -316,7 +316,7 @@ globalkeys = gears.table.join(
               {description = "open a terminal", group = "launcher"}),  ---Mod1 == Alt
     awful.key({ "Control", "Shift"}, "Escape", function () awful.spawn("gnome-system-monitor") end,
               {description = "open system monitor", group = "launcher"}),
-    awful.key({ modkey,           }, "e", function () awful.spawn("nautilus /home/alex/ssd") end,
+    awful.key({ modkey,           }, "e", function () awful.spawn("nautilus $DEFAULT_OPEN_DIRECTORY") end,
               {description = "open file explorer", group = "launcher"}),
 
     awful.key({ modkey, "Control" }, "r", awesome.restart,
