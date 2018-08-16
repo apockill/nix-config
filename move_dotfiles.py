@@ -5,7 +5,7 @@ from pathlib import Path
 from argparse import ArgumentParser
 
 
-def try_symlink(source, dest):
+def try_symlink(source, dest, with_permission=False):
     try:
         os.symlink(source, dest)
         print("Symlinked", source, "to", dest)
@@ -18,9 +18,8 @@ def try_patching(existing_file, patchfile):
         print("ERROR: Cannot find", existing_file, ", unable to patch!")
         return
     assert patchfile.exists()
-    print("AYY", "sudo patch " + str(existing_file) + " " + str(patchfile))
-    subprocess.check_call(["sudo", "patch",
-                           str(existing_file), str(patchfile)])
+
+    subprocess.check_call(["sudo", "patch", str(existing_file), str(patchfile)])
 
 
 def main():
@@ -29,6 +28,8 @@ def main():
     config = Path(".config")
     awesome = config / "awesome/"
     compton = config / "compton.conf"
+    i3lock_color_run_script = config / "custom_run_i3lock_color.sh"
+    i3lock_color_build_script = dotfiles / "i3lock" / "build_i3lock.sh"
     remote_desktop = Path("/opt/google/chrome-remote-desktop") / \
                      "chrome-remote-desktop"
     remote_desktop_patch = Path(
@@ -40,8 +41,15 @@ def main():
     # Copy compton config
     try_symlink(dotfiles / compton, home / compton)
 
+    # Copy i3lock-color custom run file
+    try_symlink(dotfiles / i3lock_color_run_script,
+                home / i3lock_color_run_script)
+
     # Try patching chrome remote desktop file
     try_patching(remote_desktop, remote_desktop_patch)
+
+    print("Installing i3lock-color")
+    subprocess.check_call(["bash", str(i3lock_color_build_script)])
 
 
 if __name__ == "__main__":

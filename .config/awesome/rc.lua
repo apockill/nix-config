@@ -64,7 +64,7 @@ beautiful.init(gears.filesystem.get_themes_dir() .. "default/theme.lua")
 -- This is used later as the default terminal and editor to run.
 terminal = "dbus-launch gnome-terminal"
 editor = "gedit"
-editor_cmd = terminal .. " -e " .. editor
+lockscreen_cmd = "bash $HOME/.config/custom_run_i3lock_color.sh"
 
 -- Default modkey.
 -- Usually, Mod4 is the key with a logo between Control and Alt.
@@ -347,7 +347,7 @@ globalkeys = gears.table.join(
 
     -- Engage lockscreen
     awful.key({modkey}, "Escape", function()
-	      awful.util.spawn_with_shell("i3lock") end),
+	      awful.util.spawn_with_shell(lockscreen_cmd) end),
     -- Turn off monitor
     awful.key({modkey}, "l", function()
 	      awful.util.spawn_with_shell("xset dpms force off") end),
@@ -614,7 +614,7 @@ run_once("insync start")          -- Google drive client (package: Download from
 naughty.config.defaults['icon_size'] = 50
 
 -- Set up the lockscreen
-run_once('xautolock -time 10 -locker "i3lock"')
+run_once('xautolock -time 10 -locker "' .. lockscreen_cmd .. '"')
 
 -- Set up multimonitor displays
 awful.util.spawn_with_shell('bash ~/.screenlayout/AlexMultiMonitor.sh')
