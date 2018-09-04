@@ -8,7 +8,10 @@ packagelist=(
     arandr                  # Monitor Settings
     qdirstat                # For exploring filesystems easily
     pavucontrol             # Easily work with sound devices
-
+    thunar                  # For file manager
+    # Theming
+    lxappearance            # For GTK themes
+    
     # awesome specific things
     pasystray               # Sound Widget
     network-manager-gnome   # For wifi and network info
