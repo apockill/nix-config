@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -e
+INSTALL_PATH=/usr/local/i3lock-color
 
+if [ -e $INSTALL_PATH ]; then
+   echo "i3lock already built. Skipping build & installation!"
+    exit 0
+fi
+
+# Build and install i3lock color
+cd i3lock
 git clone https://github.com/PandorasFox/i3lock-color.git
 cd i3lock-color
 
@@ -24,4 +32,6 @@ autoreconf -i && ./configure && make
 
 # Install to /usr/local/i3lock-color
 cd ..
-sudo ln -s $PWD/i3lock-color /usr/local/i3lock-color
+
+sudo ln -s $PWD/i3lock-color $INSTALL_PATH
+
