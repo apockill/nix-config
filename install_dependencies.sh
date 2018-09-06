@@ -8,7 +8,8 @@ packagelist=(
     arandr                  # Monitor Settings
     qdirstat                # For exploring filesystems easily
     pavucontrol             # Easily work with sound devices
-    thunar                  # For file manager
+    nautilus                # For file manager
+
     # Theming
     lxappearance            # For GTK themes
     
