@@ -1,19 +1,24 @@
 #!/bin/bash
 
-sudo apt install --assume-yes git
+set -e
 
-packagelist=(
+
+aptPackageList=(
+    # For development
+    git                     # For version control
+    python-pip              # Python package management
 
     # Applications
     arandr                  # Monitor Settings
     qdirstat                # For exploring filesystems easily
     pavucontrol             # Easily work with sound devices
     nautilus                # For file manager
+    insync                  # For google drive file syncing
 
     # Theming
     lxappearance            # For GTK themes
     
-    # awesome specific things
+    # awesome-wm specific things
     pasystray               # Sound Widget
     network-manager-gnome   # For wifi and network info
     blueman                 # For bluetooth stuff
@@ -24,5 +29,11 @@ packagelist=(
     gnome-system-monitor    # For task manager
 )
 
-# Monitor Settings
-sudo apt install --assume-yes ${packagelist[@]}
+python2PackageList=(
+    nautilus-terminal       # For terminals within nautilus
+)
+# Install apt packages
+sudo apt install --assume-yes ${aptPackageList[@]}
+
+# Install
+pip install ${python2PackageList[@]}
