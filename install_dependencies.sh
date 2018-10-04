@@ -14,7 +14,6 @@ aptPackageList=(
     qdirstat                # For exploring filesystems easily
     pavucontrol             # Easily work with sound devices
     nautilus                # For file manager
-    insync                  # For google drive file syncing
 
     # Theming
     lxappearance            # For GTK themes
@@ -38,4 +37,4 @@ python2PackageList=(
 sudo apt install --assume-yes ${aptPackageList[@]}
 
 # Install
-pip install ${python2PackageList[@]}
+pip install --user ${python2PackageList[@]}
