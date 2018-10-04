@@ -7,6 +7,7 @@ aptPackageList=(
     # For development
     git                     # For version control
     python-pip              # Python package management
+    trickle                 # For bandwidth-limiting insync
 
     # Applications
     arandr                  # Monitor Settings
@@ -17,7 +18,8 @@ aptPackageList=(
 
     # Theming
     lxappearance            # For GTK themes
-    
+    nitrogen                # For setting wallpapers
+
     # awesome-wm specific things
     pasystray               # Sound Widget
     network-manager-gnome   # For wifi and network info
