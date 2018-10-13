@@ -14,12 +14,14 @@ aptPackageList=(
     qdirstat                # For exploring filesystems easily
     pavucontrol             # Easily work with sound devices
     nautilus                # For file manager
+    google-chrome-stable    # Chrome
 
     # Theming
     lxappearance            # For GTK themes
     nitrogen                # For setting wallpapers
 
     # awesome-wm specific things
+    awesome                 # The actual window manager
     pasystray               # Sound Widget
     network-manager-gnome   # For wifi and network info
     blueman                 # For bluetooth stuff

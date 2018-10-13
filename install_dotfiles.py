@@ -32,10 +32,10 @@ def main():
     compton = config / "compton.conf"
     i3lock_color_run_script = config / "custom_run_i3lock_color.sh"
     i3lock_color_build_script = dotfiles / "i3lock" / "build_i3lock.sh"
-    remote_desktop = Path("/opt/google/chrome-remote-Desktop") / \
-                     "chrome-remote-Desktop"
+    remote_desktop = Path("/opt/google/chrome-remote-desktop") / \
+                     "chrome-remote-desktop"
     remote_desktop_patch = Path(
-        "./patches/chrome-remote-Desktop.patch").resolve()
+        "./patches/chrome-remote-desktop.patch").resolve()
    
     # Symlink dotfiles to the home directory if it's not placed there by default
     try_symlink(dotfiles, home / "dotfiles")
