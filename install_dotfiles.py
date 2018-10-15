@@ -25,13 +25,14 @@ def try_patching(existing_file, patchfile):
 def main():
     home = Path("/home/alex/").resolve()
     dotfiles = Path(".").resolve()
+    builds = dotfiles / "builds"
     config = Path(".config")
     desktop = Path("Desktop")
     nautilus_desktop = "nautilus.desktop"
     awesome = config / "awesome/"
     compton = config / "compton.conf"
     i3lock_color_run_script = config / "custom_run_i3lock_color.sh"
-    i3lock_color_build_script = dotfiles / "i3lock" / "build_i3lock.sh"
+    i3lock_color_build_script = builds / "i3lock" / "build_i3lock.sh"
     remote_desktop = Path("/opt/google/chrome-remote-desktop") / \
                      "chrome-remote-desktop"
     remote_desktop_patch = Path(

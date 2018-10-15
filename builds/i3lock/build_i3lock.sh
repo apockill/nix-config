@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+cd builds/i3lock
 
 INSTALL_PATH=/usr/local/i3lock-color
 
