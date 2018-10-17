@@ -10,6 +10,7 @@ aptPackageList=(
     trickle                 # For bandwidth-limiting insync
 
     # Applications
+    spectacle               # For screenshots
     arandr                  # Monitor Settings
     qdirstat                # For exploring filesystems easily
     pavucontrol             # Easily work with sound devices
