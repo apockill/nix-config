@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -e
+cd builds/i3lock
+
 INSTALL_PATH=/usr/local/i3lock-color
 
 if [ -e $INSTALL_PATH ]; then
@@ -14,10 +16,13 @@ cd i3lock-color
 
 # Install dependencies for building i3lock
 sudo apt --assume-yes install libev-dev \
+    autoconf \
+    libcairo-dev \
     libxcb-composite0 \
     libxcb-composite0-dev \
     libxcb-xinerama0 \
     libxcb-randr0 \
+    libxcb-randr0-dev \
     libxcb-xinerama0-dev \
     libxcb-xkb-dev \
     libxcb-image0-dev \

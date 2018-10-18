@@ -10,17 +10,19 @@ aptPackageList=(
     trickle                 # For bandwidth-limiting insync
 
     # Applications
+    spectacle               # For screenshots
     arandr                  # Monitor Settings
     qdirstat                # For exploring filesystems easily
     pavucontrol             # Easily work with sound devices
     nautilus                # For file manager
-    insync                  # For google drive file syncing
+    google-chrome-stable    # Chrome
 
     # Theming
     lxappearance            # For GTK themes
     nitrogen                # For setting wallpapers
 
     # awesome-wm specific things
+    awesome                 # The actual window manager
     pasystray               # Sound Widget
     network-manager-gnome   # For wifi and network info
     blueman                 # For bluetooth stuff
@@ -38,4 +40,4 @@ python2PackageList=(
 sudo apt install --assume-yes ${aptPackageList[@]}
 
 # Install
-pip install ${python2PackageList[@]}
+pip install --user ${python2PackageList[@]}
