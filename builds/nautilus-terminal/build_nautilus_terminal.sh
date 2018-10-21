@@ -15,11 +15,11 @@ cd ..
 
 ##### Next, build nautilus-terminal
 # Get nautilus-terminal and build it
-# git clone https://github.com/flozz/nautilus-terminal.git
-# cd nautilus-terminal
+git clone https://github.com/flozz/nautilus-terminal.git
+cd nautilus-terminal
 
 # Do the build
-# sudo pip install .
-# sudo bash tools/update-extension-system.sh install
+sudo pip install .
+sudo bash tools/update-extension-system.sh install
 
-# nautilus -q
+nautilus -q
