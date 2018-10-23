@@ -342,9 +342,10 @@ globalkeys = gears.table.join(
     awful.key({ modkey, "Shift"   }, "space", function () awful.layout.inc(-1)                end,
               {description = "select previous", group = "layout"}),
 
-    -- Volume control keys (to PageUp and PageDown)
+    -- Volume control keys (to PageUp, PageDown, and Mute)
     awful.key({}, "Prior", function() awful.util.spawn_with_shell("pactl set-sink-volume @DEFAULT_SINK@ +3%") end),
     awful.key({}, "Next", function() awful.util.spawn_with_shell("pactl set-sink-volume @DEFAULT_SINK@ -3%") end),
+    awful.key({}, "XF86AudioMute", function() awful.util.spawn_with_shell("pactl set-sink-mute @DEFAULT_SINK@ toggle") end),
 
     -- Engage lockscreen
     awful.key({modkey}, "Escape", function()
