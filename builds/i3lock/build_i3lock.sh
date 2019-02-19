@@ -10,6 +10,7 @@ if [ -e $INSTALL_PATH ]; then
 fi
 
 # Build and install i3lock color
+mkdir i3lock
 cd i3lock
 git clone https://github.com/PandorasFox/i3lock-color.git
 cd i3lock-color
