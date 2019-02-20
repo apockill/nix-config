@@ -616,10 +616,13 @@ run_once("trickle -s -u 400 insync start")          -- Google drive client (pack
 naughty.config.defaults['icon_size'] = 50
 
 -- Set up the lockscreen
-run_once('xautolock -time 10 -locker "' .. lockscreen_cmd .. '"')
+run_once('xautolock -time 7 -locker "' .. lockscreen_cmd .. '"')
 
 -- Set up multimonitor displays
 awful.util.spawn_with_shell('bash ~/.screenlayout/AlexMultiMonitor.sh')
 
 -- Add dropshadows to right click menus (and semi-transparent windows?)
 run_once('compton --config ~/.config/compton.conf -b')  -- the -b makes it run in the background
+
+-- Run the clipboard manager
+run_once('parcellite')  -- the -b makes it run in the background

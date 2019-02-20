@@ -1,3 +1,5 @@
 
 # Ignore the i3lock build directory
 i3lock-color
+
+builds/

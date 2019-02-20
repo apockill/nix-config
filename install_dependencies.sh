@@ -31,6 +31,9 @@ aptPackageList=(
     i3lock                  # For the lockscreen
     rofi                    # For launching programs
     gnome-system-monitor    # For task manager
+
+    # General desktop features
+    parcellite
 )
 
 python2PackageList=(
