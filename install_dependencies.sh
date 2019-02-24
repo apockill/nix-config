@@ -26,14 +26,12 @@ aptPackageList=(
     pasystray               # Sound Widget
     network-manager-gnome   # For wifi and network info
     blueman                 # For bluetooth stuff
+    parcellite              # A clipboard manager
     compton                 # For drop-shadows
     xautolock               # For locking my window within a timespan
     i3lock                  # For the lockscreen
-    rofi                    # For launching programs
+    rofi                    # For launching programs (Windows+P)
     gnome-system-monitor    # For task manager
-
-    # General desktop features
-    parcellite
 )
 
 python2PackageList=(
