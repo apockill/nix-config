@@ -18,9 +18,10 @@ local hotkeys_popup = require("awful.hotkeys_popup").widget
 -- when client with a matching name is opened:
 require("awful.hotkeys_popup.keys")
 
--- Load Debian menu entries
-local debian = require("debian.menu")
+-- Load menu entries
+--[[
 local has_fdo, freedesktop = pcall(require, "freedesktop")
+]]
 
 -- {{{ Error handling
 -- Check if awesome encountered an error during startup and fell back to
@@ -123,6 +124,7 @@ myawesomemenu = {
 local menu_awesome = { "awesome", myawesomemenu, beautiful.awesome_icon }
 local menu_terminal = { "open terminal", terminal }
 
+--[[
 if has_fdo then
     mymainmenu = freedesktop.menu.build({
         before = { menu_awesome },
@@ -137,7 +139,7 @@ else
                 }
     })
 end
-
+]]
 
 mylauncher = awful.widget.launcher({ image = beautiful.awesome_icon,
                                      menu = mymainmenu })
@@ -608,10 +610,10 @@ run_once("trickle -s -u 400 insync start")          -- Google drive client (pack
 naughty.config.defaults['icon_size'] = 50
 
 -- Set up the lockscreen
-run_once('xautolock -time 7 -locker "' .. lockscreen_cmd .. '"')
+-- run_once('xautolock -time 7 -locker "' .. lockscreen_cmd .. '"')
 
 -- Set up multimonitor displays
-awful.util.spawn_with_shell('bash ~/.screenlayout/AlexMultiMonitor.sh')
+-- awful.util.spawn_with_shell('bash ~/.screenlayout/AlexMultiMonitor.sh')
 
 -- Add dropshadows to right click menus (and semi-transparent windows?)
 run_once('compton --config ~/.config/compton.conf -b')  -- the -b makes it run in the background

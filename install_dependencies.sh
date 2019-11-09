@@ -34,11 +34,55 @@ aptPackageList=(
     gnome-system-monitor    # For task manager
 )
 
+pacmanPackageList=(
+    # Manjaro specific installs
+    gnome-terminal
+
+    # For development
+    git                     
+    python-pip              
+
+
+    # Applications
+    spectacle               
+    arandr                  
+    pavucontrol             
+    nautilus                
+
+    # Theming
+    lxappearance            
+    nitrogen                
+
+    # awesome-wm specific things
+    awesome                 
+    pasystray               
+    # network-manager-gnome   
+    blueman                 
+    parcellite              
+    compton                 
+    xautolock               
+    i3lock                  
+    rofi                    
+    gnome-system-monitor    
+)
+pacaurPackageList=(
+    trickle
+    qdirstat
+    google-chrome
+)
+
 python2PackageList=(
     nautilus-terminal       # For terminals within nautilus
 )
-# Install apt packages
-sudo apt install --assume-yes ${aptPackageList[@]}
+# Install packages, based on the OS
+if [  -n "$(uname -a | grep Ubuntu)" ]; then
+    sudo apt-get update && sudo apt-get upgrade 
+    sudo apt install --assume-yes ${aptPackageList[@]}
+else
+    sudo pacman -S --noconfirm pacaur
+    sudo pacman -S --noconfirm ${pacmanPackageList[@]}
+    sudo pacaur -S --noconfirm ${pacaurPackageList[@]}
+fi  
 
 # Install
 pip install --user ${python2PackageList[@]}
