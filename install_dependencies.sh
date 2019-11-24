@@ -25,6 +25,7 @@ aptPackageList=(
     awesome                 # The actual window manager
     pasystray               # Sound Widget
     network-manager-gnome   # For wifi and network info
+    cbatticon               # Battery icon
     blueman                 # For bluetooth stuff
     parcellite              # A clipboard manager
     compton                 # For drop-shadows
@@ -55,7 +56,9 @@ pacmanPackageList=(
 
     # awesome-wm specific things
     awesome                 
-    pasystray               
+    pasystray         
+    cbatticon
+      
     # network-manager-gnome   
     blueman                 
     parcellite              
