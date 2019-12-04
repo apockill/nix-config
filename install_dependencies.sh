@@ -15,7 +15,7 @@ aptPackageList=(
     qdirstat                # For exploring filesystems easily
     pavucontrol             # Easily work with sound devices
     nautilus                # For file manager
-    google-chrome-stable    # Chrome
+    chromium-browser    # Chrome
 
     # Theming
     lxappearance            # For GTK themes
@@ -25,7 +25,6 @@ aptPackageList=(
     awesome                 # The actual window manager
     pasystray               # Sound Widget
     network-manager-gnome   # For wifi and network info
-    cbatticon               # Battery icon
     blueman                 # For bluetooth stuff
     parcellite              # A clipboard manager
     compton                 # For drop-shadows
@@ -58,7 +57,7 @@ pacmanPackageList=(
     awesome                 
     pasystray         
     cbatticon
-      
+
     # network-manager-gnome   
     blueman                 
     parcellite              
@@ -78,7 +77,7 @@ python2PackageList=(
     nautilus-terminal       # For terminals within nautilus
 )
 # Install packages, based on the OS
-if [  -n "$(uname -a | grep Ubuntu)" ]; then
+if hash apt 2>/dev/null; then
     sudo apt-get update && sudo apt-get upgrade 
     sudo apt install --assume-yes ${aptPackageList[@]}
 else

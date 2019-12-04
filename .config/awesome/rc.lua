@@ -14,6 +14,15 @@ local naughty = require("naughty")
 local menubar = require("menubar")
 local hotkeys_popup = require("awful.hotkeys_popup").widget
 
+-- This is used later as the default terminal and editor to run.
+terminal = "dbus-launch gnome-terminal"
+editor = "gedit"
+lockscreen_cmd = "bash $HOME/.config/custom_run_i3lock_color.sh"
+brightness_cmd = "xrandr --output $(xrandr | grep 'eDP' | cut -d' ' -f1) --brightness "
+
+-- State Variables
+current_brightness = 0.5
+
 -- Enable hotkeys help widget for VIM and other apps
 -- when client with a matching name is opened:
 require("awful.hotkeys_popup.keys")
@@ -58,15 +67,16 @@ function run_once(cmd)
 	awful.util.spawn_with_shell("pgrep -u $USER -x " .. findme .. " > /dev/null || (" .. cmd .. ")")
 end
 
+function change_brightness(value)
+        if value >= 0.0 and value <= 1.0 then
+		current_brightness = value
+	end
+	awful.util.spawn_with_shell(brightness_cmd .. current_brightness)
+end
+
 -- {{{ Variable definitions
 -- Themes define colours, icons, font and wallpapers.
 beautiful.init("~/.config/awesome/paperlike/theme.lua")
-
-
--- This is used later as the default terminal and editor to run.
-terminal = "dbus-launch gnome-terminal"
-editor = "gedit"
-lockscreen_cmd = "bash $HOME/.config/custom_run_i3lock_color.sh"
 
 -- Default modkey.
 -- Usually, Mod4 is the key with a logo between Control and Alt.
@@ -331,6 +341,11 @@ globalkeys = gears.table.join(
     awful.key({}, "Prior", function() awful.util.spawn_with_shell("pactl set-sink-volume @DEFAULT_SINK@ +3%") end),
     awful.key({}, "Next", function() awful.util.spawn_with_shell("pactl set-sink-volume @DEFAULT_SINK@ -3%") end),
     awful.key({}, "XF86AudioMute", function() awful.util.spawn_with_shell("pactl set-sink-mute @DEFAULT_SINK@ toggle") end),
+
+
+    -- Brightness control keys
+    awful.key({}, "XF86MonBrightnessUp", function() change_brightness(current_brightness + 0.05) end),
+    awful.key({}, "XF86MonBrightnessDown", function() change_brightness(current_brightness - 0.05) end),
 
     -- Engage lockscreen
     awful.key({modkey}, "Escape", function()
@@ -606,3 +621,6 @@ run_once('parcellite')  -- the -b makes it run in the background
 
 -- Run the battery icon
 run_once('cbatticon')
+
+-- Set the screen to the default brightness
+change_brightness(current_brightness)
