@@ -15,9 +15,10 @@ aptPackageList=(
     qdirstat                # For exploring filesystems easily
     pavucontrol             # Easily work with sound devices
     nautilus                # For file manager
-    chromium-browser    # Chrome
+    chromium-browser        # Chrome
 
-    # Theming
+    # Configuration
+    gnome-disks             # For editing fstab
     lxappearance            # For GTK themes
     nitrogen                # For setting wallpapers
 
@@ -49,7 +50,7 @@ pacmanPackageList=(
     pavucontrol             
     nautilus                
 
-    # Theming
+    # Configuration
     lxappearance            
     nitrogen                
 
@@ -72,6 +73,7 @@ pacaurPackageList=(
     qdirstat
     google-chrome
     nautilus-terminal
+    gnome-disks
 )
 
 
