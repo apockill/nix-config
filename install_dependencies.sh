@@ -27,7 +27,7 @@ aptPackageList=(
     network-manager-gnome   # For wifi and network info
     blueman                 # For bluetooth stuff
     parcellite              # A clipboard manager
-    compton                 # For drop-shadows
+    compton                 # For drop-shadowsz
     xautolock               # For locking my window within a timespan
     i3lock                  # For the lockscreen
     rofi                    # For launching programs (Windows+P)
@@ -71,20 +71,18 @@ pacaurPackageList=(
     trickle
     qdirstat
     google-chrome
+    nautilus-terminal
 )
 
-python2PackageList=(
-    nautilus-terminal       # For terminals within nautilus
-)
+
 # Install packages, based on the OS
 if hash apt 2>/dev/null; then
+    pip install --user nautilus-terminal
     sudo apt-get update && sudo apt-get upgrade 
     sudo apt install --assume-yes ${aptPackageList[@]}
 else
+    sudo pacman -Syu --noconfirm # Update lists
     sudo pacman -S --noconfirm pacaur
     sudo pacman -S --noconfirm ${pacmanPackageList[@]}
-    sudo pacaur -S --noconfirm ${pacaurPackageList[@]}
+    pacaur -S --noconfirm ${pacaurPackageList[@]}
 fi  
-
-# Install
-pip install --user ${python2PackageList[@]}
