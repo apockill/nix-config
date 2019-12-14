@@ -21,7 +21,7 @@ lockscreen_cmd = "bash $HOME/.config/custom_run_i3lock_color.sh"
 brightness_cmd = "xrandr --output $(xrandr | grep 'eDP' | cut -d' ' -f1) --brightness "
 
 -- State Variables
-current_brightness = 0.5
+current_brightness = 1.0
 
 -- Enable hotkeys help widget for VIM and other apps
 -- when client with a matching name is opened:
@@ -68,7 +68,7 @@ function run_once(cmd)
 end
 
 function change_brightness(value)
-        if value >= 0.0 and value <= 1.0 then
+        if value >= 0.0 and value <= 1.5 then
 		current_brightness = value
 	end
 	awful.util.spawn_with_shell(brightness_cmd .. current_brightness)
