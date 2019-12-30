@@ -59,7 +59,7 @@ dependencies = [
     Dependency(apt="gnome-terminal", arch="gnome-terminal"),
 
     # Configuration
-    Dependency(apt="gnome-disks", aur="gnome-disks"),
+    Dependency(apt="gnome-disks", aur="gnome-disk-utility"),
     Dependency(apt="lxappearance", arch="lxappearance"),
     Dependency(apt="nitrogen", arch="nitrogen"),
 
