@@ -16,7 +16,10 @@ setup(
             "axls=tools:ls"
         }
     },
-    install_requires=[],
+    install_requires=[
+        "colorful",
+        "asciimatics==1.11.0"
+    ],
 
     extras_require={}
 
