@@ -13,7 +13,8 @@ setup(
     scripts=[],
     entry_points={
         "console_scripts":{
-            "axls=tools:ls"
+            "axls=tools:ls",
+            "axexplore=tools:file_explorer"
         }
     },
     install_requires=[
