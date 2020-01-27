@@ -611,7 +611,7 @@ naughty.config.defaults['icon_size'] = 50
 -- run_once('xautolock -time 7 -locker "' .. lockscreen_cmd .. '"')
 
 -- Set up multimonitor displays
--- awful.util.spawn_with_shell('bash ~/.screenlayout/AlexMultiMonitor.sh')
+awful.util.spawn_with_shell('bash ~/.screenlayout/AlexMultiMonitor.sh')
 
 -- Add dropshadows to right click menus (and semi-transparent windows?)
 run_once('compton --config ~/.config/compton.conf -b')  -- the -b makes it run in the background
