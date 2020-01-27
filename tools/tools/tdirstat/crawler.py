@@ -6,17 +6,23 @@ import os
 from time import time, sleep
 
 
-class DirectoryStat:
+class NodeStat:
+    def __init__(self, size, path: os.DirEntry):
+        self.path = path
+        self.size = size
+
+
+class DirectoryStat(NodeStat):
     """Crawl a filesystem in parallel and get statistics about structure and
     size of directories."""
 
     def __init__(self,
-                 directory: Union[str, os.DirEntry],
+                 path: Union[str, os.DirEntry],
                  executor: Optional[ThreadPoolExecutor] = None,
                  on_stats_change=None):
+        super().__init__()
         self.finished = False
-
-        self.directory = directory
+        self.path = path
         self._on_stats_change = on_stats_change
 
         # Statistics
@@ -33,9 +39,9 @@ class DirectoryStat:
 
     def __repr__(self):
         try:
-            dir = self.directory.path
+            dir = self.path.path
         except AttributeError:
-            dir = str(self.directory)
+            dir = str(self.path)
         return f"{self.__class__.__name__}(" \
                f"directory={dir}, " \
                f"n_items={self.n_items}, " \
@@ -47,7 +53,7 @@ class DirectoryStat:
 
     def _get_children(self):
         try:
-            scan = os.scandir(self.directory)
+            scan = os.scandir(self.path)
             entries = list(scan)
         except (PermissionError, FileNotFoundError):
             entries = []
@@ -77,7 +83,7 @@ class DirectoryStat:
 
         # Start jobs for future
         child_dirstats = [DirectoryStat(
-            directory=dir,
+            path=dir,
             executor=self.executor,
             on_stats_change=self.add_items) for dir in child_directories]
         return child_dirstats
@@ -109,17 +115,10 @@ class DirectoryStat:
 
 
 if __name__ == "__main__":
+    start = time()
     dirstat = DirectoryStat("/")
     print(dirstat)
     while not dirstat.finished:
-        sleep(0.5)
-        print("Cur", dirstat.n_items, dirstat.finished)
+        sleep(0.001)
+    print("Elapsed", time() - start)
     print(dirstat)
-    for child in dirstat.children:
-        print(child)
-"""
-
-
-DirectoryStats:
-    children: List[DirectoryStats]
-"""
