@@ -14,13 +14,23 @@ local naughty = require("naughty")
 local menubar = require("menubar")
 local hotkeys_popup = require("awful.hotkeys_popup").widget
 
+-- This is used later as the default terminal and editor to run.
+terminal = "dbus-launch gnome-terminal"
+editor = "gedit"
+lockscreen_cmd = "bash $HOME/.config/custom_run_i3lock_color.sh"
+brightness_cmd = "xrandr --output $(xrandr | grep 'eDP' | cut -d' ' -f1) --brightness "
+
+-- State Variables
+current_brightness = 1.0
+
 -- Enable hotkeys help widget for VIM and other apps
 -- when client with a matching name is opened:
 require("awful.hotkeys_popup.keys")
 
--- Load Debian menu entries
-local debian = require("debian.menu")
+-- Load menu entries
+--[[
 local has_fdo, freedesktop = pcall(require, "freedesktop")
+]]
 
 -- {{{ Error handling
 -- Check if awesome encountered an error during startup and fell back to
@@ -57,15 +67,16 @@ function run_once(cmd)
 	awful.util.spawn_with_shell("pgrep -u $USER -x " .. findme .. " > /dev/null || (" .. cmd .. ")")
 end
 
+function change_brightness(value)
+        if value >= 0.0 and value <= 1.5 then
+		current_brightness = value
+	end
+	awful.util.spawn_with_shell(brightness_cmd .. current_brightness)
+end
+
 -- {{{ Variable definitions
 -- Themes define colours, icons, font and wallpapers.
 beautiful.init("~/.config/awesome/paperlike/theme.lua")
-
-
--- This is used later as the default terminal and editor to run.
-terminal = "dbus-launch gnome-terminal"
-editor = "gedit"
-lockscreen_cmd = "bash $HOME/.config/custom_run_i3lock_color.sh"
 
 -- Default modkey.
 -- Usually, Mod4 is the key with a logo between Control and Alt.
@@ -122,22 +133,6 @@ myawesomemenu = {
 
 local menu_awesome = { "awesome", myawesomemenu, beautiful.awesome_icon }
 local menu_terminal = { "open terminal", terminal }
-
-if has_fdo then
-    mymainmenu = freedesktop.menu.build({
-        before = { menu_awesome },
-        after =  { menu_terminal }
-    })
-else
-    mymainmenu = awful.menu({
-        items = {
-                  menu_awesome,
-                  { "Debian", debian.menu.Debian_menu.Debian },
-                  menu_terminal,
-                }
-    })
-end
-
 
 mylauncher = awful.widget.launcher({ image = beautiful.awesome_icon,
                                      menu = mymainmenu })
@@ -346,6 +341,11 @@ globalkeys = gears.table.join(
     awful.key({}, "Prior", function() awful.util.spawn_with_shell("pactl set-sink-volume @DEFAULT_SINK@ +3%") end),
     awful.key({}, "Next", function() awful.util.spawn_with_shell("pactl set-sink-volume @DEFAULT_SINK@ -3%") end),
     awful.key({}, "XF86AudioMute", function() awful.util.spawn_with_shell("pactl set-sink-mute @DEFAULT_SINK@ toggle") end),
+
+
+    -- Brightness control keys
+    awful.key({}, "XF86MonBrightnessUp", function() change_brightness(current_brightness + 0.05) end),
+    awful.key({}, "XF86MonBrightnessDown", function() change_brightness(current_brightness - 0.05) end),
 
     -- Engage lockscreen
     awful.key({modkey}, "Escape", function()
@@ -598,17 +598,17 @@ client.connect_signal("unfocus", function(c) c.border_color = beautiful.border_n
 -- }}}
 
 -- Open up my widgets
-run_once("pasystray")       -- Volume (package: pasystray)
-run_once("nm-applet")       -- Bluetooth applet (package: blueman-applet)
-run_once("blueman-applet")  -- Network controls and whatnot. (package: network-manager-gnome)
-run_once("trickle -s -u 400 insync start")          -- Google drive client (package: Download from browser)
+run_once("pasystray")                       -- Volume (package: pasystray)
+run_once("nm-applet")                       -- Bluetooth applet (package: blueman-applet)
+run_once("blueman-applet")                  -- Network controls and whatnot. (package: network-manager-gnome)
+run_once("trickle -s -u 2000 insync start") -- Google drive client (package: Download from browser)
 
 
 -- Make notifications not be so huge
 naughty.config.defaults['icon_size'] = 50
 
 -- Set up the lockscreen
-run_once('xautolock -time 7 -locker "' .. lockscreen_cmd .. '"')
+-- run_once('xautolock -time 7 -locker "' .. lockscreen_cmd .. '"')
 
 -- Set up multimonitor displays
 awful.util.spawn_with_shell('bash ~/.screenlayout/AlexMultiMonitor.sh')
@@ -618,3 +618,9 @@ run_once('compton --config ~/.config/compton.conf -b')  -- the -b makes it run i
 
 -- Run the clipboard manager
 run_once('parcellite')  -- the -b makes it run in the background
+
+-- Run the battery icon
+run_once('xfce4-power-manager')
+
+-- Set the screen to the default brightness
+change_brightness(current_brightness)
