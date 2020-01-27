@@ -620,7 +620,7 @@ run_once('compton --config ~/.config/compton.conf -b')  -- the -b makes it run i
 run_once('parcellite')  -- the -b makes it run in the background
 
 -- Run the battery icon
-run_once('cbatticon')
+run_once('xfce4-power-manager')
 
 -- Set the screen to the default brightness
 change_brightness(current_brightness)
