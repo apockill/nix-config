@@ -601,7 +601,7 @@ client.connect_signal("unfocus", function(c) c.border_color = beautiful.border_n
 run_once("pasystray")       -- Volume (package: pasystray)
 run_once("nm-applet")       -- Bluetooth applet (package: blueman-applet)
 run_once("blueman-applet")  -- Network controls and whatnot. (package: network-manager-gnome)
-run_once("trickle -s -u 400 insync start")          -- Google drive client (package: Download from browser)
+run_once("trickle -s -u 2000 insync start")          -- Google drive client (package: Download from browser)
 
 
 -- Make notifications not be so huge
