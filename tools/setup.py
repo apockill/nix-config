@@ -12,7 +12,7 @@ setup(
     author="Alex Thiel",
     scripts=[],
     entry_points={
-        "console_scripts":{
+        "console_scripts": {
             "axls=tools:ls",
             "axexplore=tools:file_explorer"
         }

@@ -20,7 +20,7 @@ class DirectoryStat(NodeStat):
                  path: Union[str, os.DirEntry],
                  executor: Optional[ThreadPoolExecutor] = None,
                  on_stats_change=None):
-        super().__init__()
+        super().__init__(size=None, path=None)
         self.finished = False
         self.path = path
         self._on_stats_change = on_stats_change
@@ -119,6 +119,7 @@ if __name__ == "__main__":
     dirstat = DirectoryStat("/")
     print(dirstat)
     while not dirstat.finished:
-        sleep(0.001)
+        sleep(0.5)
+        print(dirstat.n_items)
     print("Elapsed", time() - start)
     print(dirstat)
