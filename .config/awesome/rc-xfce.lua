@@ -445,14 +445,24 @@ awful.rules.rules = {
 					 screen = awful.screen.preferred,
 					 placement = awful.placement.no_overlap+awful.placement.no_offscreen } },
     {
+      -- Changes the border width on the taskbar so, you know, it doesn't have a stupid border
       rule = { class = "Xfce4-panel" },
 	  properties = { border_width = 0 }
 	},
     {
+      -- Makes the desktop be on all workspaces instead of having a black background :P
       rule = { class = "Xfdesktop" },
 	  properties = {
-		border_width = 0,
+	    border_width = 0,
 	    sticky = true,
+	  }
+    },
+    {
+      -- Make the Start Menu not be a tiled window. Instead, be floating, and borderless
+      rule = { class = "Wrapper-2.0" },
+	  properties = {
+            border_width = 0,
+            floating = true
 	  }
     },
 

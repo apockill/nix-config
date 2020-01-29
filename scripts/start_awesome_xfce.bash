@@ -1,4 +1,4 @@
 #!/bin/bash
 
-awesome --config $HOME/dotfiles/xdg-config-home/awesome/rc-xfce.lua & 
+awesome --config $HOME/dotfiles/.config/awesome/rc-xfce.lua & 
 
