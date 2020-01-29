@@ -1,15 +1,18 @@
-from pathlib import Path
+import os
+import logging
 from typing import List, Union, Optional
 from concurrent.futures import ThreadPoolExecutor, Future
-from threading import RLock
-import os
-from time import time, sleep
 
 
 class NodeStat:
-    def __init__(self, size, path: os.DirEntry):
-        self.path = path
-        self.size = size
+    def __init__(self, path: Union[str, os.DirEntry]):
+        if isinstance(path, os.DirEntry):
+            self.path = path.path
+            self.size = path.stat().st_size
+
+        elif isinstance(path, str):
+            self.path = path
+            self.size = os.stat(path)
 
 
 class DirectoryStat(NodeStat):
@@ -20,9 +23,8 @@ class DirectoryStat(NodeStat):
                  path: Union[str, os.DirEntry],
                  executor: Optional[ThreadPoolExecutor] = None,
                  on_stats_change=None):
-        super().__init__(size=None, path=None)
+        super().__init__(path=path)
         self.finished = False
-        self.path = path
         self._on_stats_change = on_stats_change
 
         # Statistics
@@ -33,13 +35,11 @@ class DirectoryStat(NodeStat):
         if self.executor is None:
             self.executor = ThreadPoolExecutor(max_workers=1)
 
-        # self._future = Future()
-        # self._future.set_result(self._get_children())
         self._future = self.executor.submit(self._get_children)
 
     def __repr__(self):
         try:
-            dir = self.path.path
+            dir = self.path
         except AttributeError:
             dir = str(self.path)
         return f"{self.__class__.__name__}(" \
@@ -60,19 +60,17 @@ class DirectoryStat(NodeStat):
 
         child_directories = []
         for entry in entries:
-            # if entry.is_symlink():
-            #     continue
-
             try:
                 self._record_statistics(entry)
+                if (not entry.is_symlink()
+                        and entry.is_dir()
+                        and not os.path.ismount(entry)):
+                    child_directories.append(entry)
             except (PermissionError, FileNotFoundError) as e:
-                print(f"Error: {type(e)}")
-
-            if (entry.is_dir()
-                    and not os.path.ismount(entry)
-                    and not entry.is_symlink()):
-                child_directories.append(entry)
-
+                logging.warning(f"Error scanning file {entry.path}: {type(e)}")
+            except Exception as e:
+                logging.critical("Unexpected error scanning file "
+                                 f"{entry.path}: {type(e)} {e}")
         if len(child_directories) == 0:
             self.finished = True
 
@@ -86,6 +84,7 @@ class DirectoryStat(NodeStat):
             path=dir,
             executor=self.executor,
             on_stats_change=self.add_items) for dir in child_directories]
+
         return child_dirstats
 
     def _record_statistics(self, entry: os.DirEntry):
@@ -112,14 +111,3 @@ class DirectoryStat(NodeStat):
                 self._on_stats_change(
                     n_items=n_items,
                     is_child_finished=self.finished)
-
-
-if __name__ == "__main__":
-    start = time()
-    dirstat = DirectoryStat("/")
-    print(dirstat)
-    while not dirstat.finished:
-        sleep(0.5)
-        print(dirstat.n_items)
-    print("Elapsed", time() - start)
-    print(dirstat)
