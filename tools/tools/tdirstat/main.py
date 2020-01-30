@@ -1,6 +1,7 @@
 import sys
 import os
 from argparse import ArgumentParser
+from typing import List, TYPE_CHECKING
 
 from asciimatics.event import KeyboardEvent
 from asciimatics.widgets import (
@@ -17,14 +18,18 @@ from asciimatics.exceptions import ResizeScreenError, StopApplication
 
 from crawler import DirectoryStat
 
+if TYPE_CHECKING:
+    from .crawler import DirectoryStat
+
 
 class TDirStatView(Frame):
     def __init__(self, screen, dirstat: DirectoryStat):
         super(TDirStatView, self).__init__(
-            screen, screen.height, screen.width, has_border=True,
+            screen, screen.height, screen.width,
+            has_border=True,
             name="My Form")
         # Model
-        self.dirstat = dirstat
+        self.dirstat: DirectoryStat = dirstat
 
         # Create the (very simple) form layout...
         layout = Layout([1], fill_frame=True)
@@ -55,13 +60,31 @@ class TDirStatView(Frame):
         self.fix()
 
     def update(self, frame_no):
+        if len(self._list.options):
+            super().update(frame_no=frame_no)
+            return
         options = []
-        for dirstat in self.dirstat.children:
+        dirstats = list(self.dirstat.directories)
+        dirstats.sort(key=lambda dirstat: dirstat.total_size, reverse=True)
+        files = self.dirstat.files
+        files.sort(key=lambda file: file.path.name, reverse=True)
+
+        dirstats.insert(0, self.dirstat)
+        for dirstat in dirstats:
             columns = [
-                dirstat.path,
+                f"{dirstat.path.name}/",
                 "Not Implemented",
+                str(dirstat.total_size_pretty),
+                str(round(dirstat.total_items, 2))
+            ]
+            options.append((columns, "Delet this? (Not Implemented)"))
+
+        for file in files:
+            columns = [
+                file.path.name,
                 "Not Implemented",
-                str(dirstat.n_items)
+                str(file.size_pretty),
+                ""
             ]
             options.append((columns, "Delet this? (Not Implemented)"))
         self._list.options = options
@@ -83,9 +106,9 @@ class TDirStatView(Frame):
             if event.key_code in [ord('q'), ord('Q'), Screen.ctrl("c")]:
                 raise StopApplication("User quit")
 
+
         # Now pass on to lower levels for normal handling of the event.
         return super().process_event(event)
-
 
 def main():
     parser = ArgumentParser()
@@ -95,12 +118,12 @@ def main():
 
     dirstat = None
 
-    def demo(screen, old_scene):
+    def demo(screen: Screen, old_scene):
         nonlocal dirstat
         if dirstat is None:
             dirstat = DirectoryStat(
                 path=args.root_dir,
-                on_stats_change=lambda *args, **kwargs: screen.)
+                on_stats_change=lambda *args, **kwargs: screen.force_update())
         screen.play(
             [Scene([TDirStatView(screen, dirstat)], duration=-1)],
 
