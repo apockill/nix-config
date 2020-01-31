@@ -132,6 +132,7 @@ class DirectoryStat(NodeStat):
             child_dirstats = [DirectoryStat(
                 path=entry,
                 executor=self.executor,
+                parent=self,
                 on_stats_change=self.add_items) for entry in child_directories]
 
             # Get information about child folders
@@ -170,28 +171,3 @@ class DirectoryStat(NodeStat):
             # passed up the chain
             if changed_dirstat.total_items > 0 or self.finished.is_set():
                 self._on_stats_change(changed_dirstat)
-
-
-if __name__ == "__main__":
-    from time import time
-    from threading import RLock
-
-    start = time()
-    dirstat = DirectoryStat("/")
-    dirstat.finished.wait()
-    print(dirstat)
-    for child in dirstat:
-        print(child)
-        for child_1 in child:
-            print(child_1)
-
-    """
-    Without RLock, 1 thread
-    5.289, 5.376
-    
-    Without RLock, 5 threads
-    8.935
-    
-    With RLock on os.scandir, 5 threads
-    
-    """

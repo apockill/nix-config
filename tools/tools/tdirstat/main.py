@@ -22,6 +22,27 @@ if TYPE_CHECKING:
     from .crawler import DirectoryStat
 
 
+def generate_progress_bar(curr, max, n_characters):
+    """Returns an ascii progress bar"""
+    phases = (' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█')
+    n_phases = len(phases)
+    progress = (curr / max) * n_characters
+    progress_bar = ""
+
+    for i in range(n_characters):
+        if progress > 1:
+            phase = phases[-1]
+        elif 0 <= progress < 1:
+            index = int(round(progress * n_phases))
+            phase = phases[index if index < len(phases) else -1]
+        else:
+            phase = phases[0]
+        progress -= 1
+        progress_bar += phase
+
+    return progress_bar
+
+
 class TDirStatView(Frame):
     def __init__(self, screen, dirstat: DirectoryStat):
         super(TDirStatView, self).__init__(
@@ -39,15 +60,15 @@ class TDirStatView(Frame):
         self._details = Text()
         self._details.disabled = True
         self._details.custom_colour = "field"
-        titles = ["Name", "%", "Size", "Items"]
-        columns = [0] + [f"{len(title) + 15}>" for title in titles[1:]]
+
+        titles = [("Name", 0), ("%", "20>"), ("Size", "15>"), ("Items", "15>")]
         self._list = MultiColumnListBox(
             height=Widget.FILL_FRAME,
-            columns=columns,
-            titles=titles,
+            columns=[c[1] for c in titles],
+            titles=[c[0] for c in titles],
             options=[],
             name="qdirstat_list",
-            on_select=self.popup,
+            on_select=self.enter_directory,
             on_change=self.details)
         layout.add_widget(Label("TDirStat"))
         layout.add_widget(Divider())
@@ -56,59 +77,78 @@ class TDirStatView(Frame):
         layout.add_widget(self._details)
         layout.add_widget(Label("Press Enter to select or `q` to quit."))
 
-        # Prepare the Frame for use.
+        # Prepare the Frame for use
         self.fix()
 
     def update(self, frame_no):
-        if len(self._list.options):
-            super().update(frame_no=frame_no)
-            return
+        prev_value = self._list.value
+
         options = []
         dirstats = list(self.dirstat.directories)
         dirstats.sort(key=lambda dirstat: dirstat.total_size, reverse=True)
         files = self.dirstat.files
-        files.sort(key=lambda file: file.path.name, reverse=True)
+        files.sort(key=lambda file: file.size, reverse=True)
 
-        dirstats.insert(0, self.dirstat)
+        # Populate the first item on the list with a special case
+        options = [(
+            ["/" if self.dirstat.parent is None else "../",
+             "",
+             str(self.dirstat.total_size_pretty),
+             str(round(self.dirstat.total_items, 2))],
+            self.dirstat.parent)
+        ]
+
         for dirstat in dirstats:
             columns = [
                 f"{dirstat.path.name}/",
-                "Not Implemented",
+                generate_progress_bar(dirstat.total_size,
+                                      self.dirstat.total_size, 15),
                 str(dirstat.total_size_pretty),
                 str(round(dirstat.total_items, 2))
             ]
-            options.append((columns, "Delet this? (Not Implemented)"))
+            options.append((columns, dirstat))
 
         for file in files:
             columns = [
                 file.path.name,
-                "Not Implemented",
+                generate_progress_bar(file.size,
+                                      self.dirstat.total_size, 15),
                 str(file.size_pretty),
                 ""
             ]
-            options.append((columns, "Delet this? (Not Implemented)"))
+            options.append((columns, file))
         self._list.options = options
-
+        self._list.value = prev_value
         super().update(frame_no)
 
-    def popup(self):
+    def enter_directory(self):
+        if not isinstance(self._list.value, DirectoryStat):
+            return
+        self.dirstat = self._list.value
+
+    def prompt_delete(self):
         # Just confirm whenever the user actually selects something.
         self._scene.add_effect(
             PopUpDialog(self._screen,
                         "You selected: {}".format(self._list.value), ["OK"]))
 
     def details(self):
-        self._details.value = "Haha I have been changed indeed"
+        if self._list.value is None:
+            self._details.value = ""
+        else:
+            self._details.value = f"Selected {str(self._list.value.path)}"
 
     def process_event(self, event):
         # Do the key handling for this Frame.
         if isinstance(event, KeyboardEvent):
+            DEL_KEY = -102
             if event.key_code in [ord('q'), ord('Q'), Screen.ctrl("c")]:
                 raise StopApplication("User quit")
-
-
+            if event.key_code == DEL_KEY:
+                self.prompt_delete()
         # Now pass on to lower levels for normal handling of the event.
         return super().process_event(event)
+
 
 def main():
     parser = ArgumentParser()

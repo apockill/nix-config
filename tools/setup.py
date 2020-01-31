@@ -18,7 +18,6 @@ setup(
         }
     },
     install_requires=[
-        "colorful",
         "asciimatics==1.11.0"
     ],
 
