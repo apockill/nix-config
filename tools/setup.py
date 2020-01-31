@@ -12,13 +12,13 @@ setup(
     author="Alex Thiel",
     scripts=[],
     entry_points={
-        "console_scripts":{
+        "console_scripts": {
             "axls=tools:ls",
-            "axexplore=tools:file_explorer"
+            "axexplore=tools:file_explorer",
+            "tdirstat=tools.tdirstat:tdirstat"
         }
     },
     install_requires=[
-        "colorful",
         "asciimatics==1.11.0"
     ],
 
