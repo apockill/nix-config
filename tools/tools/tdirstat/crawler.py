@@ -115,9 +115,14 @@ class DirectoryStat(NodeStat):
                     self._record_statistics(entry)
                     if not entry.is_symlink():
                         if entry.is_dir() and not os.path.ismount(entry):
-                            child_directories.append(entry)
+                            dirstat = DirectoryStat(
+                                path=entry,
+                                executor=self.executor,
+                                parent=self,
+                                on_stats_change=self.add_items)
+                            child_directories.append(dirstat)
                         else:
-                            child_files.append(entry)
+                            child_files.append(NodeStat(path=entry))
 
                 except (PermissionError, FileNotFoundError) as e:
                     logging.warning(
@@ -127,23 +132,23 @@ class DirectoryStat(NodeStat):
                                      f"{entry.path}: {type(e)} {e}")
             if len(child_directories) == 0:
                 self.finished.set()
-
-            # Start jobs for future
-            child_dirstats = [DirectoryStat(
-                path=entry,
-                executor=self.executor,
-                parent=self,
-                on_stats_change=self.add_items) for entry in child_directories]
+            #
+            # # Start jobs for future
+            # child_dirstats = [DirectoryStat(
+            #     path=entry,
+            #     executor=self.executor,
+            #     parent=self,
+            #     on_stats_change=self.add_items) for entry in child_directories]
 
             # Get information about child folders
-            child_files = [NodeStat(path=entry) for entry in child_files]
-            for node in child_files + child_dirstats:
+            # child_files = [NodeStat(path=entry) for entry in child_files]
+            for node in child_files + child_directories:
                 self.total_size += node.size
 
             if self._on_stats_change is not None:
                 self._on_stats_change(self)
 
-            return child_dirstats, child_files
+            return child_directories, child_files
         except Exception as e:
             print(e, type(e))
 
@@ -171,3 +176,12 @@ class DirectoryStat(NodeStat):
             # passed up the chain
             if changed_dirstat.total_items > 0 or self.finished.is_set():
                 self._on_stats_change(changed_dirstat)
+
+
+if __name__ == "__main__":
+    from time import sleep
+
+    dirstat = DirectoryStat("/")
+    while not dirstat.finished.is_set():
+        sleep(0.5)
+        print(dirstat)
