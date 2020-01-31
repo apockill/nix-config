@@ -16,10 +16,8 @@ from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 from asciimatics.exceptions import ResizeScreenError, StopApplication
 
-from crawler import DirectoryStat
+from .crawler import DirectoryStat
 
-if TYPE_CHECKING:
-    from .crawler import DirectoryStat
 
 
 def generate_progress_bar(curr, max, n_characters):
