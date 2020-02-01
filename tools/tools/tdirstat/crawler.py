@@ -1,10 +1,27 @@
 import os
 import math
 import logging
-from threading import Event
+from queue import Queue
+from threading import Event, Thread
 from typing import List, Union, Optional
-from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
+from collections import namedtuple
+
+_worker = None
+_work_queue: Queue = Queue()
+
+
+def _worker():
+    while True:
+        work_fn, output_queue = _work_queue.get(block=True)
+        out = work_fn()
+        output_queue.put(out)
+
+
+def _submit_work(func) -> Queue:
+    output_queue = Queue()
+    _work_queue.put((func, output_queue))
+    return output_queue
 
 
 def fmt_bytes(size_bytes):
@@ -27,14 +44,20 @@ class NodeStat:
 
     def __init__(self, path: Union[str, os.DirEntry]):
         if isinstance(path, os.DirEntry):
-            self.path = Path(path.path)
+            self._path = path.path
             self.size = path.stat().st_size
 
         elif isinstance(path, str):
-            self.path = Path(path)
+            self._path = path
             self.size = os.stat(path).st_size
         else:
             raise RuntimeError(f"Invalid type for path: {type(path)} {path}")
+
+    @property
+    def path(self) -> Path:
+        if not isinstance(self._path, Path):
+            self._path = Path(self._path)
+        return self._path
 
     def __repr__(self):
         return f"NodeStat(path={self.path}, size={self.size_pretty})"
@@ -50,7 +73,7 @@ class DirectoryStat(NodeStat):
 
     def __init__(self,
                  path: Union[str, os.DirEntry],
-                 executor: Optional[ThreadPoolExecutor] = None,
+                 executor: Optional[Thread] = None,
                  on_stats_change=None,
                  parent: 'DirectoryStat' = None):
         super().__init__(path=path)
@@ -63,11 +86,11 @@ class DirectoryStat(NodeStat):
         self.total_items = 0
         self.total_size = 0
 
-        self.executor = executor
-        if self.executor is None:
-            self.executor = ThreadPoolExecutor(max_workers=1)
-
-        self._future = self.executor.submit(self._get_children)
+        self.worker_thread = executor
+        if self.worker_thread is None:
+            self.worker_thread = Thread(target=_worker, daemon=True)
+            self.worker_thread.start()
+        self._future = _submit_work(self._get_children)
 
     def __repr__(self):
         return f"{self.__class__.__name__}(" \
@@ -82,18 +105,20 @@ class DirectoryStat(NodeStat):
 
     @property
     def children(self) -> List['DirectoryStat']:
-        dirs, files = self._future.result()
-        return dirs + files
+        return sum(self._scan_result())
 
     @property
     def directories(self) -> List['DirectoryStat']:
-        dirs, _ = self._future.result()
-        return dirs
+        return self._scan_result()[0]
 
     @property
     def files(self) -> List['NodeStat']:
-        _, files = self._future.result()
-        return files
+        return self._scan_result()[1]
+
+    def _scan_result(self):
+        if isinstance(self._future, Queue):
+            self._future = self._future.get()
+        return self._future
 
     @property
     def total_size_pretty(self):
@@ -102,8 +127,7 @@ class DirectoryStat(NodeStat):
     def _get_children(self):
         try:
             try:
-                scan = os.scandir(self.path)
-                entries = list(scan)
+                entries = os.scandir(self._path)
             except (PermissionError, FileNotFoundError):
                 entries = []
 
@@ -112,12 +136,12 @@ class DirectoryStat(NodeStat):
 
             for entry in entries:
                 try:
-                    self._record_statistics(entry)
+                    self.total_items += 1
                     if not entry.is_symlink():
                         if entry.is_dir() and not os.path.ismount(entry):
                             dirstat = DirectoryStat(
                                 path=entry,
-                                executor=self.executor,
+                                executor=self.worker_thread,
                                 parent=self,
                                 on_stats_change=self.add_items)
                             child_directories.append(dirstat)
@@ -132,13 +156,6 @@ class DirectoryStat(NodeStat):
                                      f"{entry.path}: {type(e)} {e}")
             if len(child_directories) == 0:
                 self.finished.set()
-            #
-            # # Start jobs for future
-            # child_dirstats = [DirectoryStat(
-            #     path=entry,
-            #     executor=self.executor,
-            #     parent=self,
-            #     on_stats_change=self.add_items) for entry in child_directories]
 
             # Get information about child folders
             # child_files = [NodeStat(path=entry) for entry in child_files]
@@ -151,10 +168,6 @@ class DirectoryStat(NodeStat):
             return child_directories, child_files
         except Exception as e:
             print(e, type(e))
-
-    def _record_statistics(self, entry: os.DirEntry):
-        """Get statistics about a file or directory and record them """
-        self.total_items += 1
 
     def add_items(self, changed_dirstat: 'DirectoryStat'):
         """Children nodes call this on parent methods so that parents can
@@ -179,9 +192,11 @@ class DirectoryStat(NodeStat):
 
 
 if __name__ == "__main__":
-    from time import sleep
+    from time import sleep, time
 
-    dirstat = DirectoryStat("/")
+    start = time()
+    dirstat = DirectoryStat("/tmp/delete_this")
     while not dirstat.finished.is_set():
         sleep(0.5)
+        print(time() - start)
         print(dirstat)
