@@ -18,6 +18,7 @@ setup(
         }
     },
     install_requires=[
+        "tdirstat@git+https://github.com/apockill/tdirstat",
         "asciimatics==1.11.0"
     ],
 
