@@ -63,15 +63,10 @@ dependencies = [
     Dependency(apt="lxappearance", arch="lxappearance"),
     Dependency(apt="nitrogen", arch="nitrogen"),
 
-    # awesome-wm specific things
+    # Window manager
     Dependency(apt=None, arch="gnome-shell-extension-material-shell-git"),
-    Dependency(apt="pasystray", arch="pasystray"),
-    Dependency(apt="network-manager-gnome", arch='network-manager-applet'),
-    Dependency(apt="blueman", arch="blueman"),
-    Dependency(apt="parcellite", arch="parcellite"),
-    Dependency(apt="compton", arch="compton"),
-    Dependency(apt="xautolock", arch="xautolock"),
-    Dependency(apt="rofi", arch="rofi"),
+
+    # Useful applications
     Dependency(apt="gnome-system-monitor", arch="gnome-system-monitor"),
 ]
 
