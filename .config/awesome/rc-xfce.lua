@@ -3,10 +3,13 @@
 local gears = require("gears")
 local awful = require("awful")
 require("awful.autofocus")
+
 -- Widget and layout library
 local wibox = require("wibox")
+
 -- Theme handling library
 local beautiful = require("beautiful")
+
 -- Notification library
 local naughty = require("naughty")
 local menubar = require("menubar")
@@ -50,7 +53,6 @@ naughty.config.defaults['icon_size'] = 50
 
 -- @DOC_DEFAULT_APPLICATIONS@
 -- This is used later as the default terminal and editor to run.
-terminal = "kitty"
 filemanager = "pcmanfm"
 browser = "chromium"
 editor = os.getenv("EDITOR") or "vi"

@@ -64,7 +64,7 @@ dependencies = [
     Dependency(apt="nitrogen", arch="nitrogen"),
 
     # awesome-wm specific things
-    Dependency(apt="awesome", arch="awesome"),
+    Dependency(apt=None, arch="gnome-shell-extension-material-shell-git"),
     Dependency(apt="pasystray", arch="pasystray"),
     Dependency(apt="network-manager-gnome", arch='network-manager-applet'),
     Dependency(apt="blueman", arch="blueman"),
@@ -85,7 +85,12 @@ else:
         Dependency(aur="nautilus-terminal")
     ]
 
-if __name__ == "__main__":
+
+def install_dependencies():
     for dep in dependencies:
         dep.install()
 
+
+if __name__ == "__main__":
+    input("Press enter to install dependencies")
+    install_dependencies()

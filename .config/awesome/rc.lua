@@ -23,21 +23,12 @@ brightness_cmd = "xrandr --output $(xrandr | grep 'eDP' | cut -d' ' -f1) --brigh
 -- State Variables
 current_brightness = 1.0
 
--- Enable hotkeys help widget for VIM and other apps
--- when client with a matching name is opened:
-require("awful.hotkeys_popup.keys")
-
--- Load menu entries
---[[
-local has_fdo, freedesktop = pcall(require, "freedesktop")
-]]
-
 -- {{{ Error handling
 -- Check if awesome encountered an error during startup and fell back to
 -- another config (This code will only ever execute for the fallback config)
 if awesome.startup_errors then
     naughty.notify({ preset = naughty.config.presets.critical,
-                     title = "Oops, there were errors during startup!",
+                     title = "uWu buWu monkey wunkey! there were errors during startup!",
                      text = awesome.startup_errors })
 end
 
