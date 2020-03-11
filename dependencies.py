@@ -29,7 +29,7 @@ class Dependency:
                 check=True)
         elif is_ubuntu:
             subprocess.run(
-                ["sudo", "apt-get", "--assume-yes", self.apt],
+                ["sudo", "apt-get", "install", "--assume-yes", self.apt],
                 check=True)
         elif self.pacman is not None:
             subprocess.run(
@@ -47,24 +47,19 @@ dependencies = [
     # For development
     Dependency(apt="git", arch="git"),
     Dependency(apt="python-pip", arch="python-pip"),
-    Dependency(apt="trickle", aur="trickle"),
 
     # Applications
     Dependency(apt="spectacle", arch="spectacle"),
-    Dependency(apt="arandr", arch="arandr"),
     Dependency(apt="qdirstat", aur="qdirstat"),
-    Dependency(apt="pavucontrol", arch="pavucontrol"),
     Dependency(apt="nautilus", arch="nautilus"),
     Dependency(apt="chromium-browser", aur="google-chrome"),
     Dependency(apt="gnome-terminal", arch="gnome-terminal"),
 
     # Configuration
     Dependency(apt="gnome-disks", aur="gnome-disk-utility"),
-    Dependency(apt="lxappearance", arch="lxappearance"),
-    Dependency(apt="nitrogen", arch="nitrogen"),
 
     # Window manager
-    Dependency(apt=None, arch="gnome-shell-extension-material-shell-git"),
+    # Dependency(apt=None, arch="gnome-shell-extension-material-shell-git"),
 
     # Useful applications
     Dependency(apt="gnome-system-monitor", arch="gnome-system-monitor"),
