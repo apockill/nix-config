@@ -46,17 +46,16 @@ class Dependency:
 dependencies = [
     # For development
     Dependency(apt="git", arch="git"),
-    Dependency(apt="python-pip", arch="python-pip"),
+    Dependency(apt="python3-pip", arch="python-pip"),
 
     # Applications
-    Dependency(apt="spectacle", arch="spectacle"),
     Dependency(apt="qdirstat", aur="qdirstat"),
     Dependency(apt="nautilus", arch="nautilus"),
     Dependency(apt="chromium-browser", aur="google-chrome"),
     Dependency(apt="gnome-terminal", arch="gnome-terminal"),
 
     # Configuration
-    Dependency(apt="gnome-disks", aur="gnome-disk-utility"),
+    Dependency(apt="gnome-disk-utility", aur="gnome-disk-utility"),
 
     # Window manager
     # Dependency(apt=None, arch="gnome-shell-extension-material-shell-git"),
