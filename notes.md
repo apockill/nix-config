@@ -13,7 +13,7 @@ git clone https://github.com/PapyElGringo/material-shell.git ~/.local/share/gnom
 gnome-shell-extension-tool -e material-shell@papyelgringo
 ```
 Now restart the shell by hitting `Alt+F2` and typing 'r'.
-```
+
 
 ### X-Box One Controller Drivers
 ```
@@ -26,4 +26,12 @@ sudo ./install.sh
 If using ubuntus desktop, try these tweaks:
 ```
 gsettings set org.gnome.mutter workspaces-only-on-primary false
+```
+
+## Changing the docker data root
+Add the following to the daemon.json
+```json
+{
+  "data-root": "path/to/cache/directory"
+}
 ```

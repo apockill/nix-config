@@ -46,6 +46,7 @@ class Dependency:
 dependencies = [
     # For development
     Dependency(apt="git", arch="git"),
+    Dependency(apt="git-lfs", arch="git-lfs"),
     Dependency(apt="python3-pip", arch="python-pip"),
 
     # Applications
@@ -56,6 +57,7 @@ dependencies = [
 
     # Configuration
     Dependency(apt="gnome-disk-utility", aur="gnome-disk-utility"),
+    Dependency(apt="gnome-tweak-tool"),
 
     # Window manager
     # Dependency(apt=None, arch="gnome-shell-extension-material-shell-git"),
