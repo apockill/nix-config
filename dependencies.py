@@ -67,6 +67,9 @@ dependencies = [
 # Add platform-specific dependencies
 if is_ubuntu:
     dependencies += [
+        # Nautilus-terminal dependencies
+        Dependency(apt="python3-nautilus"),
+        Dependency(apt="python3-psutil"),
         Dependency(pip3="nautilus-terminal")
     ]
 else:
