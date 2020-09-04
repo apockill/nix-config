@@ -54,6 +54,7 @@ dependencies = [
     Dependency(apt="nautilus", arch="nautilus"),
     Dependency(apt="chromium-browser", aur="google-chrome"),
     Dependency(apt="gnome-terminal", arch="gnome-terminal"),
+    Dependency(apt="flameshot", arch="flameshot"),
 
     # Configuration
     Dependency(apt="gnome-disk-utility", aur="gnome-disk-utility"),
