@@ -1,0 +1,4 @@
+Run this command in order for Ubuntu to not use Super+# to be for the favorites bar, but for whatever I actually want it to do:
+
+gsettings set org.gnome.shell.extensions.dash-to-dock hot-keys false
+
