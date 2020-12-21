@@ -1,0 +1,19 @@
+Performance modes:
+	sudo surface performance set #
+
+sudo apt install linux-image-5.9.14-surface linux-headers-5.9.14-surface iptsd libwacom-surface 
+
+# nvidia installation
+Install using ubuntu's additional drivers GUI. Install nvidia-driver-450-proprietary
+
+# If you mess up, 
+sudo apt-get remove --purge '^nvidia-.*'
+
+# dgpu setup
+dynamic power control: https://support.system76.com/articles/graphics-switch-ubuntu/
+
+
+DONT INSTALL system76-driver or system76-driver-nvidia, they offer too-new nvidia versions. 
+Instead, installed nvidia-driver-440 (it seemed to install 450, but whatevs?)
+
+
