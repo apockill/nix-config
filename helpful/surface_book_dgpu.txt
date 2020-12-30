@@ -17,3 +17,10 @@ DONT INSTALL system76-driver or system76-driver-nvidia, they offer too-new nvidi
 Instead, installed nvidia-driver-440 (it seemed to install 450, but whatevs?)
 
 
+
+#########################trying to get cuda to work #############
+From: https://support.system76.com/articles/cuda/
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 204DD8AEC33A7AFF
+sudo apt install system76-cudnn-10.2
+sudo apt update
+

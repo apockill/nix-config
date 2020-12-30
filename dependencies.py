@@ -8,15 +8,18 @@ if not is_ubuntu:
 
 
 class Dependency:
-    def __init__(self, *, apt=None, arch=None, aur=None, pip3=None):
+    def __init__(self, *, apt=None, snap=None, arch=None, aur=None, pip3=None):
         assert not (arch is not None and aur is not None), \
             f"That doesn't make any sense! Pacman: {arch} Aur: {aur}"
+        assert not (apt is not None and snap is not None), \
+            f"You shouldn't have both apt and snap for the same package!"  
         assert not (pip3 is not None and
                     (apt is not None or arch is not None or aur is not None)), \
             "pip3 is platform independent! It must be the only dependency"
-        assert apt or arch or aur or pip3, \
+        assert apt or snap or arch or aur or pip3, \
             "At least one package manager must be specified"
         self.apt = apt
+        self.snap = snap
         self.pacman = arch
         self.aur = aur
         self.pip3 = pip3
@@ -27,9 +30,13 @@ class Dependency:
             subprocess.run(
                 ["pip3", "install", self.pip3],
                 check=True)
-        elif is_ubuntu:
+        elif is_ubuntu and self.apt:
             subprocess.run(
                 ["sudo", "apt-get", "install", "--assume-yes", self.apt],
+                check=True)
+        elif is_ubuntu and self.snap:
+            subprocess.run(
+                ["sudo", "snap", "install", self.snap],
                 check=True)
         elif self.pacman is not None:
             subprocess.run(
@@ -52,9 +59,10 @@ dependencies = [
     # Applications
     Dependency(apt="qdirstat", aur="qdirstat"),
     Dependency(apt="nautilus", arch="nautilus"),
-    Dependency(apt="chromium-browser", aur="google-chrome"),
+    Dependency(snap="chromium", aur="google-chrome"),
     Dependency(apt="gnome-terminal", arch="gnome-terminal"),
-    Dependency(apt="flameshot", arch="flameshot"),
+    Dependency(snap="flameshot", arch="flameshot"),
+    Dependency(snap="spotify", arch="flameshot"),
 
     # Configuration
     Dependency(apt="gnome-disk-utility", aur="gnome-disk-utility"),
