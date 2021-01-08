@@ -4,17 +4,12 @@ Performance modes:
 sudo apt install linux-image-5.9.14-surface linux-headers-5.9.14-surface iptsd libwacom-surface 
 
 # nvidia installation
-Install using ubuntu's additional drivers GUI. Install nvidia-driver-450-proprietary
-
+sudo apt install nvidia-driver-455
 # If you mess up, 
 sudo apt-get remove --purge '^nvidia-.*'
 
 # dgpu setup
 dynamic power control: https://support.system76.com/articles/graphics-switch-ubuntu/
-
-
-DONT INSTALL system76-driver or system76-driver-nvidia, they offer too-new nvidia versions. 
-Instead, installed nvidia-driver-440 (it seemed to install 450, but whatevs?)
 
 
 
@@ -24,3 +19,15 @@ sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 204DD8AEC33A7AFF
 sudo apt install system76-cudnn-10.2
 sudo apt update
 
+
+# Combinations that work:
+Kernel 5.9 NVIDIA 455 (cuda doesn't work)
+
+# Combinations that don't seem to work
+Kernel 5.8.15 NVIDIA 455
+Kernel 5.8.15 NVIDIA 450
+
+###### 
+sudo apt install linux-image-4.19.163-surface-lts linux-headers-4.19.163-surface-lts iptsd libwacom-surface 
+sudo apt install nvidia-driver-418
+# ^ for some godamn reason this installs nvidia-driver-450. Idk. It works.

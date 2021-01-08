@@ -7,3 +7,8 @@ source PATH/TO/custom_env_vars.sh
 ```
 3) Run ```bash install_dependencies.sh```
 3) Run ```python PATH/TO/DOTFILES/install_dotfiles.py```
+
+
+# Screenshots
+[Switching screenshot application to flameshot](https://askubuntu.com/questions/1036473/ubuntu-18-how-to-change-screenshot-application-to-flameshot)
+
