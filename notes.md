@@ -27,11 +27,3 @@ If using ubuntus desktop, try these tweaks:
 ```
 gsettings set org.gnome.mutter workspaces-only-on-primary false
 ```
-
-## Changing the docker data root
-Add the following to the daemon.json
-```json
-{
-  "data-root": "path/to/cache/directory"
-}
-```
