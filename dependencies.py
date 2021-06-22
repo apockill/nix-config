@@ -59,7 +59,6 @@ dependencies = [
     # Applications
     Dependency(apt="qdirstat", aur="qdirstat"),
     Dependency(apt="nautilus", arch="nautilus"),
-    Dependency(snap="chromium", aur="google-chrome"),
     Dependency(apt="gnome-terminal", arch="gnome-terminal"),
     Dependency(snap="flameshot", arch="flameshot"),
     Dependency(snap="spotify", arch="flameshot"),
