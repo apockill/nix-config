@@ -1,6 +1,0 @@
-# Run this command in order for Ubuntu to not use Super+# to be for the favorites bar, but for whatever I actually want it to do:
-# https://askubuntu.com/questions/1160234/customize-super-n-behavior
-
-gsettings set org.gnome.shell.extensions.dash-to-dock hot-keys false
-gsettings set org.gnome.shell.extensions.dash-to-dock app-hotkey-1 '[]'
-gsettings set org.gnome.shell.keybindings switch-to-application-1 '[]'
