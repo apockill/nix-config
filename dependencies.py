@@ -77,9 +77,12 @@ dependencies = [
 # Add platform-specific dependencies
 if is_ubuntu:
     dependencies += [
-        # Nautilus-terminal dependencies
+        # Nautilus-terminal dependencies, as per instructions
+        # https://github.com/flozz/nautilus-terminal
         Dependency(apt="python3-nautilus"),
         Dependency(apt="python3-psutil"),
+        Dependency(apt="libglib2.0-bin"),
+        Dependency(apt="dconf-editor"),
         Dependency(pip3="nautilus-terminal")
     ]
 else:
@@ -96,3 +99,8 @@ def install_dependencies():
 if __name__ == "__main__":
     input("Press enter to install dependencies")
     install_dependencies()
+    
+    #### Run final installations
+    
+    # For nautilus-terminal:
+    subprocess.run(["python3", "-m", "nautilus_terminal", "--install-user"], check=True)

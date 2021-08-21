@@ -1,7 +1,7 @@
 # Keyboard Shortcuts
 
 Super+E: File explorer
-Super+Q: Close selected winot
+Super+Q: Close selected window
 Super+T: Open terminal
 Shift+Ctrl+Escape: gnome-system-monitor
 

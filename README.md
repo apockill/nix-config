@@ -1,8 +1,34 @@
 # Installation
 
-1) Create a copy of default_env_vars.sh, and call it custom_env_vars.sh (name doesn't matter)
-2) Run ```python3 dependencies.py```
-3) Run ```bash cat helpful/scripts/.bashrc-addon.sh >> ~/.bashrc```
+The following is a haphazard todo-list for setting up a newly installed system to my liking. 
+
+## Basic Configuration
+1) Run `python3 dependencies.py`
+1) Run `cat helpful/scripts/.bashrc-addon.sh >> ~/.bashrc`
+1) Install pop-shell using `helpful/pop-shell.md` Do this before the next step, because it will reset some keyboard shortcuts.
+1) Open `gnome-tweaks` and set:
+    - Workspaces:
+        - Static Workspaces, 5
+    - Windows:
+        - Focus on Hover
+    - Appearance: 
+        - Themes: Applications: Adwaita Dark
+1) Run `bash helpful/scripts/disable-hotbar-super-keys.sh`
+1) Manually configure keyboard shortcuts using instructions under `helpful/keyboard-shortcuts.md`
+1) Optionally, configure grub using `helpful/grub_defaults.md`
+1) Optionally, install system76-power:
+   ```shell
+   sudo apt-add-repository ppa:system76-dev/stable
+   sudo apt install gnome-shell-extension-system76-power system76-power
+   ```
+## Install Extra Programs
+
+1) Set up insync. [Instructions](https://www.insynchq.com/downloads)
+
+
+## Docker Cheat Sheet
+### Docker Cache On a Separate Drive
+1) Follow instructions under `helpful/docker-cache-separate-drive.md`
 
 # Screenshots
 [Switching screenshot application to flameshot](https://askubuntu.com/questions/1036473/ubuntu-18-how-to-change-screenshot-application-to-flameshot)
