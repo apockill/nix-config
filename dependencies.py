@@ -67,8 +67,8 @@ dependencies = [
     Dependency(apt="gnome-disk-utility", aur="gnome-disk-utility"),
     Dependency(apt="gnome-tweak-tool"),
 
-    # Window manager
-    # Dependency(apt=None, arch="gnome-shell-extension-material-shell-git"),
+    # Gnome Extensions
+    Dependency(apt="gnome-shell-extension-system-monitor"),
 
     # Useful applications
     Dependency(apt="gnome-system-monitor", arch="gnome-system-monitor"),
