@@ -4,6 +4,5 @@ alias bf='brainframe'
 alias bfc='brainframe compose'
 alias grepnt="grep --invert-match"
 alias highlight='grep --color=always -z'
-export HDDL_INSTALL_DIR=/opt/intel/openvino/deployment_tools/inference_engine/external/hddl/
-
+export PS1="\[$(tput bold)\]\[\033[38;5;10m\]\u@\h\[$(tput sgr0)\]: \[$(tput sgr0)\]\[$(tput bold)\]\[\033[38;5;14m\]\w\[$(tput sgr0)\]\n⚔️  \[$(tput sgr0)\]"
 
