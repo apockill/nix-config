@@ -33,3 +33,14 @@ The following is a haphazard todo-list for setting up a newly installed system t
 # Screenshots
 [Switching screenshot application to flameshot](https://askubuntu.com/questions/1036473/ubuntu-18-how-to-change-screenshot-application-to-flameshot)
 
+# Customizations
+
+## Transparency
+You can adjust the taskbar transparency using this command:
+
+```
+gsettings set org.gnome.shell.extensions.dash-to-dock background-opacity 0.2
+```
+
+Then adjust the top bar transparency using the [Transparent Top Bar](https://extensions.gnome.org/extension/1708/transparent-top-bar/) extension.
+
