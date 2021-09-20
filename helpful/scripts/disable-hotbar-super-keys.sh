@@ -4,6 +4,9 @@
 # Then you have to do that for each number you want to override, 
 # by changing "1" to the requisite digit
 
+gsettings set org.gnome.shell.extensions.dash-to-dock hot-keys false
+
+
 set -e
 for NUMBER in 1 2 3 4
 do 
