@@ -61,7 +61,8 @@ dependencies = [
     Dependency(apt="nautilus", arch="nautilus"),
     Dependency(apt="gnome-terminal", arch="gnome-terminal"),
     Dependency(snap="flameshot", arch="flameshot"),
-    Dependency(snap="spotify", arch="flameshot"),
+    Dependency(snap="spotify", arch="spotify"),
+    Dependency(snap="xournalpp"),
 
     # Configuration
     Dependency(apt="gnome-disk-utility", aur="gnome-disk-utility"),
