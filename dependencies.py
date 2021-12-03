@@ -51,6 +51,9 @@ class Dependency:
 
 
 dependencies = [
+    # Alternative Package Managers
+    Dependency(apt="pipx"),
+    
     # For development
     Dependency(apt="git", arch="git"),
     Dependency(apt="git-lfs", arch="git-lfs"),
