@@ -9,6 +9,7 @@ license = "MIT"
 axls = 'tools:ls'
 axexplore = 'tools:file_explorer'
 axgitgc = 'tools:git_gc'
+axgitbranchdiff = 'tools:git_branch_diff'
 
 [tool.poetry.dependencies]
 python = "^3.6"

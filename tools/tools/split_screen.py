@@ -12,8 +12,7 @@ class Monitor(NamedTuple):
 
 
 def get_monitor_information() -> List[Monitor]:
-    proc = run(["xrandr", "--listactivemonitors"], check=True,
-               stderr=PIPE, stdout=PIPE)
+    proc = run(["xrandr", "--listactivemonitors"], check=True, stderr=PIPE, stdout=PIPE)
 
     monitor_descriptions = str(proc.stdout, encoding="utf-8").split("\n")[1:]
     monitors = []
@@ -36,13 +35,15 @@ def get_monitor_information() -> List[Monitor]:
         height_px = int(height_info[0])
         height_mm = int(height_info[1])
 
-        monitors.append(Monitor(
-            name=name,
-            width_mm=width_mm,
-            width_px=width_px,
-            height_mm=height_mm,
-            height_px=height_px
-        ))
+        monitors.append(
+            Monitor(
+                name=name,
+                width_mm=width_mm,
+                width_px=width_px,
+                height_mm=height_mm,
+                height_px=height_px,
+            )
+        )
     return monitors
 
 
@@ -58,8 +59,10 @@ def split_number(number, n_splits) -> List[int]:
 
 def split_monitor(monitor: Monitor, n_splits: int):
     """Split the monitor vertically"""
-    all_px_mm = zip(split_number(monitor.width_px, n_splits),
-                    split_number(monitor.width_mm, n_splits))
+    all_px_mm = zip(
+        split_number(monitor.width_px, n_splits),
+        split_number(monitor.width_mm, n_splits),
+    )
     total_w_offset = 0
     for i, px_mm in enumerate(all_px_mm):
         w_px, w_mm = px_mm
@@ -71,7 +74,7 @@ def split_monitor(monitor: Monitor, n_splits: int):
             f"{monitor.name}~{i + 1}",
             f"{w_px}/{w_mm}x{monitor.height_px}/{monitor.height_mm}"
             f"+{total_w_offset}+{0}",
-            associate_name
+            associate_name,
         ]
         total_w_offset += w_px
         run(cmd, check=True)
