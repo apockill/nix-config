@@ -25,6 +25,11 @@ The following is a haphazard todo-list for setting up a newly installed system t
 
 1) Set up insync. [Instructions](https://www.insynchq.com/downloads)
 
+## Install Gnome Extensions
+1) Go to the extensions website and install:
+    ```shell
+    https://extensions.gnome.org/extension/2950/compiz-alike-windows-effect/
+    ```
 
 ## Docker Cheat Sheet
 ### Docker Cache On a Separate Drive
