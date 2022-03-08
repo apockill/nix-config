@@ -29,6 +29,7 @@ The following is a haphazard todo-list for setting up a newly installed system t
 1) Go to the extensions website and install:
     ```shell
     https://extensions.gnome.org/extension/2950/compiz-alike-windows-effect/
+    https://extensions.gnome.org/extension/4679/burn-my-windows/
     ```
 
 ## Docker Cheat Sheet
