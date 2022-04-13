@@ -58,21 +58,21 @@ dependencies = [
     Dependency(apt="git", arch="git"),
     Dependency(apt="git-lfs", arch="git-lfs"),
     Dependency(apt="python3-pip", arch="python-pip"),
+    Dependency(snap="pycharm-professional"),
 
     # Applications
     Dependency(apt="qdirstat", aur="qdirstat"),
     Dependency(apt="nautilus", arch="nautilus"),
     Dependency(apt="gnome-terminal", arch="gnome-terminal"),
-    Dependency(snap="flameshot", arch="flameshot"),
     Dependency(snap="spotify", arch="spotify"),
     Dependency(snap="xournalpp"),
+    
+    # btrfs Management
+    Dependency(apt="timeshift"),
 
     # Configuration
     Dependency(apt="gnome-disk-utility", aur="gnome-disk-utility"),
-    Dependency(apt="gnome-tweak-tool"),
-
-    # Gnome Extensions
-    Dependency(apt="gnome-shell-extension-system-monitor"),
+    Dependency(apt="gnome-tweaks"),
 
     # Useful applications
     Dependency(apt="gnome-system-monitor", arch="gnome-system-monitor"),
