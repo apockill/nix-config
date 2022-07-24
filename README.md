@@ -31,6 +31,8 @@ The following is a haphazard todo-list for setting up a newly installed system t
 
 1) Optionally, configure grub using `helpful/grub_defaults.md`
 
+1) Optionally, configure grub themes using `helpful/grub_themes.md`
+
 1) Optionally, install system76-power:
    ```shell
    sudo apt-add-repository ppa:system76-dev/stable
