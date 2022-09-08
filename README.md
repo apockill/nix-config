@@ -51,6 +51,7 @@ The following is a haphazard todo-list for setting up a newly installed system t
     https://extensions.gnome.org/extension/120/system-monitor/
     https://extensions.gnome.org/extension/906/sound-output-device-chooser/
     https://extensions.gnome.org/extension/1708/transparent-top-bar/
+    https://extensions.gnome.org/extension/545/hide-top-bar/
     ```
 
 ## Docker Cheat Sheet
