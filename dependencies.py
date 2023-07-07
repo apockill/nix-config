@@ -73,6 +73,7 @@ dependencies = [
     # Configuration
     Dependency(apt="gnome-disk-utility", aur="gnome-disk-utility"),
     Dependency(apt="gnome-tweaks"),
+    Dependency(apt="gnome-shell-extension-manager"),
 
     # Useful applications
     Dependency(apt="gnome-system-monitor", arch="gnome-system-monitor"),
