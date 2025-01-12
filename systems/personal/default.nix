@@ -7,6 +7,7 @@
 {
   imports =
     [ 
+      ./users
     ];
 
   # Bootloader.
