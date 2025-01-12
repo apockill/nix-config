@@ -19,7 +19,7 @@
         specialArgs = {inherit inputs;};
         modules = [
           ./hardware/dell-xps-15
-          ./configuration.nix
+          ./systems/personal
         ];
       };
     };

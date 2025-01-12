@@ -110,6 +110,12 @@
     spotify
     spotify-tray
     google-chrome
+    satty
+    
+    # Insync
+    insync
+    insync-nautilus
+    insync-emblem-icons  # Untested if needed
     
     # Alternative package managers
     pipx
