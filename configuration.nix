@@ -96,9 +96,25 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-  #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-  #  wget
+    # Gnome setup
+    gnomeExtensions.pop-shell
+  
+    # CLI tools for development
     git
+    git-lfs
+    
+    # GUI Applications
+    jetbrains.pycharm-professional
+    warp-terminal
+    qdirstat
+    spotify
+    spotify-tray
+    google-chrome
+    
+    # Alternative package managers
+    pipx
+    
+    
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
