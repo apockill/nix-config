@@ -111,7 +111,9 @@
     spotify
     spotify-tray
     google-chrome
-    satty
+    
+    # Screenshots
+    flameshot
     
     # Insync
     insync

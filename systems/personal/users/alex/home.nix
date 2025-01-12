@@ -8,9 +8,9 @@
     };
   
     "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot-key" = {
-      name = "Take Screenshot with satty";
-      command = "satty";
-      binding = "<Primary>Home";  # Ctrl + Home
+      name = "Take Screenshot with Flameshot";
+      command = "script --command 'flameshot gui'";
+      binding = "<Super>Home";  # Ctrl + Home
     };
   };
   
