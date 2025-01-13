@@ -7,11 +7,16 @@
   
   # Keybindings
   dconf.settings = {
-    # Enable extensions
+    # Enable gnome extensions
     "org/gnome/shell" = {
       enabled-extensions = [pkgs.gnomeExtensions.pop-shell.extensionUuid];
       disabled-extensions = [];
       disable-user-extensions = false;
+    };
+    
+    # Set 'window focuses on hover' mode
+    "org/gnome/desktop/wm/preferences" = {
+      focus-mode = "sloppy";
     };
     
     
