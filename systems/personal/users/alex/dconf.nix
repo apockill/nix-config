@@ -25,7 +25,7 @@
           "spotify.desktop"
         ];
     };
-    
+
     # Power settings
     "org/gnome/desktop/session" = {
       # Disable screen timeout
@@ -34,6 +34,10 @@
     "org/gnome/settings-daemon/plugins/power" = {
       # Disable automatic suspend when plugged in
       sleep-inactive-ac-type = "nothing";
+    };
+    "org/gnome/desktop/screensaver" = {
+        # Disable the laptop locking when the screen turns off
+        lock-enable = false;
     };
 
     # System Monitor Settings
