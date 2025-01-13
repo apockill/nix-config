@@ -9,7 +9,11 @@
   dconf.settings = {
     # Enable gnome extensions
     "org/gnome/shell" = {
-      enabled-extensions = [pkgs.gnomeExtensions.pop-shell.extensionUuid];
+      enabled-extensions = [
+        pkgs.gnomeExtensions.pop-shell.extensionUuid
+        pkgs.gnomeExtensions.system-monitor.extensionUuid
+        pkgs.gnomeExtensions.workspace-indicator.extensionUuid
+      ];
       disabled-extensions = [];
       disable-user-extensions = false;
     };
