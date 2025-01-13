@@ -26,6 +26,13 @@
         ];
     };
 
+    # Wallpaper
+    "org/gnome/desktop/background" = {
+        picture-uri = "file:///home/alex/dotfiles/wallpapers/5120x1440-wallpaper.jpg";
+        picture-uri-dark = "file:///home/alex/dotfiles/wallpapers/5120x1440-wallpaper.jpg";
+        picture-options = "zoom";
+    };
+
     # Power settings
     "org/gnome/desktop/session" = {
       # Disable screen timeout
