@@ -19,6 +19,11 @@
       focus-mode = "sloppy";
     };
     
+    # Gnome Theming
+    "org/gnome/desktop/interface" = {
+      color-scheme = "prefer-dark";
+      accent-color = "orange";
+    };
     
     # Set up window moving / workspace moving key bindings
     "org/gnome/desktop/wm/keybindings" = {     
