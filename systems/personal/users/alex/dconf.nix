@@ -58,6 +58,13 @@
       switch-to-workspace-3 = ["<Super>3"];
       switch-to-workspace-4 = ["<Super>4"];
     };
+    # Disable the default "<Super>#" opening applications on the app toolbar
+    "org/gnome/shell/keybindings" = {     
+      switch-to-application-1 = [];
+      switch-to-application-2 = [];
+      switch-to-application-3 = [];
+      switch-to-application-4 = [];
+    };
     
     ### APPLICATION SHORTCUTS
     # Set up per-application special keybindings
