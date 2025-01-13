@@ -13,6 +13,18 @@
       color-scheme = "prefer-dark";
       accent-color = "orange";
     };
+
+    # Gnome Toolbar Favorite Apps
+    "org/gnome/shell" = {
+        favorite-apps = [
+          "google-chrome.desktop"
+          "dev.warp.Warp.desktop"
+          "org.gnome.Nautilus.desktop"
+          "org.gnome.TextEditor.desktop"
+          "org.gnome.SystemMonitor.desktop"
+          "spotify.desktop"
+        ];
+    };
     
     # Power settings
     "org/gnome/desktop/session" = {
@@ -23,14 +35,30 @@
       # Disable automatic suspend when plugged in
       sleep-inactive-ac-type = "nothing";
     };
+
+    # System Monitor Settings
+    "org/gnome/gnome-system-monitor" = {
+      cpu-stacked-area-chart = true;
+      graph-data-points = 600;
+    };
     
-    ### EXTENSIONS
+    ### GNOME EXTENSIONS & EXTENSION SETTINGS
     # Configure Pop Shell
     "org/gnome/shell/extensions/pop-shell" = {
       tile-by-default = true;
     };
     "org/gnome/mutter" = {
       edge-tiling = false;
+    };
+
+    # Configure "Auto Move Windows" extension with specific application -> workspace pairs
+    "org/gnome/shell/extensions/auto-move-windows" = {
+        application-list = [
+          "pycharm-professional.desktop:2"
+          "spotify.desktop:4"
+          "org.gnome.SystemMonitor.desktop:4"
+          "insync.desktop:4"
+        ];
     };
     
     # Enable gnome extensions
@@ -39,6 +67,7 @@
         pkgs.gnomeExtensions.pop-shell.extensionUuid
         pkgs.gnomeExtensions.system-monitor.extensionUuid
         pkgs.gnomeExtensions.workspace-indicator.extensionUuid
+        pkgs.gnomeExtensions.auto-move-windows.extensionUuid
       ];
       disabled-extensions = [];
       disable-user-extensions = false;
