@@ -105,9 +105,12 @@
     
     # Insync
     insync
-    insync-nautilus
     insync-emblem-icons  # Untested if needed
-    
+    insync-nautilus
+
+    # Nautilus
+    nautilus-open-any-terminal
+
     # Alternative package managers
     pipx
     
