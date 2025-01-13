@@ -99,6 +99,7 @@
     google-chrome
     dconf-editor
     gnome-tweaks
+    anydesk
     
     # Screenshots
     flameshot
