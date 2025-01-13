@@ -4,8 +4,10 @@
 { config, lib, pkgs, modulesPath, ... }:
 
 {
-  imports =
-    [ (modulesPath + "/installer/scan/not-detected.nix")
+  # THE ONLY EDITS TO THIS FILE ARE THE IMPORTS!
+  imports = [
+      (modulesPath + "/installer/scan/not-detected.nix")
+      ./nvidia.nix
     ];
 
   boot.initrd.availableKernelModules = [ "xhci_pci" "thunderbolt" "nvme" "usb_storage" "usbhid" "sd_mod" "rtsx_pci_sdmmc" ];
