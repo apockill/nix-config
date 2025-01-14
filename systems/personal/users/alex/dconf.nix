@@ -23,6 +23,7 @@
           "org.gnome.TextEditor.desktop"
           "org.gnome.SystemMonitor.desktop"
           "spotify.desktop"
+          "pycharm-professional.desktop"
         ];
     };
 
