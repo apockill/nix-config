@@ -11,7 +11,7 @@ sudo nixos-rebuild --flake . switch
 ```
 
 
-If you run into an error about "blah blah does not provide attribute..." it's possible you're chaning the hostname from what existed prior. If so, you may need to run the following once (assumes agilite is your hostname):
+If you run into an error about "blah blah does not provide attribute..." it's possible you're changing the hostname from what existed prior. If so, you may need to run the following once (assumes agilite is your hostname):
 
 ```
 sudo nixos-rebuild --flake .#agilite switch
