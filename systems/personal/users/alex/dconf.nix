@@ -56,7 +56,16 @@
 
     # File explorer settings
     "org/gtk/gtk4/settings/file-chooser" = {
+        # Show hidden files
         show-hidden = true;
+    };
+    "org/gnome/nautilus/preferences" = {
+        # Show "Create symlink" in context menu
+        show-create-link = true;
+    };
+    "org/gnome/nautilus/list-view" = {
+        # Allow expanding folders when in list view
+        use-tree-view = true;
     };
     
     ### GNOME EXTENSIONS & EXTENSION SETTINGS
