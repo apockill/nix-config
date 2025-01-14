@@ -17,12 +17,15 @@
   networking.hostName = "agilite"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
+  # Enable flakes
+  nix.settings = {
+    experimental-features = ["nix-command" "flakes"];
+    auto-optimise-store = true;
+  };
+
   # Configure network proxy if necessary
   # networking.proxy.default = "http://user:password@proxy:port/";
   # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
-
-  # Enable networking
-  networking.networkmanager.enable = true;
 
   # Set your time zone.
   time.timeZone = "America/Los_Angeles";
@@ -42,21 +45,21 @@
     LC_TIME = "en_US.UTF-8";
   };
 
-  # Enable the X11 windowing system.
-  services.xserver.enable = true;
-
-  # Enable the GNOME Desktop Environment.
-  services.xserver.displayManager.gdm.enable = true;
-  services.xserver.desktopManager.gnome.enable = true;
-
   # Configure keymap in X11
   services.xserver.xkb = {
     layout = "us";
     variant = "";
   };
 
-  # Enable CUPS to print documents.
+  # System setup
+  networking.networkmanager.enable = true;
   services.printing.enable = true;
+  nixpkgs.config.allowUnfree = true;
+
+  # WM Setup
+  services.xserver.enable = true;
+  services.xserver.displayManager.gdm.enable = true;
+  services.xserver.desktopManager.gnome.enable = true;
 
   # Enable sound with pipewire.
   hardware.pulseaudio.enable = false;
@@ -77,14 +80,13 @@
   # Enable touchpad support (enabled default in most desktopManager).
   # services.xserver.libinput.enable = true;
 
-  # Allow unfree packages
-  nixpkgs.config.allowUnfree = true;
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-    # Gnome setup
+    # Extensions (gnome or otherwise)
     gnomeExtensions.pop-shell
+    nautilus-open-any-terminal
   
     # CLI tools for development
     git
@@ -109,8 +111,9 @@
     insync-emblem-icons  # Untested if needed
     insync-nautilus
 
-    # Nautilus
-    nautilus-open-any-terminal
+    # Developer tooling (non GUI)
+    uv
+    poetry
 
     # Alternative package managers
     pipx

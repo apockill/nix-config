@@ -36,8 +36,8 @@
 
     # Power settings
     "org/gnome/desktop/session" = {
-      # Set a 15m screen timeout
-      idle-delay = lib.hm.gvariant.mkUint32(900);
+      # Disable screen time out because (as of 2025-01) it seems to hybernate
+      idle-delay = lib.hm.gvariant.mkUint32(0);
     };
     "org/gnome/settings-daemon/plugins/power" = {
       # Disable automatic suspend when plugged in
