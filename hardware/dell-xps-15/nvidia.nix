@@ -5,6 +5,9 @@
   # Enable OpenGL
   hardware.graphics = {
     enable = true;
+
+    # If you want virtualisation.docker.enableNvidia=True, you need this flag
+    enable32Bit = true;
   };
 
   # Load nvidia driver for Xorg and Wayland

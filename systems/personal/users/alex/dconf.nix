@@ -24,6 +24,7 @@
           "org.gnome.SystemMonitor.desktop"
           "spotify.desktop"
           "pycharm-professional.desktop"
+          "insync.desktop"
         ];
     };
 

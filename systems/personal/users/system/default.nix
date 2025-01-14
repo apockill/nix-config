@@ -2,5 +2,6 @@
 { ... }: {
   imports = [
     ./nautilus.nix
+    ./docker.nix
   ];
 }
