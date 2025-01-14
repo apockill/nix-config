@@ -53,6 +53,11 @@
       cpu-stacked-area-chart = true;
       graph-data-points = 600;
     };
+
+    # File explorer settings
+    "org/gtk/gtk4/settings/file-chooser" = {
+        show-hidden = true;
+    };
     
     ### GNOME EXTENSIONS & EXTENSION SETTINGS
     # Configure Pop Shell
@@ -85,7 +90,7 @@
       disable-user-extensions = false;
     };
     
-    
+
     # Set up window moving / workspace moving key bindings
     "org/gnome/desktop/wm/keybindings" = {     
       
