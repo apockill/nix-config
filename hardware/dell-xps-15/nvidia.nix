@@ -45,6 +45,12 @@
     package = config.boot.kernelPackages.nvidiaPackages.stable;
   };
 
+  # Set up system76-power with the options it needs to work
+  hardware.system76.power-daemon.enable= true;
+  environment.systemPackages = with pkgs; [
+    system76-power
+  ];
+
   # ignore lid switches
   services.logind.lidSwitch = "ignore";
 }

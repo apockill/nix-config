@@ -22,3 +22,15 @@ this via `gnome-firmware`, or CLI:
 ```shell
 sudo fwupdmgr update
 ```
+
+## GPU Profiles
+
+If your hardware/*/ configuration configures `system76-power`, 
+you can switch graphics profiles via:
+
+- GPU Disabled: `system76-power graphics integrated`
+- Everything on integrated, GPU On: `system76-power graphics compute`
+- Everything on GPU: `system76-power graphics nvidia`
+
+You may see `org.freedesktop.DBus.Error.Failed` errors, but it seems that profile 
+switching still works regardless of the error.
