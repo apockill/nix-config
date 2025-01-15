@@ -71,6 +71,7 @@
     # CLI tools for development
     git
     git-lfs
+    xorg.xhost
     
     # GUI Applications
     jetbrains.pycharm-professional
