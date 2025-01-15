@@ -85,6 +85,7 @@
     anydesk
     vlc
     gimp
+    anki
     kdenlive
 
     # CLI Applications
