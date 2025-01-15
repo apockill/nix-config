@@ -8,6 +8,7 @@
   imports = [
       (modulesPath + "/installer/scan/not-detected.nix")
       ./nvidia.nix
+      ./nvidia-docker.nix
     ];
 
   boot.initrd.availableKernelModules = [ "xhci_pci" "thunderbolt" "nvme" "usb_storage" "usbhid" "sd_mod" "rtsx_pci_sdmmc" ];

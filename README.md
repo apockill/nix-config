@@ -30,6 +30,9 @@ you can switch graphics profiles via:
 
 - GPU Disabled: `system76-power graphics integrated`
 - Everything on integrated, GPU On: `system76-power graphics compute`
+  
+  **WARNING**: For whatever reason, this can cause docker containers running CUDA to not 
+               find libcuda.so. Don't ask me why.
 - Everything on GPU: `system76-power graphics nvidia`
 
 You may see `org.freedesktop.DBus.Error.Failed` errors, but it seems that profile 

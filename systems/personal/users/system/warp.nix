@@ -14,7 +14,6 @@
   networking.extraHosts =
   ''
     127.0.0.1 releases.warp.dev
-    127.0.0.1 app.warp.dev
   '';
 
 
