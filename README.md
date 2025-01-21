@@ -44,3 +44,13 @@ you can switch graphics profiles via:
 
 You may see `org.freedesktop.DBus.Error.Failed` errors, but it seems that profile 
 switching still works regardless of the error.
+
+# Development Tips
+
+I typically use Nix for my personal system, and distrobox+(poetry/other language specific
+package managers) to containerize all of my projects. Usually on entering
+a new system I create:
+
+```shell
+distrobox create --name ubuntu --image quay.io/toolbx/ubuntu-toolbox:latest
+```

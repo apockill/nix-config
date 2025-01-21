@@ -72,7 +72,7 @@
     git
     git-lfs
     xorg.xhost
-    devbox
+    distrobox
     uv
     poetry
 
@@ -80,6 +80,7 @@
     tree
     
     # GUI Applications
+    boxbuddy # Distrobox GUI
     jetbrains.pycharm-professional
     warp-terminal
     qdirstat

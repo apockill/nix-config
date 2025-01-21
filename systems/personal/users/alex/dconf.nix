@@ -68,6 +68,12 @@
         # Allow expanding folders when in list view
         use-tree-view = true;
     };
+
+    # Gnome Text Editor Settings
+    "org/gnome/TextEditor" = {
+        indent-style = "space";
+        tab-width = lib.hm.gvariant.mkUint32(4);
+    };
     
     ### GNOME EXTENSIONS & EXTENSION SETTINGS
     # Configure Pop Shell
