@@ -23,6 +23,13 @@ this via `gnome-firmware`, or CLI:
 sudo fwupdmgr update
 ```
 
+Finally, it's time to handle "Non-Nix State". There's not really a good way to manage 
+python executables that aren't on the nixpkgs, so just run this once:
+
+```bash
+pipx install tdirstat termite-ai
+```
+
 ## GPU Profiles
 
 If your hardware/*/ configuration configures `system76-power`, 

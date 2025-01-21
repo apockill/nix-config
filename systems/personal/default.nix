@@ -72,6 +72,12 @@
     git
     git-lfs
     xorg.xhost
+    devbox
+    uv
+    poetry
+
+    # CLI Applications (general)
+    tree
     
     # GUI Applications
     jetbrains.pycharm-professional
@@ -87,9 +93,6 @@
     gimp
     anki
     kdenlive
-
-    # CLI Applications
-    tree
     
     # Screenshots
     flameshot
@@ -99,16 +102,13 @@
     insync-emblem-icons  # Untested if needed
     insync-nautilus
 
-    # Developer tooling (non GUI)
-    uv
-    poetry
-
     # Alternative package managers
     pipx
 
     # Firmware updates
     pkgs.fwupd
     gnome-firmware
+
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
