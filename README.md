@@ -1,71 +1,56 @@
 # Installation
+Everything in this set up is likely not "Strictly Correct (TM)", since it's my first time playing with NixOS.
 
-The following is a haphazard todo-list for setting up a newly installed system to my liking. 
+## Steps
 
-## Basic Configuration
-1) Run `python3 dependencies.py`
-
-1) Run `cat helpful/scripts/.bashrc-addon.sh >> ~/.bashrc`
-
-1) Install pycharm `sudo snap install pycharm-professional --classic`
-
-1) Install chrome via their deb
-
-1) Set gnome-terminal to be transparent, have a black background, and select "show bold text in bright colors".
-
-1) Install pop-shell using `helpful/pop-shell.md` Do this before the next step, because it will reset some keyboard shortcuts
-
-
-1) Open `gnome-tweaks` and set:
-    - Windows:
-        - Focus on Hover
-    - Appearance: 
-        - Themes: Applications: Yaru
-
-1) Go to Settings -> Multitasking:
-    - set the number of fixed workspaces to 5
-
-1) Run `bash helpful/scripts/disable-hotbar-super-keys.sh`
-
-1) Manually configure keyboard shortcuts using instructions under `helpful/keyboard-shortcuts.md`
-
-1) Optionally, configure grub using `helpful/grub_defaults.md`
-
-1) Optionally, configure grub themes using `helpful/grub_themes.md`
-
-1) Optionally, install system76-power:
-   ```shell
-   sudo apt-add-repository ppa:system76-dev/stable
-   sudo apt install gnome-shell-extension-system76-power system76-power
-   ```
-
-## Install Extra Programs
-
-1) Set up insync. [Instructions](https://www.insynchq.com/downloads)
-
-## Install Gnome Extensions
-1) Go to the extensions website and install:
-    ```shell
-    https://extensions.gnome.org/extension/2950/compiz-alike-windows-effect/
-    https://extensions.gnome.org/extension/4679/burn-my-windows/
-    https://extensions.gnome.org/extension/120/system-monitor/
-    https://extensions.gnome.org/extension/906/sound-output-device-chooser/
-    https://extensions.gnome.org/extension/1708/transparent-top-bar/
-    https://extensions.gnome.org/extension/545/hide-top-bar/
-    ```
-
-## Docker Cheat Sheet
-### Docker Cache On a Separate Drive
-1) Follow instructions under `helpful/docker-cache-separate-drive.md`
-
-# Screenshots
-[Switching screenshot application to flameshot](https://askubuntu.com/questions/1036473/ubuntu-18-how-to-change-screenshot-application-to-flameshot)
-
-# Customizations
-
-## Transparency
-You can adjust the taskbar transparency using this command (takes effect after locking/unlocking):
-
+Clone the repository and symlink nix configuration
+```shell
+git clone git@github.com:apockill/dotfiles.git
+cd dotfiles
+sudo nixos-rebuild --flake . switch
 ```
-gsettings set org.gnome.shell.extensions.dash-to-dock background-opacity 0.2
+
+
+If you run into an error about "blah blah does not provide attribute..." it's possible you're changing the hostname from what existed prior. If so, you may need to run the following once (assumes agilite is your hostname):
+
+```shell
+sudo nixos-rebuild --flake .#agilite switch
+```
+
+Next, it's probably a good idea to make sure your firmware is up to date. You can do
+this via `gnome-firmware`, or CLI:
+```shell
+sudo fwupdmgr update
+```
+
+Finally, it's time to handle "Non-Nix State". There's not really a good way to manage 
+python executables that aren't on the nixpkgs, so just run this once:
+
+```bash
+pipx install tdirstat termite-ai
+```
+
+## GPU Profiles
+
+If your hardware/*/ configuration configures `system76-power`, 
+you can switch graphics profiles via:
+
+- GPU Disabled: `system76-power graphics integrated`
+- Everything on integrated, GPU On: `system76-power graphics compute`
+  
+  **WARNING**: For whatever reason, this can cause docker containers running CUDA to not 
+               find libcuda.so. Don't ask me why.
+- Everything on GPU: `system76-power graphics nvidia`
+
+You may see `org.freedesktop.DBus.Error.Failed` errors, but it seems that profile 
+switching still works regardless of the error.
+
+# Development Tips
+
+I typically use Nix for my personal system, and distrobox+(poetry/other language specific
+package managers) to containerize all of my projects. Usually on entering
+a new system I create:
+
+```shell
+distrobox create --name ubuntu --image quay.io/toolbx/ubuntu-toolbox:latest
 ```
