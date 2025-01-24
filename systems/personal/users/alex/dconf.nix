@@ -138,6 +138,7 @@
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/file-explorer-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/system-monitor-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal-key/"
+        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/diff-key/"
       ];
     };
     
@@ -167,6 +168,13 @@
       name = "Open Terminal";
       command = "warp-terminal";
       binding = "<Super>T";
+    };
+
+    # Pycharm Diff View
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/diff-key" = {
+      name = "Open Diff";
+      command = "pycharm-professional diff";
+      binding = "<Super>D";
     };
   };
 }
