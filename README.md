@@ -7,7 +7,7 @@ Clone the repository and symlink nix configuration
 ```shell
 git clone git@github.com:apockill/dotfiles.git
 cd dotfiles
-sudo nixos-rebuild --flake . switch
+sudo nixos-rebuild --flake . switch --upgrade
 ```
 
 
