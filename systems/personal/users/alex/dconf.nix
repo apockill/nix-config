@@ -139,6 +139,7 @@
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/system-monitor-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/diff-key/"
+        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key/"
       ];
     };
     
@@ -175,6 +176,13 @@
       name = "Open Diff";
       command = "pycharm-professional diff";
       binding = "<Super>D";
+    };
+
+    # Pycharm Open Empty Python File
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key" = {
+      name = "Open Python File";
+      command = "pycharm-professional /tmp/scrap-python.py";
+      binding = "<Super>F";
     };
   };
 }
