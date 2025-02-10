@@ -76,6 +76,9 @@
     uv
     poetry
 
+    # Languages
+    python3
+
     # CLI Applications (general)
     tree
     
