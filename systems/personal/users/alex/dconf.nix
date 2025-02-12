@@ -49,6 +49,11 @@
         lock-enable = false;
     };
 
+    # Turn on "Night Light"
+    "org/gnome/settings-daemon/plugins/color" = {
+        night-light-enabled = true;
+    };
+
     # System Monitor Settings
     "org/gnome/gnome-system-monitor" = {
       cpu-stacked-area-chart = true;
