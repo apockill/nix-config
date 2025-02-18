@@ -9,6 +9,7 @@
       docker container rm $(docker ps -aq --filter "ancestor=$(docker images --format "{{.Repository}}" | grep -v 'box')")
     '';
     edit = "gnome-text-editor";
+    dbe = "distrobox enter";
   };
 
 }
