@@ -6,6 +6,7 @@
     };
 
     nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
+    nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
   };
 
   outputs = {

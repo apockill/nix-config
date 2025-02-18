@@ -4,5 +4,6 @@
     ./bash.nix
     ./docker.nix
     ./nautilus.nix
+    ./vscode.nix
   ];
 }
