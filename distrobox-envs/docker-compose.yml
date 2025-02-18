@@ -1,0 +1,5 @@
+services:
+  ubuntu-python:
+    image: alex-ubuntu-python-box
+    build:
+      dockerfile: ubuntu-python/Dockerfile

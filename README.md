@@ -48,9 +48,12 @@ switching still works regardless of the error.
 # Development Tips
 
 I typically use Nix for my personal system, and distrobox+(poetry/other language specific
-package managers) to containerize all of my projects. Usually on entering
-a new system I create:
+package managers) to containerize all of my projects.
 
+Upon creating a system, I run the following to create all of my usual distroboxes:
 ```shell
-distrobox create --name ubuntu --image quay.io/toolbx/ubuntu-toolbox:latest
+docker compose -f distrobox-envs/docker-compose.yml build && \
+distrobox create --name ubuntu --image alex-ubuntu-python-box  && \
+  --init-hooks 'echo "export PATH=\"/usr/bin:/bin:/usr/local/bin:\$PATH\"" > /etc/profile.d/clean_path.sh && chmod +x /etc/profile.d/clean_path.sh'
 ```
+

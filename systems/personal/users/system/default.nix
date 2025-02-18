@@ -3,7 +3,6 @@
   imports = [
     ./nautilus.nix
     ./docker.nix
-    ./warp.nix
     ./bash.nix
   ];
 }

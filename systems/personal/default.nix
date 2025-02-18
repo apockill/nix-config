@@ -73,8 +73,6 @@
     git-lfs
     xorg.xhost
     distrobox
-    uv
-    poetry
 
     # Languages
     python3
