@@ -6,4 +6,10 @@ RUN apt-get update && \
     apt-get install --yes \
     # Common python dependencies
     python-is-python3 \
-    python3-poetry
+    python3-poetry \
+    # For cv2.imshow to work
+    qtwayland5
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+

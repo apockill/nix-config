@@ -53,7 +53,10 @@ package managers) to containerize all of my projects.
 Upon creating a system, I run the following to create all of my usual distroboxes:
 ```shell
 docker compose -f distrobox-envs/docker-compose.yml build && \
-distrobox create --name ubuntu --image alex-ubuntu-python-box  && \
+distrobox create --name ubuntu --image alex-ubuntu-python-box \
   --init-hooks 'echo "export PATH=\"/usr/bin:/bin:/usr/local/bin:\$PATH\"" > /etc/profile.d/clean_path.sh && chmod +x /etc/profile.d/clean_path.sh'
 ```
 
+### Troubleshooting Distrobox display passthrough:
+
+`Failed to initialize GLEW`: Workaround by setting `export XDG_SESSION_TYPE=x11`
