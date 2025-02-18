@@ -4,5 +4,4 @@
   virtualisation.docker = {
     enable = true;
   };
-
 }

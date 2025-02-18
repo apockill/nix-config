@@ -1,8 +1,10 @@
 # Configure docker to use nvidia
-
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   environment.systemPackages = with pkgs; [
     nvidia-container-toolkit
     nvidia-docker
@@ -15,10 +17,9 @@
     enableNvidia = true;
 
     daemon.settings = {
-        default-runtime = "nvidia";
+      default-runtime = "nvidia";
     };
   };
 
   hardware.nvidia-container-toolkit.enable = true;
-
 }

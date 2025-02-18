@@ -1,7 +1,9 @@
-{ config, lib, pkgs, ... }:
-
 {
-
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   # Enable OpenGL
   hardware.graphics = {
     enable = true;
@@ -14,7 +16,6 @@
   services.xserver.videoDrivers = ["nvidia"];
 
   hardware.nvidia = {
-
     # Modesetting is required.
     modesetting.enable = true;
 
@@ -38,7 +39,7 @@
     open = false;
 
     # Enable the Nvidia settings menu,
-	# accessible via `nvidia-settings`.
+    # accessible via `nvidia-settings`.
     nvidiaSettings = true;
 
     # Optionally, you may need to select the appropriate driver version for your specific GPU.
@@ -46,7 +47,7 @@
   };
 
   # Set up system76-power with the options it needs to work
-  hardware.system76.power-daemon.enable= true;
+  hardware.system76.power-daemon.enable = true;
   environment.systemPackages = with pkgs; [
     system76-power
   ];

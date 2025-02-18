@@ -1,14 +1,14 @@
 # Edit this configuration file to define what should be installed on
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
-
-{ config, pkgs, ... }:
-
 {
-  imports =
-    [ 
-      ./users
-    ];
+  config,
+  pkgs,
+  ...
+}: {
+  imports = [
+    ./users
+  ];
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
@@ -60,14 +60,13 @@
   # Enable touchpad support (enabled default in most desktopManager).
   # services.xserver.libinput.enable = true;
 
-
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
     # Extensions (gnome or otherwise)
     gnomeExtensions.pop-shell
     nautilus-open-any-terminal
-  
+
     # CLI tools for development
     git
     git-lfs
@@ -79,7 +78,7 @@
 
     # CLI Applications (general)
     tree
-    
+
     # GUI Applications
     boxbuddy # Distrobox GUI
     jetbrains.pycharm-professional
@@ -95,13 +94,13 @@
     gimp
     anki
     kdenlive
-    
+
     # Screenshots
     flameshot
-    
+
     # Insync
     insync
-    insync-emblem-icons  # Untested if needed
+    insync-emblem-icons # Untested if needed
     insync-nautilus
 
     # Alternative package managers
@@ -110,7 +109,6 @@
     # Firmware updates
     pkgs.fwupd
     gnome-firmware
-
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -140,5 +138,4 @@
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
   system.stateVersion = "24.11"; # Did you read the comment?
-
 }

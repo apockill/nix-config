@@ -11,5 +11,4 @@
     edit = "gnome-text-editor";
     dbe = "distrobox enter";
   };
-
 }
