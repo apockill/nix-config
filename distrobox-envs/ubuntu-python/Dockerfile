@@ -1,5 +1,8 @@
 FROM quay.io/toolbx/ubuntu-toolbox:24.04
 
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
 # Install apt dependencies
 RUN apt-get update && \
     apt-get upgrade --yes && \
@@ -7,9 +10,8 @@ RUN apt-get update && \
     # Common python dependencies
     python-is-python3 \
     python3-poetry \
-    # For cv2.imshow to work
+    # Fix cv2.imshow
     qtwayland5
 
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
+# Fix genesis visualizations
+ENV PYOPENGL_PLATFORM=x11
