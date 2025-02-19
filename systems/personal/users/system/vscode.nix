@@ -13,6 +13,7 @@
 
         # Python
         ms-python.python
+        ms-python.vscode-pylance
 
         # Containerization
         ms-azuretools.vscode-docker

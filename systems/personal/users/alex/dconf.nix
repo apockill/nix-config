@@ -28,6 +28,7 @@
         "org.gnome.SystemMonitor.desktop"
         "spotify.desktop"
         "pycharm-professional.desktop"
+        "code.desktop"
         "insync.desktop"
       ];
     };
@@ -97,6 +98,7 @@
     "org/gnome/shell/extensions/auto-move-windows" = {
       application-list = [
         "pycharm-professional.desktop:2"
+        "code.desktop:2"
         "spotify.desktop:4"
         "org.gnome.SystemMonitor.desktop:4"
         "insync.desktop:4"
