@@ -11,7 +11,9 @@ RUN apt-get update && \
     python-is-python3 \
     python3-poetry \
     # Fix cv2.imshow
-    qtwayland5
+    qtwayland5 \
+    # Allows pip installation of Pillow
+    libjpeg-dev zlib1g-dev
 
 # Fix genesis visualizations
 ENV PYOPENGL_PLATFORM=x11
