@@ -13,6 +13,8 @@ def main():
     print("Validating genesis engine")
     library_tests.test_genesis()
 
+    print("All tests passed! Your distrobox is ready for python development.")
+
 
 if __name__ == "__main__":
     main()
