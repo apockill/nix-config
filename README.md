@@ -57,6 +57,8 @@ Upon creating a system, I run the following to create all of my usual distroboxe
 just build-ubuntu-box
 ```
 
-### Troubleshooting Distrobox display passthrough:
-
-`Failed to initialize GLEW`: Workaround by setting `export XDG_SESSION_TYPE=x11`
+Then I validate the distrobox tests work, hardware passthrough works, and X passthrough
+works by running:
+```shell
+just test-ubuntu-box
+```

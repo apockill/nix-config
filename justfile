@@ -12,3 +12,9 @@ install-pipx-deps:
 
 build-ubuntu-box:
     cd distrobox-envs && distrobox assemble  create
+
+test-ubuntu-box:
+    cd distrobox-envs/ubuntu-python/tests && \
+    distrobox enter --name ubuntu -- bash -c "\
+        uv sync && \
+        uv run python run_tests.py"
