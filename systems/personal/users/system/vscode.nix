@@ -12,14 +12,13 @@
         kokakiwi.vscode-just
 
         # Python
-        ms-python.python
-        ms-python.vscode-pylance
+         ms-python.python
 
         # Containerization
-        ms-azuretools.vscode-docker
+         ms-azuretools.vscode-docker
 
         # Github
-        github.copilot
+         github.copilot
         github.vscode-pull-request-github
         github.vscode-github-actions
 
