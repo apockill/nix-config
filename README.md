@@ -7,32 +7,29 @@ Clone the repository and symlink nix configuration
 ```shell
 git clone git@github.com:apockill/dotfiles.git
 cd dotfiles
-sudo nixos-rebuild --flake . switch
+```
+
+To switch:
+```shell
+just switch
 ```
 
 To update packages, use
 ```shell
-sudo nix flake update
-```
-
-
-If you run into an error about "blah blah does not provide attribute..." it's possible you're changing the hostname from what existed prior. If so, you may need to run the following once (assumes agilite is your hostname):
-
-```shell
-sudo nixos-rebuild --flake .#agilite switch
+just update
 ```
 
 Next, it's probably a good idea to make sure your firmware is up to date. You can do
-this via `gnome-firmware`, or CLI:
+this via `gnome-firmware`, or:
 ```shell
-sudo fwupdmgr update
+just update-firmware
 ```
 
 Finally, it's time to handle "Non-Nix State". There's not really a good way to manage 
 python executables that aren't on the nixpkgs, so just run this once:
 
 ```bash
-pipx install tdirstat termite-ai
+just install-pipx-deps
 ```
 
 ## GPU Profiles
@@ -57,12 +54,7 @@ package managers) to containerize all of my projects.
 
 Upon creating a system, I run the following to create all of my usual distroboxes:
 ```shell
-docker compose -f distrobox-envs/docker-compose.yml build && \
-distrobox create \
-  --name ubuntu \
-  --image alex-ubuntu-python-box \
-  --additional-flags "--runtime=nvidia" \
-  --init-hooks 'echo "export PATH=\"/usr/bin:/bin:/usr/local/bin:\$PATH\"" > /etc/profile.d/clean_path.sh && chmod +x /etc/profile.d/clean_path.sh'
+just build-ubuntu-box
 ```
 
 ### Troubleshooting Distrobox display passthrough:
