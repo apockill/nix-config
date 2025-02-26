@@ -72,6 +72,7 @@
     git-lfs
     xorg.xhost
     distrobox
+    black  # For pycharm code formatting
 
     # Languages
     python3
