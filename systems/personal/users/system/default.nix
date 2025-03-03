@@ -5,5 +5,6 @@
     ./docker.nix
     ./nautilus.nix
     ./vscode.nix
+    ./virtualbox.nix
   ];
 }
