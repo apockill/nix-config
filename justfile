@@ -12,7 +12,9 @@ install-pipx-deps:
     pipx install tdirstat termite-ai
 
 build-ubuntu-box:
-    cd distrobox-envs && distrobox assemble  create
+    cd distrobox-envs && \
+    docker compose build && \
+    distrobox assemble  create
 
 test-ubuntu-box:
     cd distrobox-envs/ubuntu-python/tests && \
