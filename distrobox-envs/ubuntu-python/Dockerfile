@@ -13,7 +13,9 @@ RUN apt-get update && \
     # Fix cv2.imshow
     qtwayland5 \
     # Allows pip installation of Pillow
-    libjpeg-dev zlib1g-dev
+    libjpeg-dev zlib1g-dev \
+    # Allows use of swig, for gymnasium environments
+    swig clang
 
 # Fix genesis visualizations
 ENV PYOPENGL_PLATFORM=x11

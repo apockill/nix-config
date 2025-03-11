@@ -10,6 +10,9 @@ def main():
     print("Validating Pillow install")
     library_tests.test_pillow()
 
+    print("Validating gymnasium can run gyms that require SWIG")
+    library_tests.test_gymnasium()
+
     print("Validating genesis engine")
     library_tests.test_genesis()
 

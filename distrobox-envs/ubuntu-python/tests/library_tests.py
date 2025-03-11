@@ -30,3 +30,21 @@ def test_genesis():
 def test_pillow():
     """Validate pillow was able to install at all, which requires certain libraries"""
     import PIL
+
+def test_gymnasium():
+    """A basic test of gym that ensures SWIG and clang are installed, and that it can
+    correctly spin up and run a gym"""
+    import gymnasium as gym
+
+    env = gym.make("LunarLander-v3", render_mode="human")
+    observation, info = env.reset()
+
+    episode_over = False
+    for _ in range(3):
+        action = env.action_space.sample()  # agent policy that uses the observation and info
+        assert action is not None
+        observation, reward, terminated, truncated, info = env.step(action)
+
+        episode_over = terminated or truncated
+
+    env.close()

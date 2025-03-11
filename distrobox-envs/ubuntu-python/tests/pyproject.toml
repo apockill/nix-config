@@ -10,4 +10,8 @@ dependencies = [
     "pillow>=10.4.0",
     "ruff>=0.9.7",
     "torch>=2.6.0",
+
+    # Simply adding this dependency at all ensures that SWIG and Clang are installed and
+    # work in this environment
+    "gymnasium[box2d]>=1.1.1",
 ]
