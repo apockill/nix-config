@@ -4,7 +4,6 @@
   ...
 }: {
   environment.systemPackages = with pkgs; [
-    just
 
     # add vscode with base useful extensions
     (vscode-with-extensions.override {

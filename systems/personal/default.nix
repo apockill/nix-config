@@ -70,6 +70,7 @@
     # CLI tools for development
     git
     git-lfs
+    just
     xorg.xhost
     distrobox
     black  # For pycharm code formatting
