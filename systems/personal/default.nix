@@ -83,7 +83,6 @@
 
     # GUI Applications
     boxbuddy # Distrobox GUI
-    jetbrains.pycharm-professional
     warp-terminal
     qdirstat
     spotify
