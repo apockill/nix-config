@@ -1,5 +1,6 @@
 def test_opencv():
-    import cv2, numpy as np
+    import cv2
+    import numpy as np
 
     empty_image = np.zeros((100, 120), dtype=np.uint8)
     cv2.imshow("A window", empty_image)
@@ -7,8 +8,10 @@ def test_opencv():
         cv2.waitKey(1)
     cv2.destroyAllWindows()
 
+
 def test_torch():
     import torch
+
     assert torch.cuda.is_available(), "No CUDA-compatible GPU found!"
 
 
@@ -41,7 +44,9 @@ def test_gymnasium():
 
     episode_over = False
     for _ in range(3):
-        action = env.action_space.sample()  # agent policy that uses the observation and info
+        action = (
+            env.action_space.sample()
+        )  # agent policy that uses the observation and info
         assert action is not None
         observation, reward, terminated, truncated, info = env.step(action)
 
