@@ -6,5 +6,6 @@
     ./pycharm.nix
     ./nautilus.nix
     ./virtualbox.nix
+    ./vscode.nix
   ];
 }

@@ -3,11 +3,14 @@
   pkgs,
   ...
 }: {
+
+  nixpkgs.overlays = [ inputs.nix-vscode-extensions.overlays.default ];
+
   environment.systemPackages = with pkgs; [
 
     # add vscode with base useful extensions
     (vscode-with-extensions.override {
-      vscodeExtensions = with inputs.nix-vscode-extensions.extensions.${pkgs.system}.vscode-marketplace; [
+      vscodeExtensions = with pkgs.vscode-marketplace; [
         kokakiwi.vscode-just
 
         # Python
