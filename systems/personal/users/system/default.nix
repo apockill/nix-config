@@ -3,7 +3,7 @@
   imports = [
     ./bash.nix
     ./docker.nix
-    ./pycharm.nix
+    ./jetbrains.nix
     ./nautilus.nix
     ./virtualbox.nix
     ./vscode.nix
