@@ -98,6 +98,7 @@
     "org/gnome/shell/extensions/auto-move-windows" = {
       application-list = [
         "pycharm-professional.desktop:2"
+        "clion.desktop:2"
         "code.desktop:2"
         "spotify.desktop:4"
         "org.gnome.SystemMonitor.desktop:4"
