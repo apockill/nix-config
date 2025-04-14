@@ -9,18 +9,11 @@
     nix-vscode-extensions.url = "github:jcszymansk/nix-vscode-extensions";
   };
 
-  outputs = {
-    self,
-    nixpkgs,
-    ...
-  } @ inputs: {
+  outputs = { self, nixpkgs, ... }@inputs: {
     nixosConfigurations = {
       agilite = nixpkgs.lib.nixosSystem {
-        specialArgs = {inherit inputs;};
-        modules = [
-          ./hardware/dell-xps-15
-          ./systems/personal
-        ];
+        specialArgs = { inherit inputs; };
+        modules = [ ./hardware/dell-xps-15 ./systems/personal ];
       };
     };
   };
