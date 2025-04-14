@@ -1,9 +1,4 @@
-{
-  config,
-  lib,
-  pkgs,
-  ...
-}: {
+{ config, lib, pkgs, ... }: {
   # Enable OpenGL
   hardware.graphics = {
     enable = true;
@@ -13,7 +8,7 @@
   };
 
   # Load nvidia driver for Xorg and Wayland
-  services.xserver.videoDrivers = ["nvidia"];
+  services.xserver.videoDrivers = [ "nvidia" ];
 
   hardware.nvidia = {
     # Modesetting is required.
@@ -48,9 +43,7 @@
 
   # Set up system76-power with the options it needs to work
   hardware.system76.power-daemon.enable = true;
-  environment.systemPackages = with pkgs; [
-    system76-power
-  ];
+  environment.systemPackages = with pkgs; [ system76-power ];
 
   # ignore lid switches
   # services.logind.lidSwitch = "ignore";
