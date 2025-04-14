@@ -1,14 +1,8 @@
 # Edit this configuration file to define what should be installed on
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
-{
-  config,
-  pkgs,
-  ...
-}: {
-  imports = [
-    ./users
-  ];
+{ config, pkgs, ... }: {
+  imports = [ ./users ];
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
@@ -20,11 +14,9 @@
   networking.hostName = "agilite"; # Define your hostname.
   time.timeZone = "America/Los_Angeles";
   i18n.defaultLocale = "en_US.UTF-8";
-  i18n.extraLocaleSettings = {
-    LC_ALL = "en_US.UTF-8";
-  };
+  i18n.extraLocaleSettings = { LC_ALL = "en_US.UTF-8"; };
   nix.settings = {
-    experimental-features = ["nix-command" "flakes"];
+    experimental-features = [ "nix-command" "flakes" ];
     auto-optimise-store = true;
   };
 
@@ -63,8 +55,6 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-    # Extensions (gnome or otherwise)
-    gnomeExtensions.pop-shell
     nautilus-open-any-terminal
 
     # CLI tools for development
@@ -73,7 +63,8 @@
     just
     xorg.xhost
     distrobox
-    black  # For pycharm code formatting
+    black # For pycharm code formatting
+    nixfmt # For nix code formatting
 
     # Languages
     python3

@@ -8,6 +8,9 @@ update:
 update-firmware:
     sudo fwupdmgr update
 
+format:
+    nixfmt .
+
 install-pipx-deps:
     pipx install tdirstat termite-ai
 
