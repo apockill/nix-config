@@ -1,5 +1,5 @@
 { config, pkgs, lib, ... }: {
-  imports = [ ./dconf.nix ./git.nix ];
+  imports = [ ./dconf.nix ./git.nix ./gnome_extensions.nix ];
 
   # Enable home-manager
   programs.home-manager.enable = true;
