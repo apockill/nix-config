@@ -78,23 +78,6 @@
       tab-width = lib.hm.gvariant.mkUint32 4;
     };
 
-    ### GNOME EXTENSIONS & EXTENSION SETTINGS
-    # Configure Pop Shell
-    "org/gnome/shell/extensions/pop-shell" = { tile-by-default = true; };
-    "org/gnome/mutter" = { edge-tiling = false; };
-
-    # Configure "Auto Move Windows" extension with specific application -> workspace pairs
-    "org/gnome/shell/extensions/auto-move-windows" = {
-      application-list = [
-        "pycharm-professional.desktop:2"
-        "clion.desktop:2"
-        "code.desktop:2"
-        "spotify.desktop:4"
-        "org.gnome.SystemMonitor.desktop:4"
-        "insync.desktop:4"
-      ];
-    };
-
     # Set up window moving / workspace moving key bindings
     "org/gnome/desktop/wm/keybindings" = {
       move-to-workspace-1 = [ "<Alt><Super>1" ];
