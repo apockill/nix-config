@@ -1,16 +1,9 @@
-{
-  config,
-  pkgs,
-  lib,
-  ...
-}: {
+{ config, pkgs, lib, ... }: {
   # Keybindings
   dconf.settings = {
     ### GENERAL GNOME SETTINGS
     # Set 'window focuses on hover' mode
-    "org/gnome/desktop/wm/preferences" = {
-      focus-mode = "sloppy";
-    };
+    "org/gnome/desktop/wm/preferences" = { focus-mode = "sloppy"; };
 
     # Enable Gnome Theming
     "org/gnome/desktop/interface" = {
@@ -35,8 +28,10 @@
 
     # Wallpaper
     "org/gnome/desktop/background" = {
-      picture-uri = "file:///home/alex/dotfiles/wallpapers/5120x1440-wallpaper.jpg";
-      picture-uri-dark = "file:///home/alex/dotfiles/wallpapers/5120x1440-wallpaper.jpg";
+      picture-uri =
+        "file:///home/alex/dotfiles/wallpapers/5120x1440-wallpaper.jpg";
+      picture-uri-dark =
+        "file:///home/alex/dotfiles/wallpapers/5120x1440-wallpaper.jpg";
       picture-options = "zoom";
     };
 
@@ -55,9 +50,7 @@
     };
 
     # Turn on "Night Light"
-    "org/gnome/settings-daemon/plugins/color" = {
-      night-light-enabled = true;
-    };
+    "org/gnome/settings-daemon/plugins/color" = { night-light-enabled = true; };
 
     # System Monitor Settings
     "org/gnome/gnome-system-monitor" = {
@@ -87,12 +80,8 @@
 
     ### GNOME EXTENSIONS & EXTENSION SETTINGS
     # Configure Pop Shell
-    "org/gnome/shell/extensions/pop-shell" = {
-      tile-by-default = true;
-    };
-    "org/gnome/mutter" = {
-      edge-tiling = false;
-    };
+    "org/gnome/shell/extensions/pop-shell" = { tile-by-default = true; };
+    "org/gnome/mutter" = { edge-tiling = false; };
 
     # Configure "Auto Move Windows" extension with specific application -> workspace pairs
     "org/gnome/shell/extensions/auto-move-windows" = {
@@ -106,38 +95,26 @@
       ];
     };
 
-    # Enable gnome extensions
-    "org/gnome/shell" = {
-      enabled-extensions = [
-        pkgs.gnomeExtensions.pop-shell.extensionUuid
-        pkgs.gnomeExtensions.system-monitor.extensionUuid
-        pkgs.gnomeExtensions.workspace-indicator.extensionUuid
-        pkgs.gnomeExtensions.auto-move-windows.extensionUuid
-      ];
-      disabled-extensions = [];
-      disable-user-extensions = false;
-    };
-
     # Set up window moving / workspace moving key bindings
     "org/gnome/desktop/wm/keybindings" = {
-      move-to-workspace-1 = ["<Alt><Super>1"];
-      move-to-workspace-2 = ["<Alt><Super>2"];
-      move-to-workspace-3 = ["<Alt><Super>3"];
-      move-to-workspace-4 = ["<Alt><Super>4"];
+      move-to-workspace-1 = [ "<Alt><Super>1" ];
+      move-to-workspace-2 = [ "<Alt><Super>2" ];
+      move-to-workspace-3 = [ "<Alt><Super>3" ];
+      move-to-workspace-4 = [ "<Alt><Super>4" ];
 
-      switch-to-workspace-1 = ["<Super>1"];
-      switch-to-workspace-2 = ["<Super>2"];
-      switch-to-workspace-3 = ["<Super>3"];
-      switch-to-workspace-4 = ["<Super>4"];
+      switch-to-workspace-1 = [ "<Super>1" ];
+      switch-to-workspace-2 = [ "<Super>2" ];
+      switch-to-workspace-3 = [ "<Super>3" ];
+      switch-to-workspace-4 = [ "<Super>4" ];
 
-      close = ["<Super>q"];
+      close = [ "<Super>q" ];
     };
     # Disable the default "<Super>#" opening applications on the app toolbar
     "org/gnome/shell/keybindings" = {
-      switch-to-application-1 = [];
-      switch-to-application-2 = [];
-      switch-to-application-3 = [];
-      switch-to-application-4 = [];
+      switch-to-application-1 = [ ];
+      switch-to-application-2 = [ ];
+      switch-to-application-3 = [ ];
+      switch-to-application-4 = [ ];
     };
 
     ### APPLICATION SHORTCUTS
@@ -154,45 +131,51 @@
     };
 
     # Screenshot
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot-key" = {
-      name = "Take Screenshot with Flameshot";
-      command = "script --command 'flameshot gui'";
-      binding = "<Super>Home";
-    };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot-key" =
+      {
+        name = "Take Screenshot with Flameshot";
+        command = "script --command 'flameshot gui'";
+        binding = "<Super>Home";
+      };
 
     # File Explorer
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/file-explorer-key" = {
-      name = "Open File Explorer";
-      command = "nautilus";
-      binding = "<Super>E";
-    };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/file-explorer-key" =
+      {
+        name = "Open File Explorer";
+        command = "nautilus";
+        binding = "<Super>E";
+      };
 
     # System Monitor
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/system-monitor-key" = {
-      name = "Open System Monitor";
-      command = "gnome-system-monitor";
-      binding = "<Primary><Shift>Escape";
-    };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/system-monitor-key" =
+      {
+        name = "Open System Monitor";
+        command = "gnome-system-monitor";
+        binding = "<Primary><Shift>Escape";
+      };
 
     # Terminal
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal-key" = {
-      name = "Open Terminal";
-      command = "warp-terminal";
-      binding = "<Super>T";
-    };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal-key" =
+      {
+        name = "Open Terminal";
+        command = "warp-terminal";
+        binding = "<Super>T";
+      };
 
     # Pycharm Diff View
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/diff-key" = {
-      name = "Open Diff";
-      command = "pycharm-professional diff";
-      binding = "<Super>D";
-    };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/diff-key" =
+      {
+        name = "Open Diff";
+        command = "pycharm-professional diff";
+        binding = "<Super>D";
+      };
 
     # Pycharm Open Empty Python File
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key" = {
-      name = "Open Python File";
-      command = "pycharm-professional /tmp/scrap-python.py";
-      binding = "<Super>F";
-    };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key" =
+      {
+        name = "Open Python File";
+        command = "pycharm-professional /tmp/scrap-python.py";
+        binding = "<Super>F";
+      };
   };
 }
