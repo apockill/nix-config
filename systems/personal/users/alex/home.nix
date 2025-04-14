@@ -1,13 +1,5 @@
-{
-  config,
-  pkgs,
-  lib,
-  ...
-}: {
-  imports = [
-    ./dconf.nix
-    ./git.nix
-  ];
+{ config, pkgs, lib, ... }: {
+  imports = [ ./dconf.nix ./git.nix ];
 
   # Enable home-manager
   programs.home-manager.enable = true;

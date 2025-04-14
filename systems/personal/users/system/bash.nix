@@ -1,4 +1,4 @@
-{...}: {
+{ ... }: {
   # Set up default bash aliases
   programs.bash.shellAliases = {
     # Kill and delete all containers that don't have the name 'box' in the name.

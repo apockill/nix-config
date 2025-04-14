@@ -1,4 +1,4 @@
-{...}: {
+{ ... }: {
   programs.git = {
     enable = true;
     lfs.enable = true;
@@ -6,8 +6,6 @@
     userEmail = "apocthiel@gmail.com";
 
     # mark the nix-config as safe
-    extraConfig = {
-      safe.directory = "/home/alex/dotfiles";
-    };
+    extraConfig = { safe.directory = "/home/alex/dotfiles"; };
   };
 }

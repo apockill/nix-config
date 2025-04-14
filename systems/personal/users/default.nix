@@ -1,7 +1,4 @@
-{...}: {
+{ ... }: {
   # Import all users
-  imports = [
-    ./alex
-    ./system
-  ];
+  imports = [ ./alex ./system ];
 }

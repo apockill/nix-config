@@ -1,14 +1,12 @@
-{
-  inputs,
-  pkgs,
-  ...
-}: {
+{ inputs, pkgs, ... }: {
 
   # If I don't do this, I'll get errors about asking for non-free packages from vscode
   # By doing this, somehow my allow_nonfree setting from nixpkgs gets passed in
   nixpkgs.overlays = [ inputs.nix-vscode-extensions.overlays.default ];
 
   environment.systemPackages = with pkgs; [
+    # Add cursor (ai IDE) here too, since it's vscode adjacent
+    code-cursor
 
     # add vscode with base useful extensions
     (vscode-with-extensions.override {
