@@ -30,13 +30,15 @@
       window-border-color = "rgb(26,95,180)";
 
       # Key bindings
-      tiling-system-activation-key = [ "2" ];
-      span-multiple-tiles-activation-key = [ "1" ];
+      tiling-system-activation-key = [ "2" ];  # Super
+      span-multiple-tiles-activation-key = [ "1" ];  # alt
+      tiling-system-deactivation-key = ["-1"];  # Disable deactivation
 
       # Other
       enable-autotiling = true;
       enable-tiling-system-windows-suggestions = true;
       enable-screen-edges-windows-suggestions = true;
+      restore-window-original-size = false;  # When untiled, don't restore original size
 
       # Map workspaces to layouts
       selected-layouts = [ ["Layout 3"] ["Layout 4"] ["Layout 2"] ["Layout 2"] ];
