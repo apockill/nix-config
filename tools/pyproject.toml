@@ -10,6 +10,7 @@ axls = 'tools:ls'
 axexplore = 'tools:file_explorer'
 axgitgc = 'tools:git_gc'
 axgitbranchdiff = 'tools:git_branch_diff'
+axmkllmcontext = 'tools:make_llm_context'
 
 [tool.poetry.dependencies]
 python = "^3.6"

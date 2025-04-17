@@ -1,5 +1,6 @@
 import library_tests
 
+
 def main():
     print("Validating opencv-python")
     library_tests.test_opencv()

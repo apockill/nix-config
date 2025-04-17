@@ -14,7 +14,7 @@ format:
 
 install-pipx-deps:
     pipx install tdirstat termite-ai
-    pipx install ./tools
+    pipx install ./tools --force
 
 
 build-ubuntu-box:

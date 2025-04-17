@@ -34,6 +34,7 @@ def test_pillow():
     """Validate pillow was able to install at all, which requires certain libraries"""
     import PIL
 
+
 def test_gymnasium():
     """A basic test of gym that ensures SWIG and clang are installed, and that it can
     correctly spin up and run a gym"""

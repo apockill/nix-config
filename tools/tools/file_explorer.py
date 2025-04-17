@@ -1,19 +1,12 @@
+import os
+import sys
+
 from asciimatics.event import KeyboardEvent
-from asciimatics.widgets import (
-    Frame,
-    Layout,
-    FileBrowser,
-    Widget,
-    Label,
-    PopUpDialog,
-    Text,
-    Divider,
-)
+from asciimatics.exceptions import ResizeScreenError, StopApplication
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
-from asciimatics.exceptions import ResizeScreenError, StopApplication
-import sys
-import os
+from asciimatics.widgets import (Divider, FileBrowser, Frame, Label, Layout,
+                                 PopUpDialog, Text, Widget)
 
 try:
     import magic

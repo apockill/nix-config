@@ -1,6 +1,6 @@
+import difflib
 from argparse import ArgumentParser
 from subprocess import check_output
-import difflib
 
 
 def git_branch_diff():

@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
-from subprocess import check_call
 from pathlib import Path
+from subprocess import check_call
 
 
 def iter_git_repos(root_path: Path):
