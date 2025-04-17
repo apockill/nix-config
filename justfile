@@ -13,6 +13,8 @@ format:
 
 install-pipx-deps:
     pipx install tdirstat termite-ai
+    pipx install ./tools
+
 
 build-ubuntu-box:
     cd distrobox-envs && \

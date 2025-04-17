@@ -25,8 +25,10 @@ this via `gnome-firmware`, or:
 just update-firmware
 ```
 
-Finally, it's time to handle "Non-Nix State". There's not really a good way to manage 
-python executables that aren't on the nixpkgs, so just run this once:
+Finally, it's time to handle "Non-Nix State". This includes a few pipx packages, and a 
+local set of python tooling I use, stored under `./tools/. 
+There's not really a good way to manage python executables that aren't on the nixpkgs, 
+so just run this command once:
 
 ```bash
 just install-pipx-deps
