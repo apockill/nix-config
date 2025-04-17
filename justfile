@@ -10,6 +10,7 @@ update-firmware:
 
 format:
     nixfmt .
+    black .
 
 install-pipx-deps:
     pipx install tdirstat termite-ai
