@@ -118,7 +118,7 @@
       {
         name = "Take Screenshot with Flameshot";
         command = "script --command 'flameshot gui'";
-        binding = "<Super>Home";
+        binding = "Print";
       };
 
     # File Explorer
