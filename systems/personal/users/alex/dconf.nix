@@ -120,6 +120,10 @@
         command = "script --command 'flameshot gui'";
         binding = "Print";
       };
+    "org/gnome/shell/keybindings" = {
+      # Disable default screenshot binding
+      show-screenshot-ui = [ ];
+    };
 
     # File Explorer
     "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/file-explorer-key" =
