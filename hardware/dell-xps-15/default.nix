@@ -7,6 +7,7 @@
     (modulesPath + "/installer/scan/not-detected.nix")
     ./nvidia.nix
     ./nvidia-docker.nix
+    ./zsa-moonlander.nix
   ];
 
   boot.initrd.availableKernelModules = [
