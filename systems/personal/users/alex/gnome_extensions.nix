@@ -40,5 +40,10 @@
       cycle-width-steps = [ 0.3333333333333333 0.5 0.666666666666666 ];
       default-focus-mode = 0; # "Center" is 1
     };
+    # PaperWM Keybindings
+    "org/gnome/shell/extensions/paperwm/keybindings" = {
+      # Take-window defaults to Super+T, which messes with my terminal cmd
+      take-window = [ ];
+    };
   };
 }
