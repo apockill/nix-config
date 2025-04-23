@@ -8,7 +8,21 @@ from typing import Optional, Sequence
 import re
 
 # Pattern for directories to wholesale ignore
-_DEFAULT_IGNORES = "build|cmake-build-debug|cmake-build-release|_build|vendor|third_party|__pycache__|.git|.venv|.idea|llm_context.md|uv.lock|poetry.lock"
+_DEFAULT_IGNORES = (
+    "build|"
+    "cmake-build-debug|"
+    "cmake-build-release|"
+    "_build|"
+    "vendor|"
+    "third_party|"
+    "__pycache__|"
+    ".git|"
+    ".venv|"
+    ".idea|"
+    "llm_context.md|"
+    ".*.lock"
+)
+
 _MAX_FILE_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
 
 
@@ -41,7 +55,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--ignore-pattern",
         type=str,
-        default=_DEFAULT_IGNORES,
+        default="",
         help="Pipe-separated pattern of directories/files to ignore in the tree view (passed to 'tree -I').",
     )
     return parser.parse_args()
@@ -140,7 +154,7 @@ def extract_file_contexts(
     # 1. Split the input string by '|'
     parts = ignore_patterns.split("|")
     # 2. Escape each part to treat characters like '.' literally, and filter empty parts
-    escaped_parts = [re.escape(part) for part in parts if part]
+    escaped_parts = [part for part in parts if part]
     if escaped_parts:
         # 3. Join the escaped parts back with '|' to form the regex OR
         joined_pattern = "|".join(escaped_parts)
@@ -247,12 +261,14 @@ def create_file_block(full_path: Path, relative_path: Path) -> list[str] | None:
 def make_llm_context() -> None:
     """Main execution function."""
     args = parse_arguments()
-
+    all_ignores = _DEFAULT_IGNORES + (
+        "|" + args.ignore_pattern if args.ignore_pattern else ""
+    )
     tree_output = generate_tree_output(
-        args.start_dir.resolve(), args.ignore_pattern
+        args.start_dir.resolve(), all_ignores
     )  # Use resolved path
 
-    file_context = extract_file_contexts(args.start_dir, args.ignore_pattern)
+    file_context = extract_file_contexts(args.start_dir, all_ignores)
 
     if tree_output is not None:
         write_markdown_file(
