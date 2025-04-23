@@ -37,7 +37,7 @@
 
     # Add PaperWM specific settings here if needed, e.g.:
     "org/gnome/shell/extensions/paperwm" = {
-      cycle-width-steps = [ 0.33 0.5 0.66 ];
+      cycle-width-steps = [ 0.33 0.5 ];
       default-focus-mode = 0; # "Center" is 1
     };
     # PaperWM Keybindings
