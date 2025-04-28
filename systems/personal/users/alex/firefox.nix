@@ -1,5 +1,1 @@
-{ config, pkgs, lib, ... }: {
-  home.packages = with pkgs; [
-    firefox
-  ];
-}
+{ config, pkgs, lib, ... }: { home.packages = with pkgs; [ firefox ]; }
