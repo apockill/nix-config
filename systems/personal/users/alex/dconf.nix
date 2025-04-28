@@ -14,13 +14,14 @@
     # Gnome Toolbar Favorite Apps
     "org/gnome/shell" = {
       favorite-apps = [
-        "google-chrome.desktop"
+        "firefox.desktop"
         "dev.warp.Warp.desktop"
         "org.gnome.Nautilus.desktop"
         "org.gnome.TextEditor.desktop"
         "org.gnome.SystemMonitor.desktop"
         "spotify.desktop"
         "pycharm-professional.desktop"
+        "clion.desktop"
         "code.desktop"
         "insync.desktop"
       ];
