@@ -78,7 +78,6 @@
     qdirstat
     spotify
     spotify-tray
-    google-chrome
     dconf-editor
     gnome-tweaks
     anydesk
