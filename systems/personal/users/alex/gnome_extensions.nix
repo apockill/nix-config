@@ -79,6 +79,7 @@
     "org/gnome/shell/extensions/paperwm" = {
       cycle-width-steps = [ 0.33 0.5 ];
       default-focus-mode = 0; # "Center" is 1
+      show-workspace-indicator = false;
     };
     # PaperWM Keybindings
     "org/gnome/shell/extensions/paperwm/keybindings" = {

@@ -108,7 +108,8 @@
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/file-explorer-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/system-monitor-key/"
-        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal-key/"
+        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/webbrowser-key/"
+        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/firefox-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/diff-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key/"
       ];
@@ -148,6 +149,14 @@
         name = "Open Terminal";
         command = "warp-terminal";
         binding = "<Super>T";
+      };
+
+    # Web browser
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/webbrowser-key" =
+      {
+        name = "Open Firefox";
+        command = "firefox";
+        binding = "<Super>W";
       };
 
     # Pycharm Diff View
