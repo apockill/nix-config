@@ -30,10 +30,10 @@
     # Wallpaper
     "org/gnome/desktop/background" = {
       picture-uri =
-        "file:///home/alex/dotfiles/wallpapers/5120x1440-wallpaper.jpg";
+        "file:///home/alex/dotfiles/wallpapers/7680x2160-wallpaper.png";
       picture-uri-dark =
-        "file:///home/alex/dotfiles/wallpapers/5120x1440-wallpaper.jpg";
-      picture-options = "zoom";
+        "file:///home/alex/dotfiles/wallpapers/7680x2160-wallpaper.png";
+      picture-options = "centered";
     };
 
     # Power settings
