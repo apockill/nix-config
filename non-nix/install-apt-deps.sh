@@ -1,4 +1,6 @@
 sudo apt-get install \
 	flameshot \
 	spotify-client \
-	firefox-esr
+	firefox-esr \
+	roadwarrior \
+	cidermux
