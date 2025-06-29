@@ -6,21 +6,14 @@ DOTFILES_DIR="/home/alexthiele/nix-config/non-nix"
 
 # --- symlink file mapping ---
 source_files=(
-  ".config/paperwm/user.js"
+  ".config/input-remapper-2/presets/"
 )
 
-# ----------------------------------------------------------------------
-# DESTINATION PATHS (where the symlinks should be created)
-# ----------------------------------------------------------------------
-# List the absolute paths in your home directory where the symlinks
-# should be created. The order MUST match the source_files array above.
 dest_paths=(
-  # The location where PaperWM expects to find user.js
-  "${HOME}/.config/paperwm/user.js"
+  "${HOME}/.config/input-remapper-2/"
 )
 
 
-# --- Install .config---
 echo "🚀 Starting to link configuration files..."
 
 for i in "${!source_files[@]}"; do

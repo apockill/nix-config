@@ -1,0 +1,73 @@
+[
+    {
+        "input_combination": [
+            {
+                "type": 1,
+                "code": 56,
+                "origin_hash": "da43868854f3639b00b10235e9a839b3"
+            },
+            {
+                "type": 1,
+                "code": 125,
+                "origin_hash": "da43868854f3639b00b10235e9a839b3"
+            },
+            {
+                "type": 1,
+                "code": 105,
+                "origin_hash": "da43868854f3639b00b10235e9a839b3"
+            }
+        ],
+        "target_uinput": "keyboard",
+        "output_symbol": "Left",
+        "mapping_type": "key_macro"
+    },
+    {
+        "input_combination": [
+            {
+                "type": 1,
+                "code": 56,
+                "origin_hash": "da43868854f3639b00b10235e9a839b3"
+            },
+            {
+                "type": 1,
+                "code": 125,
+                "origin_hash": "da43868854f3639b00b10235e9a839b3"
+            },
+            {
+                "type": 1,
+                "code": 106,
+                "origin_hash": "da43868854f3639b00b10235e9a839b3"
+            }
+        ],
+        "target_uinput": "keyboard",
+        "output_symbol": "Right",
+        "name": "",
+        "mapping_type": "key_macro"
+    },
+    {
+        "input_combination": [
+            {
+                "type": 2,
+                "code": 8,
+                "origin_hash": "4256caddaf4797b652d2cb7efabaa088",
+                "analog_threshold": 1
+            }
+        ],
+        "target_uinput": "keyboard",
+        "output_symbol": "KEY_UNKNOWN",
+        "mapping_type": "key_macro"
+    },
+    {
+        "input_combination": [
+            {
+                "type": 2,
+                "code": 8,
+                "origin_hash": "4256caddaf4797b652d2cb7efabaa088",
+                "analog_threshold": -1
+            }
+        ],
+        "target_uinput": "keyboard",
+        "output_symbol": "KEY_UNKNOWN",
+        "mapping_type": "key_macro"
+    }
+]
