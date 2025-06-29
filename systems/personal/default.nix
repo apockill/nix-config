@@ -64,7 +64,7 @@
     xorg.xhost
     distrobox
     black # For pycharm code formatting
-    nixfmt # For nix code formatting
+    nixfmt-classic # For nix code formatting
 
     # Languages
     python3

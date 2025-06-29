@@ -6,6 +6,7 @@
     ./jetbrains.nix
     ./nautilus.nix
     ./virtualbox.nix
-    ./vscode.nix
+    # Seems to break flake updates super often
+    #    ./vscode.nix
   ];
 }
