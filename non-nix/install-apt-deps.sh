@@ -3,4 +3,5 @@ sudo apt-get install \
 	spotify-client \
 	firefox-esr \
 	roadwarrior \
-	cidermux
+	cidermux \
+	input-remapper
