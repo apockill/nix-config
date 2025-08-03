@@ -24,6 +24,4 @@ build-ubuntu-box:
 
 test-ubuntu-box:
     cd distrobox-envs/ubuntu-python/tests && \
-    distrobox enter --name ubuntu -- bash -c "\
-        uv sync && \
-        uv run python run_tests.py"
+    distrobox enter --name ubuntu -- bash -c "uv sync && uv run python run_tests.py"
