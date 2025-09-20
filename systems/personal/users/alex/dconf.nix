@@ -14,7 +14,7 @@
     # Gnome Toolbar Favorite Apps
     "org/gnome/shell" = {
       favorite-apps = [
-        "firefox.desktop"
+        "google-chrome.desktop"
         "dev.warp.Warp.desktop"
         "org.gnome.Nautilus.desktop"
         "org.gnome.TextEditor.desktop"
