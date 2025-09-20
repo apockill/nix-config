@@ -110,7 +110,6 @@
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/system-monitor-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/webbrowser-key/"
-        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/firefox-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/diff-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key/"
       ];
@@ -155,8 +154,8 @@
     # Web browser
     "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/webbrowser-key" =
       {
-        name = "Open Firefox";
-        command = "firefox";
+        name = "Open Chrome";
+        command = "google-chrome-stable";
         binding = "<Super>W";
       };
 
