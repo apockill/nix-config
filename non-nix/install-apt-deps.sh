@@ -3,4 +3,6 @@ sudo apt-get install \
 	spotify-client \
 	roadwarrior \
 	cidermux \
-	input-remapper
+	input-remapper \
+	code \
+	vscode-google3
