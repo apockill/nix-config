@@ -7,3 +7,7 @@ builds/
 .idea
 
 .dconf-backup-*
+
+__pycache__
+
+llm_context.md
