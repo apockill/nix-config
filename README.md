@@ -64,3 +64,17 @@ works by running:
 ```shell
 just test-ubuntu-box
 ```
+
+## Troubleshooting
+If you change vscode settings, and get an error from vscode:
+```
+Nov 23 14:05:19 agilite systemd[1]: home-manager-alex.service: Main process exited, code=exited, status=1/FAILURE
+Nov 23 14:05:19 agilite systemd[1]: home-manager-alex.service: Failed with result 'exit-code'.
+Nov 23 14:05:19 agilite systemd[1]: Failed to start Home Manager environment for alex.
+```
+
+What's happening is nix is trying to clobber an existing `settings.json.backup` file. You can fix this by:
+```
+rm /home/$USER/.config/Code/User/settings.json.backup
+just switch
+```
