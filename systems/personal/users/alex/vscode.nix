@@ -1,4 +1,4 @@
-{ inputs, pkgs, lib, ... }:
+{ inputs, pkgs, lib, config, ... }:
 let
   marketplace =
     inputs.nix-vscode-extensions.extensions.${pkgs.system}.vscode-marketplace;
@@ -30,7 +30,25 @@ in {
 
       # --- Nix & DevOps ---
       jnoortheen.nix-ide
-    ];
 
+      # --- Vibes ---
+      google.geminicodeassist
+    ];
+  };
+
+  # Solution adapted from bemyak in https://github.com/nix-community/home-manager/issues/1800#issuecomment-2262881846
+  # This replaces the read-only symlink with a writable copy using 'install'
+  home.activation.makeVSCodeConfigWritable = {
+    after = [ "writeBoundary" ];
+    before = [ ];
+    data = ''
+      configPath="${config.home.homeDirectory}/.config/Code/User/settings.json"
+
+      # If the file is a symlink (which Home Manager generates), 
+      # overwrite it with a writable copy of its target.
+      if [ -L "$configPath" ]; then
+        install -m 0640 "$(readlink "$configPath")" "$configPath"
+      fi
+    '';
   };
 }
