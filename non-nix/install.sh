@@ -49,6 +49,7 @@ TIMESTAMP=$(date +%F_%H-%M-%S)
 dconf dump / > "${DOTFILES_DIR}/.dconf-backup-${TIMESTAMP}.ini"
 dconf load / < "${DOTFILES_DIR}/dconf_gnome_settings.conf"
 dconf load / < "${DOTFILES_DIR}/dconf_paperwm_settings.conf"
+dconf load / < "${DOTFILES_DIR}/dconf_switcher_settings.conf"
 echo "✅ Done"
 
 
