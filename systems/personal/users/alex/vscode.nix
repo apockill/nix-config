@@ -33,6 +33,11 @@ in
       enableUpdateCheck = false;
       enableExtensionUpdateCheck = false;
 
+      userSettings = {
+        # Let clangd handle language intelligence while cpptools handles debugging
+        "C_Cpp.intelliSenseEngine" = "disabled";
+      };
+
       extensions = with marketplace; [
         # --- JetBrains Keybindings ---
         isudox.vscode-jetbrains-keybindings
@@ -48,9 +53,6 @@ in
 
         # --- Nix & DevOps ---
         jnoortheen.nix-ide
-
-        # --- Vibes ---
-        google.geminicodeassist
       ];
     };
   };
