@@ -1,11 +1,15 @@
 { config, pkgs, lib, ... }: {
-  imports =
-    [ ./dconf.nix ./git.nix ./gnome_extensions.nix ./chrome.nix ./vscode.nix ];
+  imports = [
+    ./dconf.nix
+    ./git.nix
+    ./gnome_extensions.nix
+    ./chrome.nix
+    ./vscode.nix
+    ./antigravity.nix
+  ];
 
-  # Enable home-manager
   programs.home-manager.enable = true;
   nixpkgs.config.allowUnfree = true;
 
-  # Set home-manager state version
   home.stateVersion = "24.11";
 }
