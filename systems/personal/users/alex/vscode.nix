@@ -1,7 +1,7 @@
 { inputs, pkgs, lib, config, ... }:
 let
   marketplace =
-    inputs.nix-vscode-extensions.extensions.${pkgs.system}.vscode-marketplace;
+    inputs.nix-vscode-extensions.extensions.${pkgs.stdenv.hostPlatform.system}.vscode-marketplace;
 
   # Some packages are unfree. The flake input evaluates it against a default (strict) nixpkgs.
   # We override the license to 'MIT' here to bypass that check locally.
@@ -14,29 +14,32 @@ let
 in {
   programs.vscode = {
     enable = true;
-    enableUpdateCheck = false;
-    enableExtensionUpdateCheck = false;
     mutableExtensionsDir = true;
 
-    extensions = with marketplace; [
-      # --- JetBrains Keybindings ---
-      isudox.vscode-jetbrains-keybindings
+    profiles.default = {
+      enableUpdateCheck = false;
+      enableExtensionUpdateCheck = false;
 
-      # --- Python Suite ---
-      ms-python.python
-      pylance
-      ms-python.debugpy
+      extensions = with marketplace; [
+        # --- JetBrains Keybindings ---
+        isudox.vscode-jetbrains-keybindings
 
-      # --- C++ Suite ---
-      cpptools
-      llvm-vs-code-extensions.vscode-clangd
+        # --- Python Suite ---
+        ms-python.python
+        pylance
+        ms-python.debugpy
 
-      # --- Nix & DevOps ---
-      jnoortheen.nix-ide
+        # --- C++ Suite ---
+        cpptools
+        llvm-vs-code-extensions.vscode-clangd
 
-      # --- Vibes ---
-      google.geminicodeassist
-    ];
+        # --- Nix & DevOps ---
+        jnoortheen.nix-ide
+
+        # --- Vibes ---
+        google.geminicodeassist
+      ];
+    };
   };
 
   # Solution adapted from bemyak in https://github.com/nix-community/home-manager/issues/1800#issuecomment-2262881846

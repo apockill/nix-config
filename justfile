@@ -2,8 +2,8 @@ switch:
     sudo nixos-rebuild --flake .#agilite switch
 
 update:
-    sudo nix flake update
-    sudo nixos-rebuild --flake .#agilite switch --upgrade
+    nix flake update
+    sudo nixos-rebuild --flake .#agilite switch
 
 update-firmware:
     sudo fwupdmgr update

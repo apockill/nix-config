@@ -20,9 +20,8 @@
         "org.gnome.TextEditor.desktop"
         "org.gnome.SystemMonitor.desktop"
         "spotify.desktop"
-        "pycharm-professional.desktop"
-        "clion.desktop"
         "code.desktop"
+        "antigravity.desktop"
         "insync.desktop"
       ];
     };
@@ -110,7 +109,6 @@
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/system-monitor-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/webbrowser-key/"
-        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/diff-key/"
         "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key/"
       ];
     };
@@ -159,19 +157,12 @@
         binding = "<Super>W";
       };
 
-    # Pycharm Diff View
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/diff-key" =
-      {
-        name = "Open Diff";
-        command = "pycharm-professional diff";
-        binding = "<Super>D";
-      };
 
-    # Pycharm Open Empty Python File
+    # Open Empty Python File
     "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key" =
       {
         name = "Open Python File";
-        command = "pycharm-professional /tmp/scrap-python.py";
+        command = "code /tmp/scrap-python.py";
         binding = "<Super>F";
       };
   };

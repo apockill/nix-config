@@ -33,8 +33,6 @@
     # Configure "Auto Move Windows" extension with specific application -> workspace pairs
     "org/gnome/shell/extensions/auto-move-windows" = {
       application-list = [
-        "pycharm-professional.desktop:2"
-        "clion.desktop:2"
         "code.desktop:2"
         "antigravity.desktop:2"
         "spotify.desktop:4"

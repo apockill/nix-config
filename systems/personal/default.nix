@@ -36,11 +36,11 @@
 
   # WM Setup
   services.xserver.enable = true;
-  services.xserver.displayManager.gdm.enable = true;
-  services.xserver.desktopManager.gnome.enable = true;
+  services.displayManager.gdm.enable = true;
+  services.desktopManager.gnome.enable = true;
 
   # Enable sound with pipewire.
-  hardware.pulseaudio.enable = false;
+  services.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
@@ -63,8 +63,8 @@
     just
     xorg.xhost
     distrobox
-    black # For pycharm code formatting
-    nixfmt-classic # For nix code formatting
+    black
+    nixfmt-rfc-style # For nix code formatting
 
     # Languages
     python3
@@ -84,21 +84,20 @@
     vlc
     gimp
     anki
-    kdenlive
+    kdePackages.kdenlive
 
     # Screenshots
     flameshot
 
     # Insync
     insync
-    insync-emblem-icons # Untested if needed
     insync-nautilus
 
     # Alternative package managers
     pipx
 
     # Firmware updates
-    pkgs.fwupd
+    fwupd
     gnome-firmware
   ];
 

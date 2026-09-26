@@ -2,10 +2,10 @@
   programs.git = {
     enable = true;
     lfs.enable = true;
-    userName = "Alex Thiele";
-    userEmail = "apocthiel@gmail.com";
-
-    # mark the nix-config as safe
-    extraConfig = { safe.directory = "/home/alex/dotfiles"; };
+    settings = {
+      user.name = "Alex Thiele";
+      user.email = "apocthiel@gmail.com";
+      safe.directory = "/home/alex/dotfiles";
+    };
   };
 }
