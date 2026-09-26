@@ -1,9 +1,17 @@
-{ config, pkgs, lib, ... }: {
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
+{
   # Keybindings
   dconf.settings = {
     ### GENERAL GNOME SETTINGS
     # Set 'window focuses on hover' mode
-    "org/gnome/desktop/wm/preferences" = { focus-mode = "sloppy"; };
+    "org/gnome/desktop/wm/preferences" = {
+      focus-mode = "sloppy";
+    };
 
     # Enable Gnome Theming
     "org/gnome/desktop/interface" = {
@@ -15,7 +23,7 @@
     "org/gnome/shell" = {
       favorite-apps = [
         "google-chrome.desktop"
-        "dev.warp.Warp.desktop"
+        "org.gnome.Terminal.desktop"
         "org.gnome.Nautilus.desktop"
         "org.gnome.TextEditor.desktop"
         "org.gnome.SystemMonitor.desktop"
@@ -28,10 +36,8 @@
 
     # Wallpaper
     "org/gnome/desktop/background" = {
-      picture-uri =
-        "file:///home/alex/dotfiles/wallpapers/7680x2160-wallpaper.png";
-      picture-uri-dark =
-        "file:///home/alex/dotfiles/wallpapers/7680x2160-wallpaper.png";
+      picture-uri = "file:///home/alex/dotfiles/wallpapers/7680x2160-wallpaper.png";
+      picture-uri-dark = "file:///home/alex/dotfiles/wallpapers/7680x2160-wallpaper.png";
       picture-options = "centered";
     };
 
@@ -50,7 +56,9 @@
     };
 
     # Turn on "Night Light"
-    "org/gnome/settings-daemon/plugins/color" = { night-light-enabled = true; };
+    "org/gnome/settings-daemon/plugins/color" = {
+      night-light-enabled = true;
+    };
 
     # System Monitor Settings
     "org/gnome/gnome-system-monitor" = {
@@ -114,56 +122,49 @@
     };
 
     # Screenshot
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot-key" =
-      {
-        name = "Take Screenshot with Flameshot";
-        command = "script --command 'flameshot gui'";
-        binding = "Print";
-      };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot-key" = {
+      name = "Take Screenshot with Flameshot";
+      command = "script --command 'flameshot gui'";
+      binding = "Print";
+    };
     "org/gnome/shell/keybindings" = {
       # Disable default screenshot binding
       show-screenshot-ui = [ ];
     };
 
     # File Explorer
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/file-explorer-key" =
-      {
-        name = "Open File Explorer";
-        command = "nautilus";
-        binding = "<Super>E";
-      };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/file-explorer-key" = {
+      name = "Open File Explorer";
+      command = "nautilus";
+      binding = "<Super>E";
+    };
 
     # System Monitor
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/system-monitor-key" =
-      {
-        name = "Open System Monitor";
-        command = "gnome-system-monitor";
-        binding = "<Primary><Shift>Escape";
-      };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/system-monitor-key" = {
+      name = "Open System Monitor";
+      command = "gnome-system-monitor";
+      binding = "<Primary><Shift>Escape";
+    };
 
     # Terminal
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal-key" =
-      {
-        name = "Open Terminal";
-        command = "warp-terminal";
-        binding = "<Super>T";
-      };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal-key" = {
+      name = "Open Terminal";
+      command = "gnome-terminal";
+      binding = "<Super>T";
+    };
 
     # Web browser
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/webbrowser-key" =
-      {
-        name = "Open Chrome";
-        command = "google-chrome-stable";
-        binding = "<Super>W";
-      };
-
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/webbrowser-key" = {
+      name = "Open Chrome";
+      command = "google-chrome-stable";
+      binding = "<Super>W";
+    };
 
     # Open Empty Python File
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key" =
-      {
-        name = "Open Python File";
-        command = "code /tmp/scrap-python.py";
-        binding = "<Super>F";
-      };
+    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/python-key" = {
+      name = "Open Python File";
+      command = "code /tmp/scrap-python.py";
+      binding = "<Super>F";
+    };
   };
 }

@@ -1,5 +1,11 @@
 # Configure docker to use nvidia
-{ config, lib, pkgs, ... }: {
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
   environment.systemPackages = with pkgs; [
     nvidia-container-toolkit
   ];

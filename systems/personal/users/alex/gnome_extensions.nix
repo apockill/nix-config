@@ -1,4 +1,10 @@
-{ config, pkgs, lib, ... }: {
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
+{
   home.packages = with pkgs; [
     gnomeExtensions.blur-my-shell
     #    Select a window manager
@@ -76,7 +82,10 @@
 
     # Add PaperWM specific settings here if needed, e.g.:
     "org/gnome/shell/extensions/paperwm" = {
-      cycle-width-steps = [ 0.33 0.5 ];
+      cycle-width-steps = [
+        0.33
+        0.5
+      ];
       default-focus-mode = 0; # "Center" is 1
       show-workspace-indicator = false;
     };

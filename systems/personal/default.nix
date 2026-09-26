@@ -14,9 +14,14 @@
   networking.hostName = "agilite"; # Define your hostname.
   time.timeZone = "America/Los_Angeles";
   i18n.defaultLocale = "en_US.UTF-8";
-  i18n.extraLocaleSettings = { LC_ALL = "en_US.UTF-8"; };
+  i18n.extraLocaleSettings = {
+    LC_ALL = "en_US.UTF-8";
+  };
   nix.settings = {
-    experimental-features = [ "nix-command" "flakes" ];
+    experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
     auto-optimise-store = true;
   };
 
@@ -38,6 +43,7 @@
   services.xserver.enable = true;
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
+  programs.gnome-terminal.enable = true;
 
   # Enable sound with pipewire.
   services.pulseaudio.enable = false;
@@ -61,10 +67,10 @@
     git
     git-lfs
     just
-    xorg.xhost
+    xhost
     distrobox
     black
-    nixfmt-rfc-style # For nix code formatting
+    nixfmt # For nix code formatting
 
     # Languages
     python3
@@ -74,7 +80,6 @@
 
     # GUI Applications
     boxbuddy # Distrobox GUI
-    warp-terminal
     qdirstat
     spotify
     spotify-tray

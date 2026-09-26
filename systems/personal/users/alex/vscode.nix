@@ -1,17 +1,30 @@
-{ inputs, pkgs, lib, config, ... }:
+{
+  inputs,
+  pkgs,
+  lib,
+  config,
+  ...
+}:
 let
   marketplace =
     inputs.nix-vscode-extensions.extensions.${pkgs.stdenv.hostPlatform.system}.vscode-marketplace;
 
   # Some packages are unfree. The flake input evaluates it against a default (strict) nixpkgs.
   # We override the license to 'MIT' here to bypass that check locally.
-  # For some reason, it's next to impossible to figure out how to get 'allowUnfree' to 
+  # For some reason, it's next to impossible to figure out how to get 'allowUnfree' to
   # correctly propogate from my systems/default.nix
-  pylance = marketplace.ms-python.vscode-pylance.overrideAttrs
-    (old: { meta = old.meta // { license = lib.licenses.mit; }; });
-  cpptools = marketplace.ms-vscode.cpptools.overrideAttrs
-    (old: { meta = old.meta // { license = lib.licenses.mit; }; });
-in {
+  pylance = marketplace.ms-python.vscode-pylance.overrideAttrs (old: {
+    meta = old.meta // {
+      license = lib.licenses.mit;
+    };
+  });
+  cpptools = marketplace.ms-vscode.cpptools.overrideAttrs (old: {
+    meta = old.meta // {
+      license = lib.licenses.mit;
+    };
+  });
+in
+{
   programs.vscode = {
     enable = true;
     mutableExtensionsDir = true;
