@@ -8,9 +8,15 @@
   # Keybindings
   dconf.settings = {
     ### GENERAL GNOME SETTINGS
-    # Set 'window focuses on hover' mode
+    # Static workspaces
+    "org/gnome/mutter" = {
+      dynamic-workspaces = false;
+    };
+
+    # Set 'window focuses on hover' mode & 4 default workspaces
     "org/gnome/desktop/wm/preferences" = {
       focus-mode = "sloppy";
+      num-workspaces = 4;
     };
 
     # Enable Gnome Theming

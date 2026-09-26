@@ -11,6 +11,9 @@
     #    gnomeExtensions.pop-shell
     #    gnomeExtensions.tiling-shell
     gnomeExtensions.paperwm
+    gnomeExtensions.system-monitor
+    gnomeExtensions.workspace-indicator
+    gnomeExtensions.auto-move-windows
   ];
 
   dconf.settings = {
