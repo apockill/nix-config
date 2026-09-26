@@ -6,7 +6,11 @@
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
+  # Prevent old generations from filling up the 512MB EFI /boot partition
   boot.loader.systemd-boot.configurationLimit = 10;
+  # Prevents 'bootctl update' from failing when it detects the older bootloader
+  # on the secondary 1TB SSD (nvme1n1) while /boot is already up to date
+  boot.loader.systemd-boot.graceful = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
