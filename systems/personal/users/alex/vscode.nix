@@ -23,11 +23,6 @@ let
       license = lib.licenses.mit;
     };
   });
-  gitGraph = marketplace.mhutchie.git-graph.overrideAttrs (old: {
-    meta = old.meta // {
-      license = lib.licenses.mit;
-    };
-  });
   claudeCode = pkgs.vscode-utils.extensionFromVscodeMarketplace {
     name = "claude-code";
     publisher = "Anthropic";
@@ -93,9 +88,6 @@ in
         # --- Nix & DevOps ---
         jnoortheen.nix-ide
         mkhl.direnv
-
-        # --- Git & Version Control ---
-        gitGraph
 
         # --- AI Assistants ---
         claudeCode
