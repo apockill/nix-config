@@ -23,6 +23,12 @@ let
       license = lib.licenses.mit;
     };
   });
+  claudeCode = pkgs.vscode-utils.extensionFromVscodeMarketplace {
+    name = "claude-code";
+    publisher = "Anthropic";
+    version = "2.1.283";
+    sha256 = "sha256-zhIrfEE7gL11xw83Hc/wbfpq5Ss0Awgi5OF+vDTzdHI=";
+  };
 in
 {
   programs.vscode = {
@@ -34,9 +40,29 @@ in
       enableExtensionUpdateCheck = false;
 
       userSettings = {
-        # Let clangd handle language intelligence while cpptools handles debugging
+        # --- C / C++ & Clangd Settings ---
+        # Delegate code intelligence to clangd while keeping cpptools for debugging
         "C_Cpp.intelliSenseEngine" = "disabled";
       };
+
+      keybindings = [
+        # Keybindings for toggling between diff editor
+        {
+          key = "ctrl+shift+d";
+          command = "git.openFile";
+          when = "isInDiffEditor";
+        }
+        {
+          key = "ctrl+shift+d";
+          command = "git.openChange";
+          when = "editorFocus && !isInDiffEditor";
+        }
+        {
+          key = "ctrl+shift+d";
+          command = "git.openFile";
+          when = "focusedView == 'workbench.scm'";
+        }
+      ];
 
       extensions = with marketplace; [
         # --- JetBrains Keybindings ---
@@ -53,6 +79,10 @@ in
 
         # --- Nix & DevOps ---
         jnoortheen.nix-ide
+        mkhl.direnv
+
+        # --- AI Assistants ---
+        claudeCode
       ];
     };
   };
@@ -63,13 +93,15 @@ in
     after = [ "writeBoundary" ];
     before = [ ];
     data = ''
-      configPath="${config.home.homeDirectory}/.config/Code/User/settings.json"
+      for file in settings.json keybindings.json; do
+        configPath="${config.home.homeDirectory}/.config/Code/User/$file"
 
-      # If the file is a symlink (which Home Manager generates), 
-      # overwrite it with a writable copy of its target.
-      if [ -L "$configPath" ]; then
-        install -m 0640 "$(readlink "$configPath")" "$configPath"
-      fi
+        # If the file is a symlink (which Home Manager generates), 
+        # overwrite it with a writable copy of its target.
+        if [ -L "$configPath" ]; then
+          install -m 0640 "$(readlink "$configPath")" "$configPath"
+        fi
+      done
     '';
   };
 }
