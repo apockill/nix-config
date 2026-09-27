@@ -23,11 +23,24 @@ let
       license = lib.licenses.mit;
     };
   });
+  gitGraph = marketplace.mhutchie.git-graph.overrideAttrs (old: {
+    meta = old.meta // {
+      license = lib.licenses.mit;
+    };
+  });
   claudeCode = pkgs.vscode-utils.extensionFromVscodeMarketplace {
     name = "claude-code";
     publisher = "Anthropic";
     version = "2.1.283";
-    sha256 = "sha256-zhIrfEE7gL11xw83Hc/wbfpq5Ss0Awgi5OF+vDTzdHI=";
+    arch = "linux-x64";
+    sha256 = "sha256-yUrFhJa/DkAQXH/0EZ3N0axloCNtrPvaFfmJ5/bnqRg=";
+    nativeBuildInputs = [ pkgs.autoPatchelfHook ];
+    buildInputs = [
+      pkgs.stdenv.cc.cc.lib
+      pkgs.glib
+      pkgs.libsecret
+      pkgs.alsa-lib
+    ];
   };
 in
 {
@@ -80,6 +93,9 @@ in
         # --- Nix & DevOps ---
         jnoortheen.nix-ide
         mkhl.direnv
+
+        # --- Git & Version Control ---
+        gitGraph
 
         # --- AI Assistants ---
         claudeCode
