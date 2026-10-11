@@ -24,10 +24,7 @@
       nixosConfigurations = {
         agilite = nixpkgs.lib.nixosSystem {
           specialArgs = { inherit inputs; };
-          modules = [
-            ./hardware/dell-xps-15
-            ./systems/personal
-          ];
+          modules = [ ./hosts/agilite ];
         };
       };
     };
