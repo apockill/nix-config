@@ -15,6 +15,10 @@
         "networkmanager"
         "docker"
       ];
+      # Used by hosts that run an SSH server (e.g. ai-box)
+      openssh.authorizedKeys.keys = [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFPKb5yMfTuTbBHmkNRyDZDl83VyobpHIBcuwIdbvYYJ alex@agilite"
+      ];
     };
   };
 

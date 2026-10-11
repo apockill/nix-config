@@ -1,6 +1,24 @@
 # Installation
 Everything in this set up is likely not "Strictly Correct (TM)", since it's my first time playing with NixOS.
 
+## Layout
+
+| Path | What lives there |
+|---|---|
+| `hosts/<name>/` | One directory per machine. Picks hardware, roles, users, and which home profiles apply. |
+| `hardware/<model>/` | Hardware-specific config (`dell-xps-15`, `jetson-agx-orin`). |
+| `modules/nixos/common/` | Baseline for every machine: nix settings, locale, docker, CLI tools. |
+| `modules/nixos/desktop/` | GNOME workstation role (GUI apps, sound, printing). |
+| `modules/nixos/headless/` | Network-managed machine role (key-only SSH, mDNS). |
+| `users/alex/` | Alex's account, shared by every host. |
+| `users/alex/home/common/` | Home profile used everywhere (git, direnv, CLI tooling). |
+| `users/alex/home/desktop/` | Home profile for GNOME machines (dconf, VS Code, browsers). |
+
+Hosts:
+- `agilite`: personal Dell XPS 15 workstation (`just switch`).
+- `ai-box`: Jetson AGX Orin running AI services and agents (`just deploy-ai-box`).
+  See [hosts/ai-box/README.md](hosts/ai-box/README.md) for installing it from scratch.
+
 ## Steps
 
 Clone the repository and symlink nix configuration
