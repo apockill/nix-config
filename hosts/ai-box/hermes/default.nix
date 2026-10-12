@@ -50,6 +50,9 @@ let
     # "Cloudflare Access" (Service Token)
     CF_ACCESS_CLIENT_ID={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_id }}
     CF_ACCESS_CLIENT_SECRET={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_secret }}
+
+    # "Anthropic API Key" (strictly funded with $20/month; for Claude Code CLI)
+    ANTHROPIC_API_KEY={{ op://ai-assistant/hpbef2tdxvrybvvwrvydrpdgye/credential }}
   '';
 
   # The only privileged commands the agent may run:
@@ -167,6 +170,7 @@ in
         "GH_TOKEN"
         "CF_ACCESS_CLIENT_ID"
         "CF_ACCESS_CLIENT_SECRET"
+        "ANTHROPIC_API_KEY"
       ];
     };
 
@@ -185,6 +189,7 @@ in
       just
       nix
       ripgrep
+      inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
     ];
   };
 
