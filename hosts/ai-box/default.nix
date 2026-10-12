@@ -10,6 +10,9 @@
     ./disko.nix
     ./snapshots.nix
     ./llama-cpp.nix
+    ./browser.nix
+    ./cloudflared.nix
+    ./caddy.nix
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common

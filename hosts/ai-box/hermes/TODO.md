@@ -26,16 +26,17 @@ repo (`hosts/ai-box/`).
 ## Next
 
 - [ ] **Browser with a live view.** A visible Chromium on a virtual display
-      (Xvfb or similar) with a persistent profile, exposed to Hermes over CDP
-      (`browser.cdp_url`) and to Alex through noVNC. When you're blocked on a
-      login or CAPTCHA, send Alex the live-view link. Note: Playwright's
-      downloaded browsers don't run on NixOS; use nixpkgs' `chromium`.
-- [ ] **Host web pages.** Caddy serving `/var/lib/hermes/sites/<name>` with no
-      rebuild per change; verify locally first, then publicly. Public access
-      through a new Cloudflare Tunnel behind Cloudflare Access, plus an Access
-      service token so you can load your own public pages (the old setup
-      couldn't, so it never verified its work). Alex needs to log in to
-      `cloudflared` once for this.
+      (Xvfb) with a persistent profile (`/var/lib/hermes/browser-profile`),
+      exposed to Hermes over CDP (`browser.cdp_url = "http://127.0.0.1:9222"`)
+      and to Alex through noVNC (web-native HTML5 VNC viewer).
+- [ ] **Cloudflare Tunnel & Access setup.** Connect ai-box via Cloudflare Tunnel
+      (token in `ai-assistant` vault). Expose noVNC (`browser.alexthiele.io`)
+      and dynamic sites (`*.alexthiele.io`) behind Cloudflare Access. Authorize
+      Alex's email, `ailex.agent.bot@gmail.com`, and an Access Service Token.
+- [ ] **Host web pages.** Caddy serving `/var/lib/hermes/sites/{subdomain}` for
+      instant static web publishing with zero rebuilds. Hermes validates
+      deployments through Cloudflare Access using its Service Token before
+      reporting done.
 - [ ] **Notes from the old agent (openclaw/"Alexnet")** as read-only reference
       under `/var/lib/hermes/reference/openclaw/`, not imported. Alex has the
       backup on his laptop (agilite); ask him to copy it over.
