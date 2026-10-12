@@ -184,6 +184,7 @@ in
   };
 
   environment.systemPackages = [ switchToMaster ];
+  users.users.${cfg.user}.extraGroups = [ "video" ];
   security.sudo.extraRules = [
     {
       users = [ cfg.user ];
