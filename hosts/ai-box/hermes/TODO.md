@@ -34,9 +34,17 @@ repo (`hosts/ai-box/`).
       instant static web publishing with zero rebuilds. Hermes validates
       deployments through Cloudflare Access using its Service Token before
       reporting done.
+- [x] **Email & Browser Vault.** Authenticate `ailex.agent.bot@gmail.com` into
+      the persistent browser profile using 1Password service account autofill
+      via `browser_vault_fill`. Live inbox reading and email access verified.
 
 ## Next
 
+- [ ] **Gemma 4 Computer Use Benchmark.** Create a progressive benchmark to test
+      local Gemma 4 26B-A4B capabilities for background tasks:
+      1. Check a webpage (read content, extract status).
+      2. Interactive actions (navigate, click buttons, form inputs).
+      3. Multi-step workflows (open Google Docs/Drive, create/edit a document).
 - [ ] **Notes from the old agent (openclaw/"Alexnet")** as read-only reference
       under `/var/lib/hermes/reference/openclaw/`, not imported. Alex has the
       backup on his laptop (agilite); ask him to copy it over.
