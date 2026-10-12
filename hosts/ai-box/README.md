@@ -2,13 +2,26 @@
 
 NVIDIA Jetson AGX Orin 64GB devkit, running NixOS via
 [jetpack-nixos](https://github.com/anduril/jetpack-nixos) (JetPack 6) with its root
-filesystem on the 1TB NVMe. The built-in 64GB eMMC is unused.
+filesystem on the 1TB NVMe (btrfs). The built-in 64GB eMMC is unused.
 
 ## Day to day
 
 ```shell
 just ai-box-deploy   # copy config over, build + switch on ai-box (asks for sudo password)
 ssh ai-box.local
+```
+
+### Snapshots (undoing an agent's mess)
+
+The NVMe is btrfs. snapper snapshots `/` and `/home` hourly (24 hourly, 7 daily,
+4 weekly kept). `/nix`, `/var/log`, and `/var/lib/docker` are separate subvolumes
+that are never snapshotted, so a rollback can't erase logs of what happened.
+
+```shell
+snapper -c home list                          # what's there
+snapper -c home status 41..42                 # what changed between two snapshots
+snapper -c home undochange 41..0              # undo everything since #41
+cp /home/.snapshots/41/snapshot/alex/file .   # or grab one file back
 ```
 
 Firmware capsule updates are applied automatically on switch

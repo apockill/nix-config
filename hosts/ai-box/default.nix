@@ -8,6 +8,7 @@
   imports = [
     inputs.disko.nixosModules.disko
     ./disko.nix
+    ./snapshots.nix
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
     ../../modules/nixos/headless
