@@ -54,10 +54,12 @@ let
 
   # The only privileged commands the agent may run:
   # 1. Switch ai-box to whatever is merged on master.
+  # Executes via systemd-run so it escapes hermes-agent's private mount namespace
+  # (where /nix is read-only) and runs in the host root namespace.
   # Attempts a clean live switch first. If pre-switch checks inhibit a live switch
   # (e.g. kernel/firmware/driver updates), falls back to `boot` to stage into the
   # bootloader without breaking running services, prompting for a reboot.
-  switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
+  switchToMasterWorker = pkgs.writeShellScript "ai-box-switch-worker" ''
     export HOME=/root
     echo "Attempting live switch to master..."
     if ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
@@ -74,6 +76,16 @@ let
       fi
     fi
   '';
+
+  switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
+    exec ${pkgs.systemd}/bin/systemd-run \
+      --unit=ai-box-switch-run \
+      --wait \
+      --collect \
+      --property=Environment="HOME=/root" \
+      --property=WorkingDirectory=/root \
+      ${switchToMasterWorker}
+  '';
   switchToMasterPath = "/run/current-system/sw/bin/ai-box-switch-to-master";
   ai-box-switch = pkgs.writeShellScriptBin "ai-box-switch" ''
     exec sudo ${switchToMasterPath}
@@ -81,10 +93,20 @@ let
 
   # 2. Test a local branch live without changing the bootloader.
   # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
-  testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
+  testLocalConfigWorker = pkgs.writeShellScript "ai-box-test-worker" ''
     export HOME=/root
     exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
       --flake ${workspace}/nix-config#ai-box
+  '';
+
+  testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
+    exec ${pkgs.systemd}/bin/systemd-run \
+      --unit=ai-box-test-run \
+      --wait \
+      --collect \
+      --property=Environment="HOME=/root" \
+      --property=WorkingDirectory=/root \
+      ${testLocalConfigWorker}
   '';
   testLocalConfigPath = "/run/current-system/sw/bin/ai-box-test-local";
   ai-box-test = pkgs.writeShellScriptBin "ai-box-test" ''
@@ -247,6 +269,7 @@ in
     serviceConfig = {
       EnvironmentFile = [ "${secretsDir}/env" ];
       NoNewPrivileges = lib.mkForce false;
+      ProtectSystem = lib.mkForce false;
     };
   };
 
