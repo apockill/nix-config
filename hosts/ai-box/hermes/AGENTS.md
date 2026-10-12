@@ -27,6 +27,8 @@
    to `master`.
 2. Make the change, and check it builds:
    `nix build .#nixosConfigurations.ai-box.config.system.build.toplevel`
+   You can test changes live on the machine with `ai-box-test` (runs `nixos-rebuild test`;
+   ephemeral — autoUpgrade or reboot reverts to master).
 3. Open a PR with `gh pr create`.
 4. Alex reviews on GitHub; respond to review comments there.
 5. After Alex merges, run `ai-box-switch` to apply master immediately (it's the

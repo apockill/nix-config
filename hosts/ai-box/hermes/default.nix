@@ -45,10 +45,8 @@ let
     GH_TOKEN={{ op://ai-assistant/kb6xnh67wvh2hu7gtl3cgzxu4u/token }}
   '';
 
-  # The only privileged command the agent may run: switch ai-box to whatever is
-  # merged on master. It takes no arguments, so unmerged changes can't be
-  # deployed this way. (A wrapper because sudoers can't hold the flake ref's
-  # `:` and `#` unescaped.)
+  # The only privileged commands the agent may run:
+  # 1. Switch ai-box to whatever is merged on master.
   switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
     exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
       --refresh --flake github:apockill/nix-config#ai-box
@@ -56,6 +54,17 @@ let
   switchToMasterPath = "/run/current-system/sw/bin/ai-box-switch-to-master";
   ai-box-switch = pkgs.writeShellScriptBin "ai-box-switch" ''
     exec sudo ${switchToMasterPath}
+  '';
+
+  # 2. Test a local branch live without changing the bootloader.
+  # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
+  testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
+    exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
+      --flake ${workspace}/nix-config#ai-box
+  '';
+  testLocalConfigPath = "/run/current-system/sw/bin/ai-box-test-local";
+  ai-box-test = pkgs.writeShellScriptBin "ai-box-test" ''
+    exec sudo ${testLocalConfigPath}
   '';
 in
 {
@@ -112,6 +121,7 @@ in
     extraPackages = with pkgs; [
       _1password-cli
       ai-box-switch
+      ai-box-test
       gh
       git
       jq
@@ -183,7 +193,10 @@ in
     };
   };
 
-  environment.systemPackages = [ switchToMaster ];
+  environment.systemPackages = [
+    switchToMaster
+    testLocalConfig
+  ];
   users.users.${cfg.user}.extraGroups = [ "video" ];
   security.sudo.extraRules = [
     {
@@ -191,6 +204,10 @@ in
       commands = [
         {
           command = "${switchToMasterPath}";
+          options = [ "NOPASSWD" ];
+        }
+        {
+          command = "${testLocalConfigPath}";
           options = [ "NOPASSWD" ];
         }
       ];
