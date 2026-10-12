@@ -54,11 +54,25 @@ let
 
   # The only privileged commands the agent may run:
   # 1. Switch ai-box to whatever is merged on master.
+  # Attempts a clean live switch first. If pre-switch checks inhibit a live switch
+  # (e.g. kernel/firmware/driver updates), falls back to `boot` to stage into the
+  # bootloader without breaking running services, prompting for a reboot.
   switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
     export HOME=/root
-    export NIXOS_NO_CHECK=1
-    exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
-      --refresh --flake github:apockill/nix-config#ai-box
+    echo "Attempting live switch to master..."
+    if ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
+        --refresh --flake github:apockill/nix-config#ai-box; then
+      echo "Live switch to master succeeded."
+    else
+      echo "Live switch inhibited or failed. Staging to bootloader instead..."
+      if ${config.system.build.nixos-rebuild}/bin/nixos-rebuild boot \
+          --refresh --flake github:apockill/nix-config#ai-box; then
+        echo ">>> STAGED_REBOOT_REQUIRED: System staged to bootloader. Ask user before rebooting. <<<"
+      else
+        echo "Build failed for both switch and boot."
+        exit 1
+      fi
+    fi
   '';
   switchToMasterPath = "/run/current-system/sw/bin/ai-box-switch-to-master";
   ai-box-switch = pkgs.writeShellScriptBin "ai-box-switch" ''
@@ -69,13 +83,21 @@ let
   # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
   testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
     export HOME=/root
-    export NIXOS_NO_CHECK=1
     exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
       --flake ${workspace}/nix-config#ai-box
   '';
   testLocalConfigPath = "/run/current-system/sw/bin/ai-box-test-local";
   ai-box-test = pkgs.writeShellScriptBin "ai-box-test" ''
     exec sudo ${testLocalConfigPath}
+  '';
+
+  # 3. Reboot the machine when staged updates require it (ask Alex first!).
+  rebootCmd = pkgs.writeShellScriptBin "ai-box-reboot-cmd" ''
+    exec ${pkgs.systemd}/bin/systemctl reboot
+  '';
+  rebootCmdPath = "/run/current-system/sw/bin/ai-box-reboot-cmd";
+  ai-box-reboot = pkgs.writeShellScriptBin "ai-box-reboot" ''
+    exec sudo ${rebootCmdPath}
   '';
 
   # Upstream Hermes bug (NousResearch/hermes-agent issue #108335 / PR #129628):
@@ -156,6 +178,7 @@ in
       opVaultWrapper
       ai-box-switch
       ai-box-test
+      ai-box-reboot
       gh
       git
       jq
@@ -230,6 +253,7 @@ in
   environment.systemPackages = [
     switchToMaster
     testLocalConfig
+    rebootCmd
   ];
   users.users.${cfg.user}.extraGroups = [ "video" ];
   security.sudo.extraRules = [
@@ -242,6 +266,10 @@ in
         }
         {
           command = "${testLocalConfigPath}";
+          options = [ "NOPASSWD" ];
+        }
+        {
+          command = "${rebootCmdPath}";
           options = [ "NOPASSWD" ];
         }
       ];
