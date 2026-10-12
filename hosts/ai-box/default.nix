@@ -9,6 +9,7 @@
     inputs.disko.nixosModules.disko
     ./disko.nix
     ./snapshots.nix
+    ./llama-cpp.nix
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common

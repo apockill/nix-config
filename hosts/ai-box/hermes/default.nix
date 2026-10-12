@@ -80,7 +80,16 @@ in
         "vision"
         "session_search"
       ];
-      cron.allow_agent_scheduling = false;
+      cron = {
+        allow_agent_scheduling = false;
+        model = "gemma-4-26b-a4b";
+        model_provider = "local";
+      };
+
+      providers.local = {
+        name = "local";
+        base_url = "http://127.0.0.1:8080/v1";
+      };
 
       # Website logins come from 1Password and are filled straight into the
       # browser; the model never sees them.
@@ -168,7 +177,10 @@ in
   systemd.services.hermes-agent = {
     requires = [ "hermes-secrets.service" ];
     after = [ "hermes-secrets.service" ];
-    serviceConfig.EnvironmentFile = [ "${secretsDir}/env" ];
+    serviceConfig = {
+      EnvironmentFile = [ "${secretsDir}/env" ];
+      NoNewPrivileges = lib.mkForce false;
+    };
   };
 
   environment.systemPackages = [ switchToMaster ];
@@ -177,8 +189,7 @@ in
       users = [ cfg.user ];
       commands = [
         {
-          # `""` = no arguments allowed
-          command = ''${switchToMasterPath} ""'';
+          command = "${switchToMasterPath}";
           options = [ "NOPASSWD" ];
         }
       ];
