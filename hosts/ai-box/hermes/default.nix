@@ -123,6 +123,8 @@ in
     requiredBy = [ "hermes-agent.service" ];
     unitConfig.ConditionPathExists = serviceAccountEnv;
     path = [ pkgs._1password-cli ];
+    # op needs a writable config dir and a system service has no $HOME
+    environment.OP_CONFIG_DIR = "${secretsDir}/op";
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
@@ -133,6 +135,7 @@ in
     };
     script = ''
       out=${secretsDir}/env
+      mkdir -p -m 0700 "$OP_CONFIG_DIR"
       # The network can be up before DNS/TLS to 1Password works; retry briefly.
       for attempt in 1 2 3 4 5 6; do
         if op inject --force --in-file ${secretsTemplate} --out-file "$out.tmp"; then
