@@ -13,6 +13,7 @@
     ./browser.nix
     ./cloudflared.nix
     ./caddy.nix
+    ./apps-runner.nix
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common

@@ -29,8 +29,14 @@
           }
         }
         handle {
-          root * /var/lib/hermes/sites/portal
-          file_server
+          @portalSock file /var/lib/hermes/sites/portal/app.sock
+          handle @portalSock {
+            reverse_proxy unix//var/lib/hermes/sites/portal/app.sock
+          }
+          handle {
+            root * /var/lib/hermes/sites/portal
+            file_server
+          }
         }
       }
     '';
