@@ -19,6 +19,9 @@ repo (`hosts/ai-box/`).
 - [x] **First PR.** Run `gh auth setup-git`, set your git identity (see
       AGENTS.md), and open a small PR (e.g. tick this item) to prove the loop:
       branch, build, PR, Alex merges, `ai-box-switch`.
+- [x] **Local model for scheduled jobs.** llama.cpp (CUDA, sm_87) serving
+      Gemma 4 26B-A4B as a NixOS service, set as `cron.model` /
+      `cron.model_provider` with 256K context.
 
 ## Next
 
@@ -33,9 +36,6 @@ repo (`hosts/ai-box/`).
       service token so you can load your own public pages (the old setup
       couldn't, so it never verified its work). Alex needs to log in to
       `cloudflared` once for this.
-- [ ] **Local model for scheduled jobs.** llama.cpp (CUDA, sm_87) serving
-      Gemma 4 26B-A4B as a NixOS service, set as `cron.model` /
-      `cron.model_provider`. It must serve at least 64K context.
 - [ ] **Notes from the old agent (openclaw/"Alexnet")** as read-only reference
       under `/var/lib/hermes/reference/openclaw/`, not imported. Alex has the
       backup on his laptop (agilite); ask him to copy it over.
