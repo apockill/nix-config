@@ -14,14 +14,14 @@ repo (`hosts/ai-box/`).
 - [x] Discord chat and a GitHub account (ailex-agent) with write access to
       nix-config; `master` is protected
 - [x] `ai-box-switch` plus an hourly autoUpgrade from `master`
+- [x] **Say hi.** Confirm Discord works both ways, and send Alex a message on
+      a schedule (a one-shot cron job) to prove you can reach out on your own.
+- [x] **First PR.** Run `gh auth setup-git`, set your git identity (see
+      AGENTS.md), and open a small PR (e.g. tick this item) to prove the loop:
+      branch, build, PR, Alex merges, `ai-box-switch`.
 
 ## Next
 
-- [ ] **Say hi.** Confirm Discord works both ways, and send Alex a message on
-      a schedule (a one-shot cron job) to prove you can reach out on your own.
-- [ ] **First PR.** Run `gh auth setup-git`, set your git identity (see
-      AGENTS.md), and open a small PR (e.g. tick this item) to prove the loop:
-      branch, build, PR, Alex merges, `ai-box-switch`.
 - [ ] **Browser with a live view.** A visible Chromium on a virtual display
       (Xvfb or similar) with a persistent profile, exposed to Hermes over CDP
       (`browser.cdp_url`) and to Alex through noVNC. When you're blocked on a
