@@ -8,6 +8,18 @@ update:
 update-firmware:
     sudo fwupdmgr update
 
+# Copy this checkout to ai-box and switch there (it's aarch64, so it builds on
+# the box). Prompts for alex's sudo password on ai-box.
+ai-box-deploy:
+    rsync -a --delete --exclude .git --exclude result ./ alex@ai-box.local:nix-config/
+    ssh -t alex@ai-box.local sudo nixos-rebuild switch --flake path:/home/alex/nix-config#ai-box
+
+# Flash ai-box's firmware over USB; the Jetson must be in recovery mode.
+# See hosts/ai-box/README.md
+ai-box-flash:
+    nix build .#ai-box-flash-script
+    sudo ./result/bin/initrd-flash-orin-agx-devkit
+
 format:
     nixfmt .
     black .

@@ -11,3 +11,6 @@ builds/
 __pycache__
 
 llm_context.md
+# nix build output links
+result
+result-*

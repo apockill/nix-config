@@ -1,3 +1,4 @@
+# Home profile used on every host: shell/dev tooling that doesn't need a GUI.
 {
   config,
   pkgs,
@@ -6,12 +7,7 @@
 }:
 {
   imports = [
-    ./dconf.nix
     ./git.nix
-    ./gnome_extensions.nix
-    ./chrome.nix
-    ./vscode.nix
-    ./antigravity.nix
     ./claude.nix
   ];
 
@@ -21,6 +17,4 @@
     nix-direnv.enable = true;
   };
   nixpkgs.config.allowUnfree = true;
-
-  home.stateVersion = "24.11";
 }

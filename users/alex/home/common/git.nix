@@ -8,4 +8,7 @@
       safe.directory = "/home/alex/dotfiles";
     };
   };
+
+  # GitHub CLI; authenticate once with `gh auth login`
+  programs.gh.enable = true;
 }
