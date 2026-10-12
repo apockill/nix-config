@@ -7,7 +7,7 @@ filesystem on the 1TB NVMe. The built-in 64GB eMMC is unused.
 ## Day to day
 
 ```shell
-just ai-box-deploy   # build on ai-box, activate over SSH
+just ai-box-deploy   # copy config over, build + switch on ai-box (asks for sudo password)
 ssh ai-box.local
 ```
 
@@ -64,6 +64,9 @@ sudo cp -a /etc/ssh/ssh_host_*_key* /mnt/etc/ssh/   # keeps the host's SSH finge
 4. `just ai-box-flash` (builds the script if needed, then runs it with sudo)
 
 When it finishes, the Jetson reboots into NixOS: `ssh alex@ai-box.local`.
+
+Then **immediately run `passwd`**. alex's initial password is `password` (it's in
+this public repo), and it's also what sudo asks for.
 
 ### If it doesn't come up
 

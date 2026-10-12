@@ -24,13 +24,9 @@
 
   zramSwap.enable = true;
 
-  # Remote deploys (`just ai-box-deploy`) copy store paths as alex and
-  # activate with sudo, so neither can prompt for a password.
-  nix.settings.trusted-users = [
-    "root"
-    "@wheel"
-  ];
-  security.sudo.wheelNeedsPassword = false;
+  # sudo keeps asking for a password, and alex is not a nix trusted-user (that
+  # would be root-equivalent too). Agents will be running on this box, so root
+  # takes a human typing a password: `just ai-box-deploy` prompts for it.
 
   nix.gc = {
     automatic = true;

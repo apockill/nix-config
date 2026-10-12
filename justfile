@@ -8,9 +8,11 @@ update:
 update-firmware:
     sudo fwupdmgr update
 
-# ai-box is aarch64, so build on the box itself and activate it over SSH
+# Copy this checkout to ai-box and switch there (it's aarch64, so it builds on
+# the box). Prompts for alex's sudo password on ai-box.
 ai-box-deploy:
-    nixos-rebuild --flake .#ai-box --target-host alex@ai-box.local --build-host alex@ai-box.local --sudo switch
+    rsync -a --delete --exclude .git --exclude result ./ alex@ai-box.local:nix-config/
+    ssh -t alex@ai-box.local sudo nixos-rebuild switch --flake path:/home/alex/nix-config#ai-box
 
 # Flash ai-box's firmware over USB; the Jetson must be in recovery mode.
 # See hosts/ai-box/README.md
