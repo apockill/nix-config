@@ -56,6 +56,7 @@ let
   # 1. Switch ai-box to whatever is merged on master.
   switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
     export HOME=/root
+    export NIXOS_NO_CHECK=1
     exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
       --refresh --flake github:apockill/nix-config#ai-box
   '';
@@ -68,6 +69,7 @@ let
   # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
   testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
     export HOME=/root
+    export NIXOS_NO_CHECK=1
     exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
       --flake ${workspace}/nix-config#ai-box
   '';

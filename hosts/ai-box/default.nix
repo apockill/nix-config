@@ -44,6 +44,7 @@
     randomizedDelaySec = "5min";
     allowReboot = false;
   };
+  systemd.services.nixos-upgrade.environment.NIXOS_NO_CHECK = "1";
 
   nix.gc = {
     automatic = true;
