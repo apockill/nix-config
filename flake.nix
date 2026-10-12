@@ -28,6 +28,11 @@
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # Alex's agent on ai-box. Pinned to a release: upstream treats Nix as a
+    # best-effort platform and main can break. Its Python/Node build follows
+    # its own nixpkgs, which is what upstream tests.
+    hermes-agent.url = "github:NousResearch/hermes-agent/v0.21.6";
   };
 
   outputs =
