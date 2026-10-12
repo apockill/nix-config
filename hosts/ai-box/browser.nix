@@ -29,33 +29,34 @@ in
     };
   };
 
-  # 2. VNC server + noVNC web proxy (HTML5 viewer on port 6080)
-  systemd.services.browser-novnc = {
-    description = "noVNC web stream for virtual display";
+  # 2. VNC server attached to virtual display
+  systemd.services.browser-x11vnc = {
+    description = "x11vnc server on virtual display";
     after = [ "browser-xvfb.service" ];
     requires = [ "browser-xvfb.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       User = "hermes";
       Group = "hermes";
+      ExecStart = "${pkgs.x11vnc}/bin/x11vnc -display ${display} -forever -shared -nopw -listen 127.0.0.1 -rfbport 5900";
       Restart = "always";
       RestartSec = "2s";
     };
-    script = ''
-      # Wait for Xvfb socket to appear
-      while [ ! -e /tmp/.X11-unix/X99 ]; do
-        sleep 0.2
-      done
+  };
 
-      # Start x11vnc in background
-      ${pkgs.x11vnc}/bin/x11vnc -display ${display} -forever -shared -nopw -listen 127.0.0.1 -rfbport 5900 &
-      VNC_PID=$!
-
-      trap "kill $VNC_PID 2>/dev/null || true" EXIT
-
-      # Start noVNC web server proxying to 5900
-      exec ${pkgs.novnc}/bin/novnc --vnc 127.0.0.1:5900 --listen 0.0.0.0:6080
-    '';
+  # 3. noVNC web proxy (HTML5 viewer on port 6080)
+  systemd.services.browser-novnc = {
+    description = "noVNC web stream for virtual display";
+    after = [ "browser-x11vnc.service" ];
+    requires = [ "browser-x11vnc.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      User = "hermes";
+      Group = "hermes";
+      ExecStart = "${pkgs.python313Packages.websockify}/bin/websockify --web ${pkgs.novnc}/share/webapps/novnc 6080 127.0.0.1:5900";
+      Restart = "always";
+      RestartSec = "2s";
+    };
   };
 
   # 3. Chromium running on :99 with CDP exposed on localhost:9222

@@ -11,6 +11,11 @@
   services.caddy = {
     enable = true;
     extraConfig = ''
+      http://browser.alexthiele.io {
+        redir / /vnc.html
+        reverse_proxy 127.0.0.1:6080
+      }
+
       http:// {
         @subdomain header_regexp sub Host ^([^.]+)\.alexthiele\.io$
         handle @subdomain {
