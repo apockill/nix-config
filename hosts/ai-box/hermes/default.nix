@@ -55,12 +55,9 @@ let
   # The only privileged commands the agent may run:
   # 1. Switch ai-box to whatever is merged on master.
   switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
-    exec ${pkgs.systemd}/bin/systemd-run \
-      --unit=ai-box-switch-run \
-      --wait \
-      --collect \
-      ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
-        --refresh --flake github:apockill/nix-config#ai-box
+    export HOME=/root
+    exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
+      --refresh --flake github:apockill/nix-config#ai-box
   '';
   switchToMasterPath = "/run/current-system/sw/bin/ai-box-switch-to-master";
   ai-box-switch = pkgs.writeShellScriptBin "ai-box-switch" ''
@@ -70,12 +67,9 @@ let
   # 2. Test a local branch live without changing the bootloader.
   # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
   testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
-    exec ${pkgs.systemd}/bin/systemd-run \
-      --unit=ai-box-test-run \
-      --wait \
-      --collect \
-      ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
-        --flake ${workspace}/nix-config#ai-box
+    export HOME=/root
+    exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
+      --flake ${workspace}/nix-config#ai-box
   '';
   testLocalConfigPath = "/run/current-system/sw/bin/ai-box-test-local";
   ai-box-test = pkgs.writeShellScriptBin "ai-box-test" ''
