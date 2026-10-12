@@ -30,7 +30,14 @@ in
           size = "100%";
           content = {
             type = "btrfs";
-            extraArgs = [ "-f" ];
+            extraArgs = [
+              "-f"
+              # btrfs-progs enables block-group-tree by default, but it needs
+              # Linux 6.1+ and the JetPack 6 kernel is 5.15: the root fs would
+              # refuse to mount read-write.
+              "-O"
+              "^block-group-tree"
+            ];
             subvolumes = {
               "@root" = {
                 mountpoint = "/";
