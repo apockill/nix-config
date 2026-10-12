@@ -22,21 +22,21 @@ repo (`hosts/ai-box/`).
 - [x] **Local model for scheduled jobs.** llama.cpp (CUDA, sm_87) serving
       Gemma 4 26B-A4B as a NixOS service, set as `cron.model` /
       `cron.model_provider` with 256K context.
-
-## Next
-
-- [ ] **Browser with a live view.** A visible Chromium on a virtual display
+- [x] **Browser with a live view.** A visible Chromium on a virtual display
       (Xvfb) with a persistent profile (`/var/lib/hermes/browser-profile`),
       exposed to Hermes over CDP (`browser.cdp_url = "http://127.0.0.1:9222"`)
       and to Alex through noVNC (web-native HTML5 VNC viewer).
-- [ ] **Cloudflare Tunnel & Access setup.** Connect ai-box via Cloudflare Tunnel
+- [x] **Cloudflare Tunnel & Access setup.** Connect ai-box via Cloudflare Tunnel
       (token in `ai-assistant` vault). Expose noVNC (`browser.alexthiele.io`)
       and dynamic sites (`*.alexthiele.io`) behind Cloudflare Access. Authorize
       Alex's email, `ailex.agent.bot@gmail.com`, and an Access Service Token.
-- [ ] **Host web pages.** Caddy serving `/var/lib/hermes/sites/{subdomain}` for
+- [x] **Host web pages.** Caddy serving `/var/lib/hermes/sites/{subdomain}` for
       instant static web publishing with zero rebuilds. Hermes validates
       deployments through Cloudflare Access using its Service Token before
       reporting done.
+
+## Next
+
 - [ ] **Notes from the old agent (openclaw/"Alexnet")** as read-only reference
       under `/var/lib/hermes/reference/openclaw/`, not imported. Alex has the
       backup on his laptop (agilite); ask him to copy it over.
