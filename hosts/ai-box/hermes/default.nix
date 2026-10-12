@@ -95,6 +95,7 @@ let
   # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
   testLocalConfigWorker = pkgs.writeShellScript "ai-box-test-worker" ''
     export HOME=/root
+    ${pkgs.git}/bin/git config --global --add safe.directory ${workspace}/nix-config 2>/dev/null || true
     exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
       --flake ${workspace}/nix-config#ai-box
   '';
