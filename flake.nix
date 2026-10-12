@@ -46,9 +46,11 @@
         ai-box = mkHost ./hosts/ai-box;
       };
 
-      # The Jetson firmware flash script only runs on x86_64, so build it from a
-      # cross-compiled variant of ai-box (CUDA doesn't cross-compile, and the
-      # flash script doesn't need it). See hosts/ai-box/README.md.
+      # Firmware flash script for ai-box, run from an x86_64 machine (NVIDIA's
+      # flashing tools are x86_64-only). The firmware and kernel it flashes still
+      # run on the Jetson, so this variant of ai-box is cross-compiled from
+      # x86_64 to aarch64. CUDA is turned off because nixpkgs can't cross-compile
+      # it, and flashing doesn't need it. See hosts/ai-box/README.md.
       packages.x86_64-linux.ai-box-flash-script =
         (self.nixosConfigurations.ai-box.extendModules {
           modules = [

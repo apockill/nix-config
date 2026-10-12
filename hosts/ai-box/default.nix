@@ -24,7 +24,7 @@
 
   zramSwap.enable = true;
 
-  # Remote deploys (`just deploy-ai-box`) copy store paths as alex and
+  # Remote deploys (`just ai-box-deploy`) copy store paths as alex and
   # activate with sudo, so neither can prompt for a password.
   nix.settings.trusted-users = [
     "root"

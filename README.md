@@ -16,7 +16,7 @@ Everything in this set up is likely not "Strictly Correct (TM)", since it's my f
 
 Hosts:
 - `agilite`: personal Dell XPS 15 workstation (`just switch`).
-- `ai-box`: Jetson AGX Orin running AI services and agents (`just deploy-ai-box`).
+- `ai-box`: Jetson AGX Orin running AI services and agents (`just ai-box-deploy`).
   See [hosts/ai-box/README.md](hosts/ai-box/README.md) for installing it from scratch.
 
 ## Steps

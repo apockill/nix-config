@@ -9,12 +9,14 @@ update-firmware:
     sudo fwupdmgr update
 
 # ai-box is aarch64, so build on the box itself and activate it over SSH
-deploy-ai-box:
+ai-box-deploy:
     nixos-rebuild --flake .#ai-box --target-host alex@ai-box.local --build-host alex@ai-box.local --sudo switch
 
-# Firmware flash script for ai-box; see hosts/ai-box/README.md
-build-ai-box-flash-script:
+# Flash ai-box's firmware over USB; the Jetson must be in recovery mode.
+# See hosts/ai-box/README.md
+ai-box-flash:
     nix build .#ai-box-flash-script
+    sudo ./result/bin/initrd-flash-orin-agx-devkit
 
 format:
     nixfmt .

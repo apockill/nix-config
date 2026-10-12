@@ -7,7 +7,7 @@ filesystem on the 1TB NVMe. The built-in 64GB eMMC is unused.
 ## Day to day
 
 ```shell
-just deploy-ai-box   # build on ai-box, activate over SSH
+just ai-box-deploy   # build on ai-box, activate over SSH
 ssh ai-box.local
 ```
 
@@ -15,6 +15,9 @@ Firmware capsule updates are applied automatically on switch
 (`hardware.nvidia-jetpack.firmware.autoUpdate`). Check with `ota-check-firmware`.
 
 ## Installing from scratch (no monitor needed)
+
+> **Untested draft.** Written before the first install; will be corrected
+> against what actually happens.
 
 This installs onto the NVMe from whatever Linux is already running on the Jetson
 (e.g. NVIDIA's stock L4T Ubuntu on the eMMC), then flashes matching firmware over
@@ -25,7 +28,7 @@ USB. The firmware's boot order is NVMe first, so it boots straight into NixOS.
 ### 1. Build the firmware flash script (on an x86_64 machine)
 
 ```shell
-just build-ai-box-flash-script   # -> ./result/bin/initrd-flash-orin-agx-devkit
+nix build .#ai-box-flash-script   # -> ./result/bin/initrd-flash-orin-agx-devkit
 ```
 
 ### 2. Install NixOS onto the NVMe (on the Jetson, over SSH)
@@ -58,7 +61,7 @@ sudo cp -a /etc/ssh/ssh_host_*_key* /mnt/etc/ssh/   # keeps the host's SSH finge
 2. With the Jetson powered on, hold the middle (recovery) button, tap reset (right
    button), release.
 3. `lsusb | grep 0955:7023` should show `NVIDIA Corp. APX`.
-4. `sudo ./result/bin/initrd-flash-orin-agx-devkit`
+4. `just ai-box-flash` (builds the script if needed, then runs it with sudo)
 
 When it finishes, the Jetson reboots into NixOS: `ssh alex@ai-box.local`.
 
