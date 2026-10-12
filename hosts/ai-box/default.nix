@@ -9,6 +9,7 @@
     inputs.disko.nixosModules.disko
     ./disko.nix
     ./snapshots.nix
+    ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
     ../../modules/nixos/headless
@@ -28,6 +29,17 @@
   # sudo keeps asking for a password, and alex is not a nix trusted-user (that
   # would be root-equivalent too). Agents will be running on this box, so root
   # takes a human typing a password: `just ai-box-deploy` prompts for it.
+
+  # master is the source of truth: apply whatever is merged there, hourly.
+  # (The agent can also apply it immediately with `ai-box-switch`.) Anything
+  # deployed by hand with `just ai-box-deploy` is replaced on the next run.
+  system.autoUpgrade = {
+    enable = true;
+    flake = "github:apockill/nix-config#ai-box";
+    dates = "hourly";
+    randomizedDelaySec = "5min";
+    allowReboot = false;
+  };
 
   nix.gc = {
     automatic = true;
