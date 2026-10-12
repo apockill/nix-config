@@ -36,10 +36,16 @@ let
   '';
 
   # The only privileged command the agent may run: switch ai-box to whatever is
-  # merged on master. Unmerged changes can't be deployed this way.
-  switchCommand = "/run/current-system/sw/bin/nixos-rebuild switch --refresh --flake github:apockill/nix-config#ai-box";
+  # merged on master. It takes no arguments, so unmerged changes can't be
+  # deployed this way. (A wrapper because sudoers can't hold the flake ref's
+  # `:` and `#` unescaped.)
+  switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
+    exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
+      --refresh --flake github:apockill/nix-config#ai-box
+  '';
+  switchToMasterPath = "/run/current-system/sw/bin/ai-box-switch-to-master";
   ai-box-switch = pkgs.writeShellScriptBin "ai-box-switch" ''
-    exec sudo ${switchCommand}
+    exec sudo ${switchToMasterPath}
   '';
 in
 {
@@ -149,12 +155,14 @@ in
     serviceConfig.EnvironmentFile = [ "${secretsDir}/env" ];
   };
 
+  environment.systemPackages = [ switchToMaster ];
   security.sudo.extraRules = [
     {
       users = [ cfg.user ];
       commands = [
         {
-          command = switchCommand;
+          # `""` = no arguments allowed
+          command = ''${switchToMasterPath} ""'';
           options = [ "NOPASSWD" ];
         }
       ];
