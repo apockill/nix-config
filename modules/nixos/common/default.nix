@@ -19,6 +19,12 @@
   };
 
   networking.networkmanager.enable = true;
+
+  # Resolve <hostname>.local names (e.g. ai-box.local) via mDNS
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+  };
   nixpkgs.config.allowUnfree = true;
 
   environment.systemPackages = with pkgs; [

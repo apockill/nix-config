@@ -1,5 +1,5 @@
-# Headless machine managed over the network: key-only SSH and mDNS so it's
-# reachable as <hostname>.local without knowing its IP.
+# Headless machine managed over the network: key-only SSH, and publishes itself
+# over mDNS so it's reachable as <hostname>.local without knowing its IP.
 { pkgs, ... }:
 {
   # Receiving end of `just <host>-deploy`, which rsyncs the config over
@@ -14,9 +14,8 @@
     };
   };
 
+  # Resolving .local names is set up for every host in modules/nixos/common
   services.avahi = {
-    enable = true;
-    nssmdns4 = true;
     openFirewall = true;
     publish = {
       enable = true;
