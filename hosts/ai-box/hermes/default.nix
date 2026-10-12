@@ -75,6 +75,20 @@ let
   ai-box-test = pkgs.writeShellScriptBin "ai-box-test" ''
     exec sudo ${testLocalConfigPath}
   '';
+
+  # Upstream Hermes bug (NousResearch/hermes-agent issue #108335 / PR #129628):
+  # When using 1Password Service Accounts (OP_SERVICE_ACCOUNT_TOKEN), `op item get`
+  # requires an explicit `--vault` flag. Upstream Hermes omits `--vault` in
+  # agent/vault_backends/onepassword.py, causing `browser_vault_fill` to fail.
+  # This wrapper injects `--vault ai-assistant` on `item get` calls when omitted.
+  # Remove this wrapper once upstream hermes-agent merges support for service accounts.
+  opVaultWrapper = pkgs.writeShellScriptBin "op" ''
+    if [[ "$*" == *"item get"* && "$*" != *"--vault"* ]]; then
+      exec ${pkgs._1password-cli}/bin/op "$@" --vault ai-assistant
+    else
+      exec ${pkgs._1password-cli}/bin/op "$@"
+    fi
+  '';
 in
 {
   imports = [ inputs.hermes-agent.nixosModules.default ];
@@ -119,6 +133,7 @@ in
       vault.onepassword = {
         enabled = true;
         service_account_token_env = "OP_SERVICE_ACCOUNT_TOKEN";
+        binary_path = "${opVaultWrapper}/bin/op";
       };
       # Lets `op` and `gh` in the agent's terminal reach the vault and GitHub,
       # and gives curl access to the Cloudflare Access service token.
@@ -136,7 +151,7 @@ in
     workingDirectory = workspace;
 
     extraPackages = with pkgs; [
-      _1password-cli
+      opVaultWrapper
       ai-box-switch
       ai-box-test
       gh
