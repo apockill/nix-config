@@ -34,6 +34,9 @@ repo (`hosts/ai-box/`).
       instant static web publishing with zero rebuilds. Hermes validates
       deployments through Cloudflare Access using its Service Token before
       reporting done.
+- [x] **Email & Browser Vault.** Authenticate `ailex.agent.bot@gmail.com` into
+      the persistent browser profile using 1Password service account autofill
+      via `browser_vault_fill`. Live inbox reading and email access verified.
 
 ## Next
 
