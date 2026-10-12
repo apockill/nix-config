@@ -81,6 +81,35 @@ first push, run `gh auth setup-git`, and set your identity:
 `git config --global user.email 341263899+ailex-agent@users.noreply.github.com`.
 GitHub web logins use a passkey you can't operate; ask Alex if you need one.
 
+## Web browser & Live View
+
+- Chromium runs as a systemd service (`browser-chromium.service`) on a virtual
+  X11 display (`Xvfb :99` via `browser-xvfb.service`) with its persistent profile
+  in `/var/lib/hermes/browser-profile`.
+- CDP is exposed on `http://127.0.0.1:9222`, configured as `browser.cdp_url`.
+- A live view of the desktop is streamed over HTML5 via noVNC on port 6080
+  (`browser-novnc.service`), exposed publicly at `browser.alexthiele.io` behind
+  Cloudflare Access.
+- **When blocked by a login, CAPTCHA, or 2FA:** send Alex the live view link
+  (`https://browser.alexthiele.io/vnc.html`), pause, wait for Alex to solve it,
+  then verify the page moved on.
+
+## Web Hosting & Cloudflare Access
+
+- **Tunnel:** `openclaw` tunnel (`cloudflared.service`), token in vault item
+  `Cloudflare Tunnel`. It routes `browser.alexthiele.io` to noVNC (port 6080)
+  and `*.alexthiele.io` to Caddy (port 80).
+- **Static web hosting:** Caddy serves `/var/lib/hermes/sites/<subdomain>/`
+  automatically for `<subdomain>.alexthiele.io` with zero rebuilds.
+- **Service Token:** Vault item `Cloudflare Access` holds `CF_ACCESS_CLIENT_ID`
+  and `CF_ACCESS_CLIENT_SECRET`. When making automated HTTP requests or checks
+  against `*.alexthiele.io`, include these headers:
+  `-H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"`
+  to bypass the Google OAuth login wall.
+- **Verify before you report:** when deploying a web service, test it locally
+  first, then test the public URL with the service token headers to confirm
+  it serves HTTP 200 before messaging Alex that it's live.
+
 ## Still being set up
 
 `TODO.md` (next to this file) is the list of setup work that's left. Work

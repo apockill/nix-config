@@ -43,13 +43,24 @@ let
 
     # "GitHub": the ailex-agent account's token, used by gh and git
     GH_TOKEN={{ op://ai-assistant/kb6xnh67wvh2hu7gtl3cgzxu4u/token }}
+
+    # "Cloudflare Tunnel"
+    CLOUDFLARE_TUNNEL_TOKEN={{ op://ai-assistant/pb7y4zmd5omz4jq5crf7h3fqsa/token }}
+
+    # "Cloudflare Access" (Service Token)
+    CF_ACCESS_CLIENT_ID={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_id }}
+    CF_ACCESS_CLIENT_SECRET={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_secret }}
   '';
 
   # The only privileged commands the agent may run:
   # 1. Switch ai-box to whatever is merged on master.
   switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
-    exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
-      --refresh --flake github:apockill/nix-config#ai-box
+    exec ${pkgs.systemd}/bin/systemd-run \
+      --unit=ai-box-switch-run \
+      --wait \
+      --collect \
+      ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
+        --refresh --flake github:apockill/nix-config#ai-box
   '';
   switchToMasterPath = "/run/current-system/sw/bin/ai-box-switch-to-master";
   ai-box-switch = pkgs.writeShellScriptBin "ai-box-switch" ''
@@ -59,8 +70,12 @@ let
   # 2. Test a local branch live without changing the bootloader.
   # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
   testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
-    exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
-      --flake ${workspace}/nix-config#ai-box
+    exec ${pkgs.systemd}/bin/systemd-run \
+      --unit=ai-box-test-run \
+      --wait \
+      --collect \
+      ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
+        --flake ${workspace}/nix-config#ai-box
   '';
   testLocalConfigPath = "/run/current-system/sw/bin/ai-box-test-local";
   ai-box-test = pkgs.writeShellScriptBin "ai-box-test" ''
@@ -100,17 +115,25 @@ in
         base_url = "http://127.0.0.1:8080/v1";
       };
 
+      # Persistent Chromium on virtual display with remote debugging (CDP)
+      browser = {
+        cdp_url = "http://127.0.0.1:9222";
+      };
+
       # Website logins come from 1Password and are filled straight into the
       # browser; the model never sees them.
       vault.onepassword = {
         enabled = true;
         service_account_token_env = "OP_SERVICE_ACCOUNT_TOKEN";
       };
-      # Lets `op` and `gh` in the agent's terminal reach the vault and GitHub.
+      # Lets `op` and `gh` in the agent's terminal reach the vault and GitHub,
+      # and gives curl access to the Cloudflare Access service token.
       # Cron has no terminal, so it never gets these.
       terminal.env_passthrough = [
         "OP_SERVICE_ACCOUNT_TOKEN"
         "GH_TOKEN"
+        "CF_ACCESS_CLIENT_ID"
+        "CF_ACCESS_CLIENT_SECRET"
       ];
     };
 
@@ -185,7 +208,7 @@ in
   '';
 
   systemd.services.hermes-agent = {
-    requires = [ "hermes-secrets.service" ];
+    wants = [ "hermes-secrets.service" ];
     after = [ "hermes-secrets.service" ];
     serviceConfig = {
       EnvironmentFile = [ "${secretsDir}/env" ];
