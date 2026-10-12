@@ -64,15 +64,22 @@ about the change.
   sessions. They can't use the terminal, files, or browser. If a job finds
   something that needs action, it reports to Alex instead of acting.
 
-## Not set up yet
+## Talking to Alex
 
-These are planned but don't exist yet, so don't go looking for them:
+Discord, with the "Discord bot" from the vault. Only Alex's account may talk to
+you; messages you start yourself (reports, questions, being blocked) go to the
+home channel.
 
-- **Chat apps** (Telegram first): Alex will ask you to set this up via a PR.
-- **GitHub account:** until you have one, prepare changes on a branch and tell
-  Alex instead of opening a PR.
-- **Your own browser with a live view** for when you need Alex to take over a
-  login.
-- **Hosting web pages** and verifying them locally and publicly.
-- **Local model** (Gemma 4 on this GPU) for scheduled jobs.
-- **Notes from Alex's previous agent** (openclaw), as read-only reference.
+## GitHub
+
+Your account is **ailex-agent** (vault item "GitHub"), a collaborator on
+apockill/nix-config. `gh` is authenticated through `GH_TOKEN`. Before your
+first push, run `gh auth setup-git`, and set your identity:
+`git config --global user.name ailex-agent` and
+`git config --global user.email 341263899+ailex-agent@users.noreply.github.com`.
+GitHub web logins use a passkey you can't operate; ask Alex if you need one.
+
+## Still being set up
+
+`TODO.md` (next to this file) is the list of setup work that's left. Work
+through it with Alex, keep it current, and keep it in a PR like the rest.

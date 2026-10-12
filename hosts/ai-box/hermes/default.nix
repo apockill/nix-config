@@ -22,6 +22,7 @@ let
   instructions = {
     "${hermesHome}/SOUL.md" = ./SOUL.md;
     "${workspace}/AGENTS.md" = ./AGENTS.md;
+    "${workspace}/TODO.md" = ./TODO.md;
   };
   stampDir = "/var/lib/hermes-instructions";
 
@@ -33,6 +34,15 @@ let
   secretsTemplate = pkgs.writeText "hermes-secrets.tpl" ''
     # Gemini API key
     GOOGLE_API_KEY={{ op://ai-assistant/szznxwsb7suugqxkj5gwo5v6iq/credential }}
+
+    # "Discord bot": token, Alex's user ID (the only allowed user), and the
+    # channel for messages Hermes starts on its own
+    DISCORD_BOT_TOKEN={{ op://ai-assistant/4mwy5sy5dcie5fnlf5jwzxemuy/credential }}
+    DISCORD_ALLOWED_USERS={{ op://ai-assistant/4mwy5sy5dcie5fnlf5jwzxemuy/user_id }}
+    DISCORD_HOME_CHANNEL={{ op://ai-assistant/4mwy5sy5dcie5fnlf5jwzxemuy/channel_id }}
+
+    # "GitHub": the ailex-agent account's token, used by gh and git
+    GH_TOKEN={{ op://ai-assistant/kb6xnh67wvh2hu7gtl3cgzxu4u/token }}
   '';
 
   # The only privileged command the agent may run: switch ai-box to whatever is
@@ -78,9 +88,12 @@ in
         enabled = true;
         service_account_token_env = "OP_SERVICE_ACCOUNT_TOKEN";
       };
-      # Lets `op` in the agent's terminal reach the vault (to read or save
-      # accounts). Cron has no terminal, so it never gets this.
-      terminal.env_passthrough = [ "OP_SERVICE_ACCOUNT_TOKEN" ];
+      # Lets `op` and `gh` in the agent's terminal reach the vault and GitHub.
+      # Cron has no terminal, so it never gets these.
+      terminal.env_passthrough = [
+        "OP_SERVICE_ACCOUNT_TOKEN"
+        "GH_TOKEN"
+      ];
     };
 
     # SOUL.md and AGENTS.md are installed by hermes-instructions below, not
