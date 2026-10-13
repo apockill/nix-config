@@ -37,6 +37,8 @@
     config.environment.etc."avahi/hosts".source
   ];
 
+  networking.firewall.allowedTCPPorts = [ 80 443 8084 8443 ];
+
   zramSwap.enable = true;
 
   # sudo keeps asking for a password, and alex is not a nix trusted-user (that
