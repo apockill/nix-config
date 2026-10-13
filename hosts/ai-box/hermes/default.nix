@@ -270,6 +270,14 @@ in
     )}
   '';
 
+  system.activationScripts.hermes-custom-skills = lib.stringAfter [ "hermes-agent-setup" ] ''
+    if [ -d "${./skills}" ]; then
+      mkdir -p "${hermesHome}/skills"
+      cp -r --no-preserve=mode,ownership "${./skills}"/* "${hermesHome}/skills/"
+      chown -R ${cfg.user}:${cfg.group} "${hermesHome}/skills"
+    fi
+  '';
+
   systemd.services.hermes-agent = {
     wants = [ "hermes-secrets.service" ];
     after = [ "hermes-secrets.service" ];
