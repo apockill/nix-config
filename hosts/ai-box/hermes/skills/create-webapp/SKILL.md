@@ -23,8 +23,8 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 Never commit code before proving it works. Never tell Alex something is done until verified with high confidence.
 
 ## Golden Rules for AI Agents
-1. **Always Delegate Coding to Claude Code CLI:**
-   Hermes is an orchestrator, not a primary code generator. Use Claude Code CLI (`claude -p "..."`) for implementation, refactoring, and code edits.
+1. **Always Delegate Coding to Claude Code CLI (Default: Opus with Max Turns):**
+   Hermes is an orchestrator, not a primary code generator. Always delegate code generation, editing, and refactoring to Claude Code CLI (`claude -p "..."`) using the `claude-code` skill. **Default model is Opus (`--model opus`) with max turns (`--max-turns 30`)** for building rich, full-stack, responsive web applications and interactive dashboards. Use `sonnet` or `haiku` only when explicitly requested for trivial single-line edits.
 2. **Always Use Templates:** Copy from `_templates/static` or `_templates/backend`.
 3. **Always Include `meta.json`:** Every app must have `meta.json` (`title`, `description`, `icon`, `type`).
 4. **Never Hardcode TCP Ports:** Always bind backends to `./app.sock`.
