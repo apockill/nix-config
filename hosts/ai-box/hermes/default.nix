@@ -61,6 +61,7 @@ let
   # bootloader without breaking running services, prompting for a reboot.
   switchToMasterWorker = pkgs.writeShellScript "ai-box-switch-worker" ''
     export HOME=/root
+    export PATH=/run/current-system/sw/bin:$PATH
     echo "Attempting live switch to master..."
     if ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
         --refresh --flake github:apockill/nix-config#ai-box; then
@@ -79,10 +80,12 @@ let
 
   switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
     exec ${pkgs.systemd}/bin/systemd-run \
+      --pipe \
       --unit=ai-box-switch-run \
       --wait \
       --collect \
       --property=Environment="HOME=/root" \
+      --property=Environment="PATH=/run/current-system/sw/bin" \
       --property=WorkingDirectory=/root \
       ${switchToMasterWorker}
   '';
@@ -95,16 +98,20 @@ let
   # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
   testLocalConfigWorker = pkgs.writeShellScript "ai-box-test-worker" ''
     export HOME=/root
+    export PATH=/run/current-system/sw/bin:$PATH
+    export NIXOS_NO_CHECK=1
     exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
-      --flake ${workspace}/nix-config#ai-box
+      --flake path:${workspace}/nix-config#ai-box
   '';
 
   testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
     exec ${pkgs.systemd}/bin/systemd-run \
+      --pipe \
       --unit=ai-box-test-run \
       --wait \
       --collect \
       --property=Environment="HOME=/root" \
+      --property=Environment="PATH=/run/current-system/sw/bin" \
       --property=WorkingDirectory=/root \
       ${testLocalConfigWorker}
   '';

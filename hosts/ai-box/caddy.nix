@@ -19,12 +19,24 @@
       http:// {
         @subdomain header_regexp sub Host ^([^.]+)\.alexthiele\.io$
         handle @subdomain {
-          root * /var/lib/hermes/sites/{re.sub.1}
-          file_server
+          @hasSock file /var/lib/hermes/sites/{re.sub.1}/app.sock
+          handle @hasSock {
+            reverse_proxy unix//var/lib/hermes/sites/{re.sub.1}/app.sock
+          }
+          handle {
+            root * /var/lib/hermes/sites/{re.sub.1}
+            file_server
+          }
         }
         handle {
-          root * /var/lib/hermes/sites/default
-          file_server
+          @portalSock file /var/lib/hermes/sites/portal/app.sock
+          handle @portalSock {
+            reverse_proxy unix//var/lib/hermes/sites/portal/app.sock
+          }
+          handle {
+            root * /var/lib/hermes/sites/portal
+            file_server
+          }
         }
       }
     '';
