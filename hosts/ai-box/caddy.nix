@@ -11,25 +11,31 @@
   services.caddy = {
     enable = true;
     extraConfig = ''
-      http://browser.alexthiele.io {
-        redir / /vnc.html
-        reverse_proxy 127.0.0.1:6080
-      }
-
       http:// {
-        @subdomain header_regexp sub Host ^([^.]+)\.alexthiele\.io$
-        handle @subdomain {
-          @hasBackend file /var/lib/hermes/sites/{re.sub.1}/start.sh
+        @subhost host *.alexthiele.io
+        handle @subhost {
+          @hasBackend {
+            file {
+              root /var/lib/hermes/sites/{labels.2}
+              try_files start.sh
+            }
+          }
           handle @hasBackend {
-            reverse_proxy unix//var/lib/hermes/sites/{re.sub.1}/app.sock
+            reverse_proxy unix//var/lib/hermes/sites/{labels.2}/app.sock
           }
           handle {
-            root * /var/lib/hermes/sites/{re.sub.1}
+            root * /var/lib/hermes/sites/{labels.2}
             file_server
           }
         }
+
         handle {
-          @portalBackend file /var/lib/hermes/sites/portal/start.sh
+          @portalBackend {
+            file {
+              root /var/lib/hermes/sites/portal
+              try_files start.sh
+            }
+          }
           handle @portalBackend {
             reverse_proxy unix//var/lib/hermes/sites/portal/app.sock
           }
