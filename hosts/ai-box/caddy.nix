@@ -12,7 +12,7 @@
     enable = true;
     extraConfig = ''
       http://browser.alexthiele.io {
-        redir / /vnc.html
+        redir / /vnc.html?autoconnect=true&resize=scale
         reverse_proxy 127.0.0.1:6080
       }
 
