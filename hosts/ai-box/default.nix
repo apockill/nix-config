@@ -29,6 +29,11 @@
 
   networking.hostName = "ai-box";
 
+  # Publish escapepod.local alias so Anki Vector (Escape Pod firmware) discovers the local activation server
+  environment.etc."avahi/hosts".text = ''
+    192.168.86.26 escapepod.local
+  '';
+
   zramSwap.enable = true;
 
   # sudo keeps asking for a password, and alex is not a nix trusted-user (that
