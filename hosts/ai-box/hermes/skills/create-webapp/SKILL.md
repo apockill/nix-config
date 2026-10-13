@@ -30,6 +30,7 @@ Never commit code before proving it works. Never tell Alex something is done unt
 4. **Never Hardcode TCP Ports:** Always bind backends to `./app.sock`.
 5. **Always Send Screenshots:** After creating or editing a webapp, verify it in Chromium and send a screenshot using the `/share-screenshot` skill.
 6. **Dotfiles Boundary:** Changes to `nix-config` require proposing a PR and asking Alex first. Apps in `/var/lib/hermes/sites/` do not touch dotfiles.
+7. **Mobile and Desktop Friendly (Mandatory):** Every webapp must be 100% responsive, touch-friendly, and optimized for both desktop and mobile/foldables (down to 280px width). Camera feeds, telemetry gauges, and controls must adapt cleanly without clipping or broken horizontal scrolling. Single-page apps fetching data on load should embed initial fallback HTML to paint on Frame 0.
 
 ---
 
