@@ -44,21 +44,6 @@ in
     };
   };
 
-  # 3. noVNC web proxy (HTML5 viewer on port 6080)
-  systemd.services.browser-novnc = {
-    description = "noVNC web stream for virtual display";
-    after = [ "browser-x11vnc.service" ];
-    requires = [ "browser-x11vnc.service" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      User = "hermes";
-      Group = "hermes";
-      ExecStart = "${pkgs.python313Packages.websockify}/bin/websockify --web ${pkgs.novnc}/share/webapps/novnc 6080 127.0.0.1:5900";
-      Restart = "always";
-      RestartSec = "2s";
-    };
-  };
-
   # 3. Chromium running on :99 with CDP exposed on localhost:9222
   systemd.services.browser-chromium = {
     description = "Chromium instance with CDP and persistent profile";
