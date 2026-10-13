@@ -37,6 +37,12 @@ in
     description = "Autodiscovery runner for ai-box backend apps";
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
+    path = [
+      pkgs.bash
+      pkgs.nix
+      pkgs.coreutils
+      pkgs.procps
+    ];
     serviceConfig = {
       User = "hermes";
       Group = "hermes";
