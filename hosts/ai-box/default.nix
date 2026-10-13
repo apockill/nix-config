@@ -3,7 +3,7 @@
 # Agent accounts and their tooling should live alongside alex's, e.g.
 # users/<agent>/default.nix imported here, so they can differ from alex's
 # personal setup without touching agilite.
-{ inputs, ... }:
+{ inputs, config, ... }:
 {
   imports = [
     inputs.disko.nixosModules.disko
@@ -33,6 +33,9 @@
   environment.etc."avahi/hosts".text = ''
     192.168.86.26 escapepod.local
   '';
+  systemd.services.avahi-daemon.restartTriggers = [
+    config.environment.etc."avahi/hosts".source
+  ];
 
   zramSwap.enable = true;
 
