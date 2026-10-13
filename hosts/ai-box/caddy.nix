@@ -19,8 +19,8 @@
       http:// {
         @subdomain header_regexp sub Host ^([^.]+)\.alexthiele\.io$
         handle @subdomain {
-          @hasSock file /var/lib/hermes/sites/{re.sub.1}/app.sock
-          handle @hasSock {
+          @hasBackend file /var/lib/hermes/sites/{re.sub.1}/start.sh
+          handle @hasBackend {
             reverse_proxy unix//var/lib/hermes/sites/{re.sub.1}/app.sock
           }
           handle {
@@ -29,8 +29,8 @@
           }
         }
         handle {
-          @portalSock file /var/lib/hermes/sites/portal/app.sock
-          handle @portalSock {
+          @portalBackend file /var/lib/hermes/sites/portal/start.sh
+          handle @portalBackend {
             reverse_proxy unix//var/lib/hermes/sites/portal/app.sock
           }
           handle {
