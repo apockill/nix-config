@@ -161,7 +161,8 @@ in
       };
 
       # Route vision tool analysis through standalone multimodal turns to avoid
-      # upstream Hermes adapter bug where tool result image parts are stripped.
+      # upstream Hermes adapter bug where tool result image parts are stripped
+      # on native Gemini tool returns (NousResearch/hermes-agent issue #55426).
       agent = {
         image_input_mode = "text";
       };
