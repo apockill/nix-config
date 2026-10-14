@@ -35,10 +35,12 @@ Hermes delivers native images to Discord and other messaging platforms when a va
 4. **MANDATORY VISUAL INSPECTION (Never Send Broken UI Screenshots):**
    Before including `MEDIA:<path>` or reporting that a UI task is done, **YOU MUST inspect the image yourself with `vision_analyze`**.
    Check every critical element:
+   - **Login Wall Check:** When testing apps on `*.alexthiele.io`, ensure the browser is NOT sitting on the Cloudflare Access login screen ("Log in to Alex's Homelab"). Always inject the `CF_Authorization` cookie via CDP before navigating, and verify `window.location.href` does not contain `cloudflareaccess.com`.
+   - **No Hallucination:** Never ask leading questions in vision analysis that assume what the screen contains. Objectively verify the actual text, title, and visual content on screen.
    - Are video streams, canvases, and feeds rendering actual live frames (not black boxes, 'DISCONNECTED', '0 FPS', or 'NO SIGNAL')?
    - Are telemetry gauges and percentages showing plausible live data?
    - Are there any layout glitches, overflow banners, or error toasts?
-   **Strict Rule:** Never claim a feature is done or share a screenshot if the image itself shows an error, disconnection, or broken element. Fix the bug first before contacting Alex.
+   **Strict Rule:** Never claim a feature is done or share a screenshot if the image itself shows a login wall, error, disconnection, or broken element. Fix the bug first before contacting Alex.
 
 ## Standard Capture Workflow
 
