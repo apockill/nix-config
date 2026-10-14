@@ -27,7 +27,8 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 ## Core Rules
 
 1. **Delegate Coding to Claude Code CLI:**
-   Hermes is an orchestrator. Delegate coding and UI creation to Claude Code CLI (`claude -p "..."`) using **`--model claude-opus-5-5`** with max turns (`--max-turns 30`).
+   Hermes is an orchestrator. Delegate coding and UI creation to Claude Code CLI (`claude -p "..."`) using **`--model claude-opus-5-5`** with max turns (`--max-turns 30`). Claude Code's agentic coding loop does a better job than Hermes's for real code changes, so prefer it for any non-trivial edit.
+   Claude Code runs on the agent's own Claude subscription (flat rate, no per-token API billing). `CLAUDE_CODE_OAUTH_TOKEN` is already in the environment; never set `ANTHROPIC_API_KEY`, which would switch it to metered API billing.
 2. **Start from Templates:**
    Scaffold from existing templates in `/var/lib/hermes/sites/_templates/` rather than starting from scratch:
    - Full-stack modern apps (React 19 + Vite + Tailwind + Lucide + FastAPI): see [`_templates/backend/README.md`](/var/lib/hermes/sites/_templates/backend/README.md).
@@ -49,8 +50,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
    ```
 2. Delegate implementation to Claude Code CLI:
    ```bash
-   TOKEN=$(op item get "Claude" --vault ai-assistant --fields label=oauth_token --reveal)
-   export CLAUDE_CODE_OAUTH_TOKEN="$TOKEN"
+   # Auth: CLAUDE_CODE_OAUTH_TOKEN (Claude subscription) is already set; no API key.
    cd /var/lib/hermes/sites/<app-name>
 
    claude -p "Your detailed prompt describing requirements..." \
