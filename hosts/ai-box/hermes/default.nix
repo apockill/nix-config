@@ -58,83 +58,6 @@ let
     CF_ACCESS_CLIENT_SECRET={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_secret }}
   '';
 
-  # The only privileged commands the agent may run:
-  # 1. Switch ai-box to whatever is merged on master.
-  # Executes via systemd-run so it escapes hermes-agent's private mount namespace
-  # (where /nix is read-only) and runs in the host root namespace.
-  # Attempts a clean live switch first. If pre-switch checks inhibit a live switch
-  # (e.g. kernel/firmware/driver updates), falls back to `boot` to stage into the
-  # bootloader without breaking running services, prompting for a reboot.
-  switchToMasterWorker = pkgs.writeShellScript "ai-box-switch-worker" ''
-    export HOME=/root
-    export PATH=/run/current-system/sw/bin:$PATH
-    echo "Attempting live switch to master..."
-    if ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
-        --refresh --flake github:apockill/nix-config#ai-box; then
-      echo "Live switch to master succeeded."
-    else
-      echo "Live switch inhibited or failed. Staging to bootloader instead..."
-      if ${config.system.build.nixos-rebuild}/bin/nixos-rebuild boot \
-          --refresh --flake github:apockill/nix-config#ai-box; then
-        echo ">>> STAGED_REBOOT_REQUIRED: System staged to bootloader. Ask user before rebooting. <<<"
-      else
-        echo "Build failed for both switch and boot."
-        exit 1
-      fi
-    fi
-  '';
-
-  switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
-    exec ${pkgs.systemd}/bin/systemd-run \
-      --pipe \
-      --unit=ai-box-switch-run \
-      --wait \
-      --collect \
-      --property=Environment="HOME=/root" \
-      --property=Environment="PATH=/run/current-system/sw/bin" \
-      --property=WorkingDirectory=/root \
-      ${switchToMasterWorker}
-  '';
-  switchToMasterPath = "/run/current-system/sw/bin/ai-box-switch-to-master";
-  ai-box-switch = pkgs.writeShellScriptBin "ai-box-switch" ''
-    exec sudo ${switchToMasterPath}
-  '';
-
-  # 2. Test a local branch live without changing the bootloader.
-  # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
-  testLocalConfigWorker = pkgs.writeShellScript "ai-box-test-worker" ''
-    export HOME=/root
-    export PATH=/run/current-system/sw/bin:$PATH
-    export NIXOS_NO_CHECK=1
-    exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
-      --flake path:${workspace}/nix-config#ai-box
-  '';
-
-  testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
-    exec ${pkgs.systemd}/bin/systemd-run \
-      --pipe \
-      --unit=ai-box-test-run \
-      --wait \
-      --collect \
-      --property=Environment="HOME=/root" \
-      --property=Environment="PATH=/run/current-system/sw/bin" \
-      --property=WorkingDirectory=/root \
-      ${testLocalConfigWorker}
-  '';
-  testLocalConfigPath = "/run/current-system/sw/bin/ai-box-test-local";
-  ai-box-test = pkgs.writeShellScriptBin "ai-box-test" ''
-    exec sudo ${testLocalConfigPath}
-  '';
-
-  # 3. Reboot the machine when staged updates require it (ask Alex first!).
-  rebootCmd = pkgs.writeShellScriptBin "ai-box-reboot-cmd" ''
-    exec ${pkgs.systemd}/bin/systemctl reboot
-  '';
-  rebootCmdPath = "/run/current-system/sw/bin/ai-box-reboot-cmd";
-  ai-box-reboot = pkgs.writeShellScriptBin "ai-box-reboot" ''
-    exec sudo ${rebootCmdPath}
-  '';
-
   # Upstream Hermes bug (NousResearch/hermes-agent issue #108335 / PR #129628):
   # When using 1Password Service Accounts (OP_SERVICE_ACCOUNT_TOKEN), `op item get`
   # requires an explicit `--vault` flag. Upstream Hermes omits `--vault` in
@@ -150,7 +73,10 @@ let
   '';
 in
 {
-  imports = [ inputs.hermes-agent.nixosModules.default ];
+  imports = [
+    inputs.hermes-agent.nixosModules.default
+    ./system-commands.nix # ai-box-switch / ai-box-test / ai-box-reboot
+  ];
 
   services.hermes-agent = {
     enable = true;
@@ -160,13 +86,15 @@ in
       model = {
         default = "claude-opus-5-5";
         provider = "anthropic";
+        # Explicit: settings are deep-merged into config.yaml, so a removed key
+        # (like the old Gemini base_url) would otherwise linger on disk.
+        base_url = "https://api.anthropic.com";
       };
 
-      # Route vision tool analysis through standalone multimodal turns to avoid
-      # upstream Hermes adapter bug where tool result image parts are stripped
-      # on native Gemini tool returns (NousResearch/hermes-agent issue #55426).
+      # Claude sees images natively (no lossy text description). Set to "auto"
+      # explicitly rather than deleting the key, for the same deep-merge reason.
       agent = {
-        image_input_mode = "text";
+        image_input_mode = "auto";
       };
 
       # Scheduled jobs only read, check, summarize, and report back: no
@@ -218,9 +146,6 @@ in
 
     extraPackages = with pkgs; [
       opVaultWrapper
-      ai-box-switch
-      ai-box-test
-      ai-box-reboot
       gh
       git
       jq
@@ -301,29 +226,5 @@ in
     };
   };
 
-  environment.systemPackages = [
-    switchToMaster
-    testLocalConfig
-    rebootCmd
-  ];
   users.users.${cfg.user}.extraGroups = [ "video" ];
-  security.sudo.extraRules = [
-    {
-      users = [ cfg.user ];
-      commands = [
-        {
-          command = "${switchToMasterPath}";
-          options = [ "NOPASSWD" ];
-        }
-        {
-          command = "${testLocalConfigPath}";
-          options = [ "NOPASSWD" ];
-        }
-        {
-          command = "${rebootCmdPath}";
-          options = [ "NOPASSWD" ];
-        }
-      ];
-    }
-  ];
 }
