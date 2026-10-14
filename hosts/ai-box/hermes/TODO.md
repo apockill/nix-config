@@ -61,3 +61,15 @@ repo (`hosts/ai-box/`).
       `systemctl restart hermes-secrets hermes-agent`.
 - [ ] **Change alex's password on ai-box.** It's still the public default, and
       it's also what sudo asks for. Remind Alex.
+
+## Project ideas (someday)
+
+- [ ] **See images before sending them.** `MEDIA:` attachments go straight to
+      Discord without entering the agent's context, so it has sent login walls
+      thinking they were dashboards. Goal: generic, automatic, one look per
+      image. Today's hooks can only partly do it. `post_tool_call` can track
+      images seen natively, and `transform_llm_output` can withhold unseen
+      attachments, but no hook can show the agent an image and let it revise
+      before delivery. Plan: build the track-and-withhold plugin, then file an
+      upstream NousResearch/hermes-agent issue/PR for a pre-delivery hook that
+      shows unseen attachments and loops once. (Discussed 2026-10-14.)
