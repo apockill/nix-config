@@ -35,9 +35,10 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
    - Static viewer / dashboard: see [`_templates/static/README.md`](/var/lib/hermes/sites/_templates/static/README.md).
 3. **App Metadata:** Every app must have a valid `meta.json` (`title`, `description`, `icon`, `type`) in its root.
 4. **Portless Socket Binding:** Server backends bind to `./app.sock`. Never hardcode TCP ports in web servers.
-5. **Dotfiles Boundary:**
+5. **One instance per app, owned by the runner:** `ai-box-apps-runner` launches, health-checks, and heals every app (see `hosts/ai-box/apps-runner/` in nix-config). Never start a second copy (`python main.py`, `./start.sh`) by hand: when it exits, it deletes the shared `app.sock` and the live app goes dark (this broke vector and markets once). Test backend logic with imports or FastAPI's `TestClient`. To pick up code changes, run `touch <app>/.runner.restart` (doesn't count against the healing cap). Don't kill the PID; that counts as a crash.
+6. **Dotfiles Boundary:**
    Apps live entirely in `ai-box-apps`. Never modify NixOS configuration or Caddy rules for individual applications. If a system change or shared package is needed, propose a PR against `nix-config` and ask Alex first.
-6. **Mobile and Foldable Support:**
+7. **Mobile and Foldable Support:**
    Test viewports down to narrow screens (280px–340px width, such as the Pixel 11 Pro Fold outer display). Ensure primary controls and status indicators remain visible without layout breakages or horizontal overflow.
 
 ## Workflow
@@ -76,7 +77,8 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 - **404 on Subdomain:**
   Caddy checks for an executable `start.sh` in the app root to route traffic to `app.sock`. Ensure `start.sh` exists and has executable permissions (`chmod +x start.sh`).
 - **502 Bad Gateway:**
-  The backend server exited or crashed on startup. Inspect `app.log` in the app directory for Python or Node tracebacks.
+  The backend is down or its socket is gone. The runner heals this on its own within ~2–5 min. Check `/var/lib/apps-health/status.json`, the portal's Status tab, and `app.log`.
+- **App marked `failed`:** auto-healing gave up after 3 restarts in an hour, and the `apps-health` cron job (local Gemma) pinged Alex. Fix the cause, then re-arm: delete `<app>/.runner.failed` or commit a change to the app.
 - **Cloudflare Access Verification:**
   Include `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers when making automated curl checks against `*.alexthiele.io`.
 - **Git Tracking for Flakes:**
