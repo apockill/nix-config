@@ -3,7 +3,7 @@
 # Agent accounts and their tooling should live alongside alex's, e.g.
 # users/<agent>/default.nix imported here, so they can differ from alex's
 # personal setup without touching agilite.
-{ inputs, ... }:
+{ inputs, config, ... }:
 {
   imports = [
     inputs.disko.nixosModules.disko
@@ -14,6 +14,7 @@
     ./cloudflared.nix
     ./caddy.nix
     ./apps-runner.nix
+    ./vector.nix
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common

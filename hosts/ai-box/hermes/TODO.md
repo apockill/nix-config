@@ -9,7 +9,7 @@ repo (`hosts/ai-box/`).
 ## Done
 
 - [x] NixOS on the NVMe (btrfs, hourly snapshots), JetPack 6
-- [x] Hermes on Gemini (`gemini-flash-latest`), secrets from the
+- [x] Hermes on Gemini (`gemini-3.8-flash`), secrets from the
       `ai-assistant` vault, cron limited to web/vision/session_search
 - [x] Discord chat and a GitHub account (ailex-agent) with write access to
       nix-config; `master` is protected
