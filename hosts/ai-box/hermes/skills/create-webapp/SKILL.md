@@ -49,7 +49,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
    ```
 2. Delegate implementation to Claude Code CLI:
    ```bash
-   TOKEN=$(op item get "Anthropic API Key" --vault ai-assistant --fields label=credential --reveal)
+   TOKEN=$(op item get "Claude" --vault ai-assistant --fields label=oauth_token --reveal)
    export CLAUDE_CODE_OAUTH_TOKEN="$TOKEN"
    cd /var/lib/hermes/sites/<app-name>
 
