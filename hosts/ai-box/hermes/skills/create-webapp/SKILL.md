@@ -10,108 +10,74 @@ platforms: [linux]
 
 This skill outlines the lifecycle, delegation patterns, and verification standards for web applications hosted on `ai-box` (`*.alexthiele.io`).
 
-## Architecture Overview
+## Architecture
 
 - **Repository:** All apps live in the private repository [`ailex-agent/ai-box-apps`](https://github.com/ailex-agent/ai-box-apps), cloned locally to `/var/lib/hermes/sites/`.
-- **Dynamic Routing:** Caddy automatically serves `/var/lib/hermes/sites/<name>` at `https://<name>.alexthiele.io` with zero Nix rebuilds.
-- **Portless Backends:** Server backends (FastAPI, Node) bind to a local Unix domain socket at `./app.sock`. Caddy automatically proxies traffic to `app.sock` if it exists.
-- **Root Portal:** `https://alexthiele.io` / `https://portal.alexthiele.io` dynamically live-scans all apps and renders the catalog.
-- **Single-Directory Isolation:** Every project is 100% self-contained. Deleting an app is strictly `rm -rf /var/lib/hermes/sites/<name>`.
+- **Dynamic Routing:** Caddy serves `/var/lib/hermes/sites/<name>` at `https://<name>.alexthiele.io` dynamically. When an executable `start.sh` is present, traffic routes to `./app.sock`. No custom Caddy configuration or Nix rebuilds are required.
+- **Root Portal:** `https://alexthiele.io` / `https://portal.alexthiele.io` dynamically scans all app directories and renders the catalog.
+- **Single-Directory Isolation:** Every project is self-contained. Deleting an app is strictly `rm -rf /var/lib/hermes/sites/<name>`.
 - **Automatic Sync:** A git post-commit hook automatically pushes commits to `origin/main`.
 
-## Rule: 1 Commit == 1 Verified Change
-Never commit code before proving it works. Never tell Alex something is done until verified with high confidence.
-- **Visual Inspection Gate:** Always inspect captured screenshots using `vision_analyze` before sharing them or claiming a webapp is complete. Never report completion if video streams, canvases, or metrics show error states ('CAM STREAM DISCONNECTED', 'NO SIGNAL', 0 FPS, broken layouts). Fix the underlying bug first before reaching out.
+## Verification and Quality Standard
 
-## Golden Rules for AI Agents
-1. **Always Delegate Coding to Claude Code CLI (Model: claude-opus-5-5):**
-   Hermes is an orchestrator, not a primary code generator. Always delegate coding and UI creation to Claude Code CLI (`claude -p "..."`) using **`--model claude-opus-5-5`** with max turns (`--max-turns 30`).
-2. **Always Use Templates:** Copy from `_templates/static` or `_templates/backend`.
-3. **Always Include `meta.json`:** Every app must have `meta.json` (`title`, `description`, `icon`, `type`).
-4. **Never Hardcode TCP Ports:** Always bind backends to `./app.sock`.
-5. **Always Send Screenshots:** After creating or editing a webapp, verify it in Chromium and send a screenshot using the `/share-screenshot` skill.
-6. **Dotfiles Boundary:** Changes to `nix-config` require proposing a PR and asking Alex first. Apps in `/var/lib/hermes/sites/` do not touch dotfiles.
-7. **Mobile and Desktop Friendly (Mandatory):** Every webapp must be 100% responsive, touch-friendly, and optimized for both desktop and mobile/foldables (down to 280px width). Camera feeds, telemetry gauges, and controls must adapt cleanly without clipping or broken horizontal scrolling. Single-page apps fetching data on load should embed initial fallback HTML to paint on Frame 0.
+- **Atomic Verified Commits:** 1 commit in `ai-box-apps` = 1 fully verified, functioning change. Never commit code before proving it works live.
+- **Visual Verification Gate:** Always inspect the rendered page visually using `vision_analyze` and capture a screenshot (`MEDIA:/var/lib/hermes/.hermes/browser_screenshots/<app>.png`). Do not rely solely on DOM queries or HTTP status codes—DOM elements can be present in the tree while visually blank, clipped, or occluded.
+- **Reporting Gate:** Never report an app or feature as complete until verified end-to-end with high confidence.
 
----
+## Core Rules
 
-## Workflow: Creating a New App
+1. **Delegate Coding to Claude Code CLI:**
+   Hermes is an orchestrator. Delegate coding and UI creation to Claude Code CLI (`claude -p "..."`) using **`--model claude-opus-5-5`** with max turns (`--max-turns 30`).
+2. **Start from Templates:**
+   Scaffold from existing templates in `/var/lib/hermes/sites/_templates/` rather than starting from scratch:
+   - Full-stack modern apps (React 19 + Vite + Tailwind + Lucide + FastAPI): see [`_templates/backend/README.md`](/var/lib/hermes/sites/_templates/backend/README.md).
+   - Static viewer / dashboard: see [`_templates/static/README.md`](/var/lib/hermes/sites/_templates/static/README.md).
+3. **App Metadata:** Every app must have a valid `meta.json` (`title`, `description`, `icon`, `type`) in its root.
+4. **Portless Socket Binding:** Server backends bind to `./app.sock`. Never hardcode TCP ports in web servers.
+5. **Dotfiles Boundary:**
+   Apps live entirely in `ai-box-apps`. Never modify NixOS configuration or Caddy rules for individual applications. If a system change or shared package is needed, propose a PR against `nix-config` and ask Alex first.
+6. **Mobile and Foldable Support:**
+   Test viewports down to narrow screens (280px–340px width, such as the Pixel 11 Pro Fold outer display). Ensure primary controls and status indicators remain visible without layout breakages or horizontal overflow.
 
-### 1. Choose the Template
-- **Static App (Dashboard, Viewer, Report):**
-  If the app only needs client-side HTML/JS or reads JSON updated by cron, use `_templates/static`.
-  See [`/var/lib/hermes/sites/_templates/static/README.md`](_templates/static/README.md).
-- **Backend App (Server, REST API, SQLite, Python):**
-  If the app needs persistent server logic or a database, use `_templates/backend`.
-  See [`/var/lib/hermes/sites/_templates/backend/README.md`](_templates/backend/README.md).
+## Workflow
 
-### 2. Scaffold Directory
-```bash
-cp -r /var/lib/hermes/sites/_templates/<static|backend> /var/lib/hermes/sites/<app-name>
-```
+### Creating a New App
 
-### 3. Delegate Implementation to Claude Code CLI
-Run Claude Code in headless print mode (`-p`) inside the app directory:
-```bash
-TOKEN=$(op item get "Anthropic API Key" --vault ai-assistant --fields label=credential --reveal)
-export CLAUDE_CODE_OAUTH_TOKEN="$TOKEN"
-cd /var/lib/hermes/sites/<app-name>
-
-claude -p "Your detailed prompt describing the features, styling, and requirements..." \
-  --model claude-opus-5-5 \
-  --allowedTools "Read,Edit,Write,Bash" \
-  --max-turns 30
-```
-
-### 4. Verify Before Reporting
-1. **Socket / Service Test (for backends):**
-   Ensure `./start.sh` starts and `curl -s --unix-socket ./app.sock http://localhost/` returns 200.
-2. **Public Endpoint Test:**
-   Test over Cloudflare Access using service token headers:
+1. Scaffold from the chosen template:
    ```bash
-   set -a && . /run/hermes-secrets/env && set +a
-   curl -s -I "https://<app-name>.alexthiele.io" \
-     -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
-     -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"
+   cp -r /var/lib/hermes/sites/_templates/<template> /var/lib/hermes/sites/<app-name>
    ```
-3. **Visual In-Browser Test:**
-   Navigate Chromium via CDP to `https://<app-name>.alexthiele.io`, confirm elements render, check console for errors, and save a screenshot under `/var/lib/hermes/.hermes/browser_screenshots/<app-name>.png`.
+2. Delegate implementation to Claude Code CLI:
+   ```bash
+   TOKEN=$(op item get "Anthropic API Key" --vault ai-assistant --fields label=credential --reveal)
+   export CLAUDE_CODE_OAUTH_TOKEN="$TOKEN"
+   cd /var/lib/hermes/sites/<app-name>
 
-### 5. Commit and Share
-Only after verification passes:
-```bash
-cd /var/lib/hermes/sites
-git add <app-name>
-git commit -m "feat(<app-name>): initial implementation"
-```
-Deliver the screenshot in your reply:
-```
-MEDIA:/var/lib/hermes/.hermes/browser_screenshots/<app-name>.png
-```
+   claude -p "Your detailed prompt describing requirements..." \
+     --model claude-opus-5-5 \
+     --allowedTools "Read,Edit,Write,Bash" \
+     --max-turns 30
+   ```
+3. Verify live operation:
+   - For backends: verify `./start.sh` starts and `curl -s --unix-socket ./app.sock http://localhost/` returns 200.
+   - For public routing: test over Cloudflare Access with service tokens.
+   - For visuals: navigate Chromium via CDP, capture screenshot, and verify layout with `vision_analyze`.
+4. Commit: `git add <app-name> && git commit -m "feat(<app-name>): initial implementation"`.
 
----
-
-## Workflow: Modifying an Existing App
+### Modifying an Existing App
 
 1. Inspect existing files in `/var/lib/hermes/sites/<app-name>/`.
-2. Dispatch Claude Code with the modification task:
-   ```bash
-   cd /var/lib/hermes/sites/<app-name>
-   claude -p "Task description..." --allowedTools "Read,Edit,Write,Bash" --max-turns 10
-   ```
-3. Re-verify the live app via curl and browser CDP.
-4. Commit: `git commit -m "feat(<app-name>): update description"` (auto-pushes to `main`).
-5. Capture and share the updated screenshot via `MEDIA:`.
-
----
+2. Dispatch Claude Code CLI with targeted instructions.
+3. If the backend process was modified, restart the process to clear in-memory caches.
+4. Verify endpoints over the Unix domain socket and inspect the rendered visual state in Chromium before committing.
 
 ## Troubleshooting
 
-- **404 Not Found on `<name>.alexthiele.io`:**
-  - Verify directory name in `/var/lib/hermes/sites/` matches the subdomain exactly.
-  - If backend: verify `app.sock` was created with correct permissions (`0666` or `0660` hermes:hermes).
-  - If static: verify `index.html` exists in the folder root.
+- **404 on Subdomain:**
+  Caddy checks for an executable `start.sh` in the app root to route traffic to `app.sock`. Ensure `start.sh` exists and has executable permissions (`chmod +x start.sh`).
 - **502 Bad Gateway:**
-  - The backend server crashed or exited. Inspect `/var/lib/hermes/sites/<app-name>/app.log`.
-- **403 Forbidden from Cloudflare:**
-  - Include `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers in curl, or inject the `CF_Authorization` cookie into CDP.
+  The backend server exited or crashed on startup. Inspect `app.log` in the app directory for Python or Node tracebacks.
+- **Cloudflare Access Verification:**
+  Include `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers when making automated curl checks against `*.alexthiele.io`.
+- **Git Tracking for Flakes:**
+  Nix requires all files in the flake directory to be tracked by Git. Run `git add <app-name>` before running `nix develop` or `start.sh`.
