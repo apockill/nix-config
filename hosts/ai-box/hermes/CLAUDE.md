@@ -1,37 +1,30 @@
-# Instructions for Claude Code on ai-box
+# Claude Code Instructions
 
-You are the primary autonomous coding engine on **ai-box** (NVIDIA Jetson AGX Orin 64GB, NixOS). You work under Hermes Agent to build, modify, test, and polish web applications, hardware bridges, and infrastructure.
+You are the primary coding agent on **ai-box** (NVIDIA Jetson AGX Orin 64GB, NixOS). You build, modify, test, and polish web applications, hardware bridges, and services.
 
-## Machine & Environment Principles
-- **NixOS System:** The host system is NixOS. Global packages or system modifications only happen via nix-config PRs.
-- **Micro-App Isolation:** Every application lives in its own self-contained directory under `/var/lib/hermes/sites/<name>/`.
-  - Backends bind to a local Unix domain socket at `./app.sock`. Caddy automatically proxies `<name>.alexthiele.io` to `./app.sock`.
-  - Never hardcode TCP ports in web servers.
-  - Deleting an app is strictly `rm -rf <dir>`. No residual global daemons.
-- **Package Installation:** You are completely authorized and encouraged to install any needed packages or build tools!
-  - For Node/Frontend: install via `npm install <pkg>` or `package.json`.
-  - For System/Python/Compilers: add packages to the project's local `flake.nix`.
-  - Modern stacks (React, Vite, Tailwind CSS, Three.js, Lucide Icons, FastAPI) are preferred for rich interactive applications.
+## Machine Environment
 
-## Design System & Aesthetic Standard (Linear / Raycast / Stripe Quality)
-Alex strongly dislikes generic, flat, boring default HTML. Every dashboard and web application must be visually compelling, dense, and polished:
-1. **Color & Surfaces:**
-   - Dark theme default: Deep void backgrounds (`#090d16` or `#0b0f19`), elevated glassmorphic cards (`rgba(15, 23, 42, 0.75)` with `backdrop-filter: blur(12px)`).
-   - Crisp borders: `1px solid rgba(255, 255, 255, 0.08)`. Subtle glow states on active or focused elements.
-2. **Typography & Hierarchy:**
-   - Geometric sans-serif (`Inter`, `Geist`, `system-ui`) for clean readability.
-   - Monospace (`JetBrains Mono`, `Geist Mono`) for all coordinates, telemetry values, timestamps, sensor readings, and code snippets with tabular figures (`font-variant-numeric: tabular-nums`).
-3. **Icons & Graphics:**
-   - Use crisp SVG vector icons (Lucide React / Heroicons) rather than raw text or emojis for controls.
-   - For spatial, robotic, map, or telemetry data: implement interactive Canvas 2D or Three.js visualizers with depth, grid lines, and glowing sweeps.
-4. **Motion & Polish:**
-   - Subtle transitions on hover and active states. Pulsing live indicators (`animate-pulse`) for active streams/connections.
-5. **Mobile & Foldables (Mandatory):**
-   - Every interface must be 100% responsive down to 280px viewport width (Galaxy Fold front screen).
-   - "I never have to scroll away from the video/map to control the robot/app": On wide screens (>=900px), use split 2-column layouts; on mobile, auto-size and cap visualizers so primary controls are visible above the fold.
+- **NixOS System:** The host system is NixOS. System configuration lives in `nix-config`.
+- **Application Directory:** Web applications live under `/var/lib/hermes/sites/<name>/`. See [`/var/lib/hermes/sites/README.md`](/var/lib/hermes/sites/README.md) for full architecture and lifecycle rules.
+- **Portless Sockets:** Server backends bind to `./app.sock`. Caddy automatically proxies `<name>.alexthiele.io` to this socket when `start.sh` is present.
+- **Package Management:** You are authorized to install any dependencies needed:
+  - Node packages via `npm install` and `package.json`.
+  - Python and system packages via the app's local `flake.nix`.
+- **Templates:** Always scaffold from `/var/lib/hermes/sites/_templates/`. For full-stack applications with React 19, Tailwind, Lucide, and FastAPI, follow [`_templates/backend/README.md`](/var/lib/hermes/sites/_templates/backend/README.md).
 
-## Closing the Loop (Verify Before You Finish)
-- Always test your code before concluding your turn:
-  - If frontend: run `npm run build` to confirm 0 compilation, JSX, or CSS errors.
-  - If backend: verify `./start.sh` spins up and `curl -s --unix-socket ./app.sock http://localhost/` returns HTTP 200.
-  - Fix any syntax or runtime errors immediately.
+## Design Standards
+
+Every dashboard and web application must be visually dense, polished, and purposeful:
+
+- **Surfaces:** Dark theme default. Deep void backgrounds (`#090d16`), elevated glassmorphic cards with subtle borders (`1px solid rgba(255, 255, 255, 0.08)`), and soft drop shadows.
+- **Typography:** Geometric sans-serif (`Inter`, `system-ui`) for UI labels. Monospace (`JetBrains Mono`) with tabular numbers (`tabular-nums`) for coordinates, telemetry, timestamps, and sensor values.
+- **Icons and Graphics:** Use crisp vector icons (such as `lucide-react`) rather than raw unicode emojis or text symbols for interactive controls.
+- **Data Visualizers:** For spatial, robotic, map, or telemetry feeds, implement dynamic Canvas 2D or Three.js visualizers with grid lines and glowing indicators.
+- **Mobile and Foldable Displays:** Every interface must adapt cleanly down to 280px–340px width (e.g. Pixel 11 Pro Fold outer display). Ensure primary controls remain accessible alongside video streams or maps without requiring vertical scrolling.
+
+## Verification Workflow
+
+Before completing any task:
+1. Compile the build: for frontend projects, run `npm run build` to confirm zero JSX, CSS, or bundle errors.
+2. Verify live execution: confirm `./start.sh` runs and the socket responds (`curl -s --unix-socket ./app.sock http://localhost/` returns HTTP 200).
+3. Visual confirmation: verify that rendered elements appear correctly in the browser without blank states or layout overflows.
