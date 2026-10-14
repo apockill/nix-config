@@ -24,8 +24,8 @@ Never commit code before proving it works. Never tell Alex something is done unt
 - **Visual Inspection Gate:** Always inspect captured screenshots using `vision_analyze` before sharing them or claiming a webapp is complete. Never report completion if video streams, canvases, or metrics show error states ('CAM STREAM DISCONNECTED', 'NO SIGNAL', 0 FPS, broken layouts). Fix the underlying bug first before reaching out.
 
 ## Golden Rules for AI Agents
-1. **Always Delegate Coding to Claude Code CLI (Default: Opus with Max Turns):**
-   Hermes is an orchestrator, not a primary code generator. Always delegate code generation, editing, and refactoring to Claude Code CLI (`claude -p "..."`) using the `claude-code` skill. **Default model is Opus (`--model opus`) with max turns (`--max-turns 30`)** for building rich, full-stack, responsive web applications and interactive dashboards. Use `sonnet` or `haiku` only when explicitly requested for trivial single-line edits.
+1. **Always Delegate Coding to Claude Code CLI (Model: claude-opus-5-5):**
+   Hermes is an orchestrator, not a primary code generator. Always delegate coding and UI creation to Claude Code CLI (`claude -p "..."`) using **`--model claude-opus-5-5`** with max turns (`--max-turns 30`).
 2. **Always Use Templates:** Copy from `_templates/static` or `_templates/backend`.
 3. **Always Include `meta.json`:** Every app must have `meta.json` (`title`, `description`, `icon`, `type`).
 4. **Never Hardcode TCP Ports:** Always bind backends to `./app.sock`.
@@ -58,9 +58,9 @@ export CLAUDE_CODE_OAUTH_TOKEN="$TOKEN"
 cd /var/lib/hermes/sites/<app-name>
 
 claude -p "Your detailed prompt describing the features, styling, and requirements..." \
-  --model opus \
+  --model claude-opus-5-5 \
   --allowedTools "Read,Edit,Write,Bash" \
-  --max-turns 15
+  --max-turns 30
 ```
 
 ### 4. Verify Before Reporting
