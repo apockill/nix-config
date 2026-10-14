@@ -34,7 +34,11 @@ let
   # `op inject` template: only references, no secrets. Items live in the
   # ai-assistant vault; IDs instead of titles so renames don't break boot.
   secretsTemplate = pkgs.writeText "hermes-secrets.tpl" ''
-    # Gemini API key
+    # Claude Pro/Team subscription OAuth token for Hermes and Claude Code
+    CLAUDE_CODE_OAUTH_TOKEN={{ op://ai-assistant/rbwlszwhjq7fyx75xzup2awm4a/oauth_token }}
+    ANTHROPIC_TOKEN={{ op://ai-assistant/rbwlszwhjq7fyx75xzup2awm4a/oauth_token }}
+
+    # Gemini API key (backup)
     GOOGLE_API_KEY={{ op://ai-assistant/szznxwsb7suugqxkj5gwo5v6iq/credential }}
 
     # "Discord bot": token, Alex's user ID (the only allowed user), and the
@@ -152,12 +156,10 @@ in
     enable = true;
 
     settings = {
-      # Main model for conversations Alex starts. Explicit versioned ID ensures
-      # Hermes's tool-response parser recognizes Gemini 3+ and preserves image parts.
+      # Main model for conversations Alex starts: Claude Opus 5.5 via Claude Pro subscription OAuth.
       model = {
-        default = "gemini-3.8-flash";
-        provider = "gemini";
-        base_url = "https://generativelanguage.googleapis.com/v1beta";
+        default = "claude-opus-5-5";
+        provider = "anthropic";
       };
 
       # Route vision tool analysis through standalone multimodal turns to avoid
@@ -205,6 +207,8 @@ in
         "GH_TOKEN"
         "CF_ACCESS_CLIENT_ID"
         "CF_ACCESS_CLIENT_SECRET"
+        "CLAUDE_CODE_OAUTH_TOKEN"
+        "ANTHROPIC_TOKEN"
       ];
     };
 
