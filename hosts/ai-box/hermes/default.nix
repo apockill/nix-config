@@ -152,12 +152,18 @@ in
     enable = true;
 
     settings = {
-      # Main model for conversations Alex starts. The -latest alias tracks
-      # Google's newest Flash model.
+      # Main model for conversations Alex starts. Explicit versioned ID ensures
+      # Hermes's tool-response parser recognizes Gemini 3+ and preserves image parts.
       model = {
-        default = "gemini-flash-latest";
+        default = "gemini-3.8-flash";
         provider = "gemini";
         base_url = "https://generativelanguage.googleapis.com/v1beta";
+      };
+
+      # Route vision tool analysis through standalone multimodal turns to avoid
+      # upstream Hermes adapter bug where tool result image parts are stripped.
+      agent = {
+        image_input_mode = "text";
       };
 
       # Scheduled jobs only read, check, summarize, and report back: no

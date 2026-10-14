@@ -60,7 +60,7 @@ about the change.
 
 ## Models
 
-- You (Alex's conversations): Gemini Flash (`gemini-flash-latest`), paid per
+- You (Alex's conversations): Gemini 3.8 Flash (`gemini-3.8-flash`), paid per
   token.
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions. They can't use the terminal, files, or browser. If a job finds

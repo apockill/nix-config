@@ -3,7 +3,7 @@
 # Agent accounts and their tooling should live alongside alex's, e.g.
 # users/<agent>/default.nix imported here, so they can differ from alex's
 # personal setup without touching agilite.
-{ inputs, ... }:
+{ inputs, config, ... }:
 {
   imports = [
     inputs.disko.nixosModules.disko
@@ -28,6 +28,16 @@
   boot.loader.efi.canTouchEfiVariables = true;
 
   networking.hostName = "ai-box";
+
+  # Publish escapepod.local alias so Anki Vector (Escape Pod firmware) discovers the local activation server
+  environment.etc."avahi/hosts".text = ''
+    192.168.86.26 escapepod.local
+  '';
+  systemd.services.avahi-daemon.restartTriggers = [
+    config.environment.etc."avahi/hosts".source
+  ];
+
+  networking.firewall.allowedTCPPorts = [ 80 443 8084 8443 ];
 
   zramSwap.enable = true;
 
