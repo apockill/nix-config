@@ -84,6 +84,28 @@ let
     fi
   '';
 
+  # The switch/test run as their own transient systemd units, but `--pipe`
+  # hands them the caller's stdout. Activation often restarts hermes-agent
+  # (and kills this caller with it); if stdout were the agent's pipe, the
+  # rebuild would die on its next write, leaving services stopped until the
+  # hourly upgrade. So the agent-facing wrappers point stdout at a log file
+  # and follow it: if the agent dies mid-switch, the rebuild keeps writing to
+  # the file and finishes. Result: one short gateway restart, not an outage.
+  opsLogDir = "${hermesHome}/logs";
+  survivableRun =
+    name: privilegedPath:
+    pkgs.writeShellScriptBin name ''
+      log=${opsLogDir}/${name}.log
+      echo "=== ${name} started $(date -Is) ===" >"$log"
+      sudo ${privilegedPath} </dev/null >>"$log" 2>&1 &
+      pid=$!
+      ${pkgs.coreutils}/bin/tail -n +1 -f --pid="$pid" "$log"
+      wait "$pid"
+      rc=$?
+      echo "=== ${name} finished $(date -Is): exit $rc ===" | ${pkgs.coreutils}/bin/tee -a "$log"
+      exit "$rc"
+    '';
+
   switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
     exec ${pkgs.systemd}/bin/systemd-run \
       --pipe \
@@ -96,9 +118,7 @@ let
       ${switchToMasterWorker}
   '';
   switchToMasterPath = "/run/current-system/sw/bin/ai-box-switch-to-master";
-  ai-box-switch = pkgs.writeShellScriptBin "ai-box-switch" ''
-    exec sudo ${switchToMasterPath}
-  '';
+  ai-box-switch = survivableRun "ai-box-switch" switchToMasterPath;
 
   # 2. Test a local branch live without changing the bootloader.
   # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
@@ -106,8 +126,11 @@ let
     export HOME=/root
     export PATH=/run/current-system/sw/bin:$PATH
     export NIXOS_NO_CHECK=1
-    exec ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
+    ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
       --flake path:${workspace}/nix-config#ai-box
+    rc=$?
+    echo ">>> ai-box-test worker exit $rc <<<"
+    exit $rc
   '';
 
   testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
@@ -122,9 +145,7 @@ let
       ${testLocalConfigWorker}
   '';
   testLocalConfigPath = "/run/current-system/sw/bin/ai-box-test-local";
-  ai-box-test = pkgs.writeShellScriptBin "ai-box-test" ''
-    exec sudo ${testLocalConfigPath}
-  '';
+  ai-box-test = survivableRun "ai-box-test" testLocalConfigPath;
 
   # 3. Reboot the machine when staged updates require it (ask Alex first!).
   rebootCmd = pkgs.writeShellScriptBin "ai-box-reboot-cmd" ''
@@ -160,13 +181,15 @@ in
       model = {
         default = "claude-opus-5-5";
         provider = "anthropic";
+        # Explicit: settings are deep-merged into config.yaml, so a removed key
+        # (like the old Gemini base_url) would otherwise linger on disk.
+        base_url = "https://api.anthropic.com";
       };
 
-      # Route vision tool analysis through standalone multimodal turns to avoid
-      # upstream Hermes adapter bug where tool result image parts are stripped
-      # on native Gemini tool returns (NousResearch/hermes-agent issue #55426).
+      # Claude sees images natively (no lossy text description). Set to "auto"
+      # explicitly rather than deleting the key, for the same deep-merge reason.
       agent = {
-        image_input_mode = "text";
+        image_input_mode = "auto";
       };
 
       # Scheduled jobs only read, check, summarize, and report back: no
