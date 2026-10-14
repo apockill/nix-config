@@ -13,7 +13,7 @@
     ./browser.nix
     ./cloudflared.nix
     ./caddy.nix
-    ./apps-runner.nix
+    ./apps-runner
     ./vector.nix
     ./hermes
     ../../hardware/jetson-agx-orin
