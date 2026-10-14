@@ -32,6 +32,14 @@ Hermes delivers native images to Discord and other messaging platforms when a va
 3. **Pre-Flight Verification:**
    Before emitting the tag, always verify that the file actually exists on disk and is non-empty (`test -s <path>`).
 
+4. **MANDATORY VISUAL INSPECTION (Never Send Broken UI Screenshots):**
+   Before including `MEDIA:<path>` or reporting that a UI task is done, **YOU MUST inspect the image yourself with `vision_analyze`**.
+   Check every critical element:
+   - Are video streams, canvases, and feeds rendering actual live frames (not black boxes, 'DISCONNECTED', '0 FPS', or 'NO SIGNAL')?
+   - Are telemetry gauges and percentages showing plausible live data?
+   - Are there any layout glitches, overflow banners, or error toasts?
+   **Strict Rule:** Never claim a feature is done or share a screenshot if the image itself shows an error, disconnection, or broken element. Fix the bug first before contacting Alex.
+
 ## Standard Capture Workflow
 
 ```python

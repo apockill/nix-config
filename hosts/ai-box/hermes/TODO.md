@@ -40,6 +40,11 @@ repo (`hosts/ai-box/`).
 
 ## Next
 
+- [ ] **Robust Email Gateway (Zero Cloud Lock-in).** Configure Hermes's native
+      Email platform adapter (`plugins/platforms/email`) using IMAP (15s polling)
+      and SMTP over TLS for `ailex.agent.bot@gmail.com`. Store Google App Password
+      in 1Password (`ai-assistant` vault), and restrict inbound command execution
+      strictly to Alex via `EMAIL_ALLOWED_USERS` with DKIM/SPF verification.
 - [ ] **Gemma 4 Computer Use Benchmark.** Create a progressive benchmark to test
       local Gemma 4 26B-A4B capabilities for background tasks:
       1. Check a webpage (read content, extract status).

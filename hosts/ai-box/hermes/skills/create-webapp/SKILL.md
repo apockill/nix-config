@@ -21,6 +21,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 
 ## Rule: 1 Commit == 1 Verified Change
 Never commit code before proving it works. Never tell Alex something is done until verified with high confidence.
+- **Visual Inspection Gate:** Always inspect captured screenshots using `vision_analyze` before sharing them or claiming a webapp is complete. Never report completion if video streams, canvases, or metrics show error states ('CAM STREAM DISCONNECTED', 'NO SIGNAL', 0 FPS, broken layouts). Fix the underlying bug first before reaching out.
 
 ## Golden Rules for AI Agents
 1. **Always Delegate Coding to Claude Code CLI:**
