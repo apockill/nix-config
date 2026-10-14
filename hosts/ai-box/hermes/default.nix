@@ -58,104 +58,6 @@ let
     CF_ACCESS_CLIENT_SECRET={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_secret }}
   '';
 
-  # The only privileged commands the agent may run:
-  # 1. Switch ai-box to whatever is merged on master.
-  # Executes via systemd-run so it escapes hermes-agent's private mount namespace
-  # (where /nix is read-only) and runs in the host root namespace.
-  # Attempts a clean live switch first. If pre-switch checks inhibit a live switch
-  # (e.g. kernel/firmware/driver updates), falls back to `boot` to stage into the
-  # bootloader without breaking running services, prompting for a reboot.
-  switchToMasterWorker = pkgs.writeShellScript "ai-box-switch-worker" ''
-    export HOME=/root
-    export PATH=/run/current-system/sw/bin:$PATH
-    echo "Attempting live switch to master..."
-    if ${config.system.build.nixos-rebuild}/bin/nixos-rebuild switch \
-        --refresh --flake github:apockill/nix-config#ai-box; then
-      echo "Live switch to master succeeded."
-    else
-      echo "Live switch inhibited or failed. Staging to bootloader instead..."
-      if ${config.system.build.nixos-rebuild}/bin/nixos-rebuild boot \
-          --refresh --flake github:apockill/nix-config#ai-box; then
-        echo ">>> STAGED_REBOOT_REQUIRED: System staged to bootloader. Ask user before rebooting. <<<"
-      else
-        echo "Build failed for both switch and boot."
-        exit 1
-      fi
-    fi
-  '';
-
-  # The switch/test run as their own transient systemd units, but `--pipe`
-  # hands them the caller's stdout. Activation often restarts hermes-agent
-  # (and kills this caller with it); if stdout were the agent's pipe, the
-  # rebuild would die on its next write, leaving services stopped until the
-  # hourly upgrade. So the agent-facing wrappers point stdout at a log file
-  # and follow it: if the agent dies mid-switch, the rebuild keeps writing to
-  # the file and finishes. Result: one short gateway restart, not an outage.
-  opsLogDir = "${hermesHome}/logs";
-  survivableRun =
-    name: privilegedPath:
-    pkgs.writeShellScriptBin name ''
-      log=${opsLogDir}/${name}.log
-      echo "=== ${name} started $(date -Is) ===" >"$log"
-      sudo ${privilegedPath} </dev/null >>"$log" 2>&1 &
-      pid=$!
-      ${pkgs.coreutils}/bin/tail -n +1 -f --pid="$pid" "$log"
-      wait "$pid"
-      rc=$?
-      echo "=== ${name} finished $(date -Is): exit $rc ===" | ${pkgs.coreutils}/bin/tee -a "$log"
-      exit "$rc"
-    '';
-
-  switchToMaster = pkgs.writeShellScriptBin "ai-box-switch-to-master" ''
-    exec ${pkgs.systemd}/bin/systemd-run \
-      --pipe \
-      --unit=ai-box-switch-run \
-      --wait \
-      --collect \
-      --property=Environment="HOME=/root" \
-      --property=Environment="PATH=/run/current-system/sw/bin" \
-      --property=WorkingDirectory=/root \
-      ${switchToMasterWorker}
-  '';
-  switchToMasterPath = "/run/current-system/sw/bin/ai-box-switch-to-master";
-  ai-box-switch = survivableRun "ai-box-switch" switchToMasterPath;
-
-  # 2. Test a local branch live without changing the bootloader.
-  # Ephemeral: hourly autoUpgrade (or reboot) automatically reverts to master.
-  testLocalConfigWorker = pkgs.writeShellScript "ai-box-test-worker" ''
-    export HOME=/root
-    export PATH=/run/current-system/sw/bin:$PATH
-    export NIXOS_NO_CHECK=1
-    ${config.system.build.nixos-rebuild}/bin/nixos-rebuild test \
-      --flake path:${workspace}/nix-config#ai-box
-    rc=$?
-    echo ">>> ai-box-test worker exit $rc <<<"
-    exit $rc
-  '';
-
-  testLocalConfig = pkgs.writeShellScriptBin "ai-box-test-local" ''
-    exec ${pkgs.systemd}/bin/systemd-run \
-      --pipe \
-      --unit=ai-box-test-run \
-      --wait \
-      --collect \
-      --property=Environment="HOME=/root" \
-      --property=Environment="PATH=/run/current-system/sw/bin" \
-      --property=WorkingDirectory=/root \
-      ${testLocalConfigWorker}
-  '';
-  testLocalConfigPath = "/run/current-system/sw/bin/ai-box-test-local";
-  ai-box-test = survivableRun "ai-box-test" testLocalConfigPath;
-
-  # 3. Reboot the machine when staged updates require it (ask Alex first!).
-  rebootCmd = pkgs.writeShellScriptBin "ai-box-reboot-cmd" ''
-    exec ${pkgs.systemd}/bin/systemctl reboot
-  '';
-  rebootCmdPath = "/run/current-system/sw/bin/ai-box-reboot-cmd";
-  ai-box-reboot = pkgs.writeShellScriptBin "ai-box-reboot" ''
-    exec sudo ${rebootCmdPath}
-  '';
-
   # Upstream Hermes bug (NousResearch/hermes-agent issue #108335 / PR #129628):
   # When using 1Password Service Accounts (OP_SERVICE_ACCOUNT_TOKEN), `op item get`
   # requires an explicit `--vault` flag. Upstream Hermes omits `--vault` in
@@ -171,7 +73,10 @@ let
   '';
 in
 {
-  imports = [ inputs.hermes-agent.nixosModules.default ];
+  imports = [
+    inputs.hermes-agent.nixosModules.default
+    ./system-commands.nix # ai-box-switch / ai-box-test / ai-box-reboot
+  ];
 
   services.hermes-agent = {
     enable = true;
@@ -241,9 +146,6 @@ in
 
     extraPackages = with pkgs; [
       opVaultWrapper
-      ai-box-switch
-      ai-box-test
-      ai-box-reboot
       gh
       git
       jq
@@ -324,29 +226,5 @@ in
     };
   };
 
-  environment.systemPackages = [
-    switchToMaster
-    testLocalConfig
-    rebootCmd
-  ];
   users.users.${cfg.user}.extraGroups = [ "video" ];
-  security.sudo.extraRules = [
-    {
-      users = [ cfg.user ];
-      commands = [
-        {
-          command = "${switchToMasterPath}";
-          options = [ "NOPASSWD" ];
-        }
-        {
-          command = "${testLocalConfigPath}";
-          options = [ "NOPASSWD" ];
-        }
-        {
-          command = "${rebootCmdPath}";
-          options = [ "NOPASSWD" ];
-        }
-      ];
-    }
-  ];
 }
