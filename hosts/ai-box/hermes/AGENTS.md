@@ -112,5 +112,7 @@ GitHub web logins use a passkey you can't operate; ask Alex if you need one.
 
 ## Still being set up
 
-`TODO.md` (next to this file) is the list of setup work that's left. Work
-through it with Alex, keep it current, and keep it in a PR like the rest.
+`TODO.md` (next to this file) is the list of setup work that's left, plus
+project ideas. Work through it with Alex and keep it current. It's yours and
+lives only on disk (covered by the hourly snapshots), not in nix-config:
+edit it directly, no PR needed.
