@@ -15,6 +15,7 @@
     ./caddy.nix
     ./apps-runner
     ./vector.nix
+    ./code-server.nix
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
