@@ -14,6 +14,7 @@
     ./cloudflared.nix
     ./caddy.nix
     ./apps-runner.nix
+    ./vector.nix
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
@@ -28,16 +29,6 @@
   boot.loader.efi.canTouchEfiVariables = true;
 
   networking.hostName = "ai-box";
-
-  # Publish escapepod.local alias so Anki Vector (Escape Pod firmware) discovers the local activation server
-  environment.etc."avahi/hosts".text = ''
-    192.168.86.26 escapepod.local
-  '';
-  systemd.services.avahi-daemon.restartTriggers = [
-    config.environment.etc."avahi/hosts".source
-  ];
-
-  networking.firewall.allowedTCPPorts = [ 80 443 8084 8443 ];
 
   zramSwap.enable = true;
 
