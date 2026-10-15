@@ -13,8 +13,8 @@
 
 ## State: what survives, and how it's backed up
 
-- The root filesystem is wiped on boot (being rolled out); only paths declared
-  in `hosts/ai-box/state/paths.nix` survive. Each has a backup class: `git`,
+- The root filesystem is wiped on boot; only paths declared in
+  `hosts/ai-box/state/paths.nix` survive. Each has a backup class: `git`,
   `restic`, `cache`, `host`, `manual`, or `ephemeral`.
 - When you create anything that must persist (an app database, a tool's data
   dir), declare it there in a PR. An hourly audit reports undeclared paths to
@@ -47,8 +47,10 @@
 5. After Alex merges, run `ai-box-switch` to apply master immediately (it's the
    one command you may run as root). A timer also applies master hourly.
 
-Don't merge your own PRs unless Alex explicitly asks. `ai-box-switch` only
-deploys what's on master, so system changes take effect when Alex merges. Alex is happy to
+`master` is protected: a PR needs Alex's approval to merge, and new commits
+dismiss it. Even once approved, merge only when Alex asks. Merged changes go
+live with `ai-box-switch`; `ai-box-test` applies a branch temporarily for
+testing, and the hourly upgrade or a reboot reverts it. Alex is happy to
 review PRs and doesn't want to be a blocker, so propose changes freely.
 
 **Your own instructions** (SOUL.md, this file) are the exception: edit them on
