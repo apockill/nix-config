@@ -8,8 +8,10 @@
 # exist.
 #
 # Backup classes:
-#   git        valuable parts live in a git remote (`repo`); runtime files
-#              inside may be declared separately (usually as restic)
+#   git        the repo (`repo`) is the source of truth. Uncommitted files
+#              inside are disposable (rebuilding from the repo is the intended
+#              recovery); declare any that matter separately. The audit lists
+#              them as a non-blocking note, so we can keep an eye on them.
 #   restic     backed up off-box with restic
 #   cache      kept to avoid rebuilding or re-downloading; never backed up
 #   manual     re-provisioned by a human on a new box (e.g. the vault token)
@@ -67,7 +69,7 @@ in
     checkCommand = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
-      default = "${python} ${./audit.py} check ${declaredJson}";
+      default = "env PATH=${pkgs.git}/bin:$PATH ${python} ${./audit.py} check ${declaredJson}";
       description = "Exits 1 and lists paths if undeclared state exists (used by ai-box-reboot).";
     };
   };
@@ -102,6 +104,7 @@ in
     # collector (apps-health's collector is a long-running supervisor).
     systemd.services.state-audit = {
       description = "Audit root filesystem for undeclared state";
+      path = [ pkgs.git ]; # lists uncommitted files in `git` paths
       serviceConfig = {
         Type = "oneshot";
         StateDirectory = "state-audit";

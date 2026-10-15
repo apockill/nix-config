@@ -6,6 +6,10 @@ and reports everything not covered by a declaration: state a reboot deletes.
 
 Other filesystems and subvolumes (/nix, /home, /proc, ...) are skipped; they
 aren't part of the root and aren't wiped.
+
+It also lists, as a low-key note, files inside `git` paths that aren't
+committed. Those are disposable by design (the repo is the source of truth),
+but it's worth seeing what accumulates there.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import argparse
 import json
 import os
 import stat
+import subprocess
 import sys
 import time
 from collections.abc import Mapping, Sequence
@@ -40,6 +45,16 @@ MANAGED_LINK_PREFIXES = (
 # "ephemeral" paths bigger than this are flagged: anything this large is
 # probably a cache or data that was wrongly marked disposable.
 LARGE_EPHEMERAL_BYTES = 500 * 1000**2  # 500 MB
+
+# Uncommitted files inside git repos that are never interesting: build output
+# (by directory or link name) and runtime files (by suffix: app logs, the
+# apps-runner's .runner.pid).
+BUILD_ARTIFACTS = {"__pycache__", "node_modules", ".pytest_cache", "dist", "result"}
+RUNTIME_SUFFIXES = (".log", ".pid")
+
+# SQLite keeps recent writes in these files next to the database; a declared
+# database covers them.
+SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
 
 OK_SUMMARY = "OK: all state on the root filesystem is declared"
 
@@ -90,8 +105,15 @@ def load_declared(json_file: Path) -> dict[Path, Declaration]:
 
 
 def is_covered(path: Path, declared: Mapping[Path, Declaration]) -> bool:
-    """Is `path` declared, or inside a declared path?"""
-    return any(p in declared for p in (path, *path.parents))
+    """Is `path` declared, inside a declared path, or a declared SQLite
+    database's sidecar file?"""
+    if any(p in declared for p in (path, *path.parents)):
+        return True
+    return any(
+        path.name.endswith(suffix)
+        and path.with_name(path.name.removesuffix(suffix)) in declared
+        for suffix in SQLITE_SIDECARS
+    )
 
 
 def has_declared_descendant(path: Path, declared: Mapping[Path, Declaration]) -> bool:
@@ -179,6 +201,50 @@ def find_undeclared(root: Path, declared: Mapping[Path, Declaration]) -> list[Fi
     return findings
 
 
+def uncommitted_in_git_paths(declared: Mapping[Path, Declaration]) -> list[Path]:
+    """Untracked or ignored files inside `git` paths that have no declaration
+    of their own. Disposable by design; reported only so we can keep an eye on
+    what accumulates."""
+    found: list[Path] = []
+    for repo, decl in sorted(declared.items()):
+        if decl.backup != "git":
+            continue
+        # safe.directory: the audit runs as root, but the repos belong to hermes.
+        result = subprocess.run(
+            ["git", "-c", "safe.directory=*", "-C", str(repo),
+             "status", "--porcelain", "--ignored", "-z"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            continue  # not a repo (yet), or git isn't available
+        for entry in result.stdout.split("\0"):
+            # "?? path" is untracked, "!! path" is ignored; directories that
+            # are entirely uncommitted come back as one entry ending in "/".
+            if not entry.startswith(("??", "!!")):
+                continue
+            path = repo / entry[3:].rstrip("/")
+            relative = path.relative_to(repo)
+            if (
+                BUILD_ARTIFACTS & set(relative.parts)
+                or path.name.endswith(RUNTIME_SUFFIXES)
+                or _is_socket(path)
+            ):
+                continue
+            # Declared separately inside the repo (e.g. a database as restic)?
+            inner = {p: d for p, d in declared.items() if repo in p.parents}
+            if not is_covered(path, inner):
+                found.append(path)
+    return found
+
+
+def _is_socket(path: Path) -> bool:
+    try:
+        return stat.S_ISSOCK(path.lstat().st_mode)
+    except OSError:
+        return False
+
+
 def declared_usage(declared: Mapping[Path, Declaration]) -> dict[Path, Usage]:
     """Usage of each declared path, minus the declared paths nested inside it
     (those have their own backup class, e.g. a cache inside a restic folder)."""
@@ -237,6 +303,7 @@ def cmd_report(root: Path, declared: Mapping[Path, Declaration], out_dir: Path) 
     report = {
         "generated": round(time.time(), 1),
         "undeclared": [f.to_json() for f in findings],
+        "uncommitted_in_git": [str(p) for p in uncommitted_in_git_paths(declared)],
         "declared": [
             {
                 "path": str(path),
@@ -261,6 +328,12 @@ def cmd_check(root: Path, declared: Mapping[Path, Declaration]) -> int:
     findings = find_undeclared(root, declared)
     for f in findings[:MAX_LISTED]:
         print(f"  {f.path}  ({f.usage.files} files, {f.usage.bytes / 1e6:.1f} MB)")
+    # Informational only: never fails the check.
+    if uncommitted := uncommitted_in_git_paths(declared):
+        print(f"Note: {len(uncommitted)} uncommitted paths inside git repos "
+              "(disposable; see report.json):", file=sys.stderr)
+        for path in uncommitted[:MAX_LISTED]:
+            print(f"  {path}", file=sys.stderr)
     return 1 if findings else 0
 
 

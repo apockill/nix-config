@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import socket
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -138,3 +140,57 @@ def test_report_writes_report_and_summary(tmp_path: Path, declared_json: Path) -
     assert [u["path"] for u in report["undeclared"]] == [str(root / "stray")]
     assert report["declared"][0]["bytes"] == 7
     assert (out / "summary.txt").read_text().startswith("UNDECLARED STATE")
+
+
+def test_sqlite_sidecars_are_covered_by_their_database(tmp_path: Path) -> None:
+    write(tmp_path / "app" / "data.db")
+    write(tmp_path / "app" / "data.db-wal")
+    write(tmp_path / "app" / "other.db-wal")
+    declared = {tmp_path / "app" / "data.db": decl()}
+    assert undeclared(tmp_path, declared) == ["app/other.db-wal"]
+
+
+def git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+
+def test_uncommitted_files_in_git_paths_are_noted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "sites"
+    write(repo / "app" / "main.py")
+    write(repo / ".gitignore").write_text("*.db\n__pycache__/\n*.log\n")
+    git(repo.parent, "init", "-q", str(repo))
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init")
+    write(repo / "app" / "kept.db")          # ignored, but declared separately
+    write(repo / "app" / "kept.db-wal")      # its SQLite sidecar
+    write(repo / "app" / "stray.db")         # ignored, undeclared: noted
+    write(repo / "app" / "notes.txt")        # untracked: noted
+    write(repo / "app" / "__pycache__" / "main.pyc")  # build output: skipped
+    write(repo / "app" / "dist" / "index.js")  # build output: skipped
+    write(repo / "app" / "app.log")  # runtime file: skipped
+    write(repo / "app" / ".runner.pid")  # runtime file: skipped
+    # Runtime socket: skipped. Bound by relative path; full tmp paths can
+    # exceed the 108-byte AF_UNIX limit.
+    monkeypatch.chdir(repo / "app")
+    sock = socket.socket(socket.AF_UNIX)
+    sock.bind("app.sock")
+    declared = {
+        repo: Declaration(backup="git", why="t", repo="example"),
+        repo / "app" / "kept.db": decl(),
+    }
+
+    found = audit.uncommitted_in_git_paths(declared)
+
+    sock.close()
+    assert sorted(str(p.relative_to(repo)) for p in found) == ["app/notes.txt", "app/stray.db"]
+
+
+def test_uncommitted_note_never_fails_the_check(tmp_path: Path) -> None:
+    repo = tmp_path / "root" / "repo"
+    write(repo / "untracked")
+    git(repo.parent, "init", "-q", str(repo))
+    declared_json = tmp_path / "declared.json"
+    declared_json.write_text(json.dumps({str(repo): {"backup": "git", "why": "t", "repo": "x"}}))
+    assert audit.main(["--root", str(tmp_path / "root"), "check", str(declared_json)]) == 0
