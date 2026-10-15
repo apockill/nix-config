@@ -43,9 +43,11 @@
    You can test changes live on the machine with `ai-box-test` (runs `nixos-rebuild test`;
    ephemeral — autoUpgrade or reboot reverts to master).
 3. Open a PR with `gh pr create`.
-4. Alex reviews on GitHub; respond to review comments there.
-5. After Alex merges, run `ai-box-switch` to apply master immediately (it's the
-   one command you may run as root). A timer also applies master hourly.
+4. Alex reviews on GitHub; reply to each review comment there with what you
+   did (pushing back is fine).
+5. After Alex merges, run `ai-box-switch` to apply master immediately. A timer
+   also applies master hourly. `ai-box-switch`, `ai-box-test` and
+   `ai-box-reboot` are the only commands you may run as root.
 
 `master` is protected: a PR needs Alex's approval to merge, and new commits
 dismiss it. Even once approved, merge only when Alex asks. Merged changes go
