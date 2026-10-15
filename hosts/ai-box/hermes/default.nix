@@ -75,6 +75,7 @@ in
   imports = [
     inputs.hermes-agent.nixosModules.default
     ./system-commands.nix # ai-box-switch / ai-box-test / ai-box-reboot
+    ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
   ];
 
   services.hermes-agent = {
