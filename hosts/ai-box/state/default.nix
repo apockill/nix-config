@@ -14,6 +14,9 @@
 #              them as a non-blocking note, so we can keep an eye on them.
 #   restic     backed up off-box with restic
 #   cache      kept to avoid rebuilding or re-downloading; never backed up
+#   host       belongs to this machine (identity, its own history). Kept, never
+#              backed up: a new box starts with its own. Treated like cache for
+#              now; may be handled differently later.
 #   manual     re-provisioned by a human on a new box (e.g. the vault token)
 #   ephemeral  NOT kept: fine to lose on every boot
 #
@@ -31,6 +34,7 @@ let
     "git"
     "restic"
     "cache"
+    "host"
     "manual"
     "ephemeral"
   ];
