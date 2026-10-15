@@ -70,21 +70,35 @@ let
       exec ${pkgs._1password-cli}/bin/op "$@"
     fi
   '';
+
+  # Hermes won't pass GH_TOKEN into the agent's terminal: it treats it as a
+  # provider credential (GHSA-rhgp-j443-p4rf) and refuses it in
+  # terminal.env_passthrough. So gh reads it from the secrets file itself, and
+  # only gh (and git, through gh's credential helper) ever sees it.
+  ghWrapper = pkgs.writeShellScriptBin "gh" ''
+    if [ -z "''${GH_TOKEN:-}" ] && [ -r ${secretsDir}/env ]; then
+      GH_TOKEN=$(${pkgs.gnused}/bin/sed -n 's/^GH_TOKEN=//p' ${secretsDir}/env)
+      export GH_TOKEN
+    fi
+    exec ${pkgs.gh}/bin/gh "$@"
+  '';
 in
 {
   imports = [
     inputs.hermes-agent.nixosModules.default
     ./system-commands.nix # ai-box-switch / ai-box-test / ai-box-reboot
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
-    ./dotfiles.nix # ~/.gitconfig, ~/.bashrc, Claude Code settings
+    ./home.nix # home-manager: git, gh, Claude Code settings
   ];
 
   services.hermes-agent = {
     enable = true;
 
     settings = {
-      # config.yaml is regenerated from these settings; the onboarding hints
-      # Hermes would otherwise record there at runtime are marked seen here.
+      # Hermes shows some hints once (e.g. the first time Alex messages while
+      # it's busy) and records them as seen in config.yaml. That file is
+      # regenerated from these settings, so mark them seen here, or they'd
+      # come back after every reboot.
       onboarding.seen = {
         busy_input_prompt = true;
         profile_build_offered = true;
@@ -134,16 +148,16 @@ in
         service_account_token_env = "OP_SERVICE_ACCOUNT_TOKEN";
         binary_path = "${opVaultWrapper}/bin/op";
       };
-      # Lets `op` and `gh` in the agent's terminal reach the vault and GitHub,
+      # Lets `op` and `claude` in the agent's terminal reach the vault and Claude,
       # and gives curl access to the Cloudflare Access service token.
       # Cron has no terminal, so it never gets these.
       terminal.env_passthrough = [
         "OP_SERVICE_ACCOUNT_TOKEN"
-        "GH_TOKEN"
         "CF_ACCESS_CLIENT_ID"
         "CF_ACCESS_CLIENT_SECRET"
         "CLAUDE_CODE_OAUTH_TOKEN"
-        "ANTHROPIC_TOKEN"
+        # Not GH_TOKEN or ANTHROPIC_TOKEN: Hermes refuses provider credentials
+        # here. gh gets its token through ghWrapper.
       ];
     };
 
@@ -153,9 +167,8 @@ in
 
     extraPackages = with pkgs; [
       opVaultWrapper
-      # nixpkgs' claude-code lags behind what newer models require.
-      inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
-      gh
+      claude-code # current release, via the overlay below
+      ghWrapper
       git
       jq
       just
@@ -163,6 +176,13 @@ in
       ripgrep
     ];
   };
+
+  # git's GitHub credential helper (home-manager) must use the wrapper too.
+  home-manager.users.${cfg.user}.programs.gh.package = ghWrapper;
+
+  # Stable nixpkgs' claude-code lags behind what current models require
+  # (Opus 5.5 needs 2.1.280+); this flake tracks Claude Code releases.
+  nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ];
 
   # Pull secrets from 1Password into RAM before the agent starts. Rotating a
   # secret = change it in 1Password, then `systemctl restart hermes-secrets
