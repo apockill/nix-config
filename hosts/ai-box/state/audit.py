@@ -35,13 +35,17 @@ MAX_LISTED = 200
 # (e.g. /etc/localtime -> /etc/zoneinfo/..., /var/run -> ../run), so they
 # aren't state.
 MANAGED_LINK_PREFIXES = (
-    "/nix/store/",
     "/etc/static/",
     "/etc/zoneinfo/",
     "/proc/",
     "/run/",
     "../run",
 )
+
+# Links into the Nix store are recreated only in the system directories NixOS
+# populates (/etc, /bin/sh, /usr/bin/env, the /lib stub loader). Anywhere else nothing recreates
+# them: a hand-made ~/.local/bin/claude is state.
+NIX_STORE_LINK_DIRS = {"etc", "bin", "usr", "lib", "lib64"}
 
 # "ephemeral" paths bigger than this are flagged: anything this large is
 # probably a cache or data that was wrongly marked disposable.
@@ -144,20 +148,26 @@ def nearest_declared_parent(
     return next((p for p in path.parents if p in declared), None)
 
 
-def is_managed_symlink(path: Path) -> bool:
+def is_managed_symlink(path: Path, root: Path) -> bool:
+    """Is `path` a symlink that NixOS recreates? `root` is the filesystem root
+    being audited (so system directories can be recognized)."""
     try:
         target = str(path.readlink())
     except OSError:
         return False
-    return target.startswith(MANAGED_LINK_PREFIXES)
+    if target.startswith(MANAGED_LINK_PREFIXES):
+        return True
+    top_dir = path.relative_to(root).parts[0]
+    return target.startswith("/nix/store/") and top_dir in NIX_STORE_LINK_DIRS
 
 
-def measure(root: Path, device: int) -> Usage:
-    """Size, file count and newest mtime of the tree at `root`, without
-    leaving `device` (mounts and other subvolumes inside it are skipped)."""
+def measure(tree: Path, device: int, root: Path) -> Usage:
+    """Size, file count and newest mtime of `tree`, without leaving `device`
+    (mounts and other subvolumes inside it are skipped). `root` is the
+    filesystem root being audited."""
     total = files = 0
     newest = 0.0
-    for directory, subdirs, names in root.walk(on_error=lambda _: None):
+    for directory, subdirs, names in tree.walk(on_error=lambda _: None):
         # Prune in place, which stops walk() from descending: keep only real
         # directories on the same device (not symlinks, mounts or subvolumes).
         subdirs[:] = [d for d in subdirs if _is_dir_on(directory / d, device)]
@@ -167,7 +177,7 @@ def measure(root: Path, device: int) -> Usage:
                 st = entry.lstat()
             except OSError:
                 continue  # deleted while we were walking
-            if stat.S_ISLNK(st.st_mode) and is_managed_symlink(entry):
+            if stat.S_ISLNK(st.st_mode) and is_managed_symlink(entry, root):
                 continue
             files += 1
             if stat.S_ISREG(st.st_mode):
@@ -198,23 +208,23 @@ def find_undeclared(root: Path, declared: Mapping[Path, Declaration]) -> list[Fi
             return  # another filesystem (not wiped), or declared (kept)
 
         if stat.S_ISLNK(st.st_mode):
-            if not is_managed_symlink(path):
+            if not is_managed_symlink(path, root):
                 findings.append(Finding(path, "symlink", Usage(0, 1, st.st_mtime)))
         elif not stat.S_ISDIR(st.st_mode):
             findings.append(Finding(path, "file", Usage(st.st_size, 1, st.st_mtime)))
         elif has_declared_descendant(path, declared):
             # Partly declared, like /var/lib: judge each child on its own.
-            for child in sorted(path.iterdir()):
+            for child in _children(path):
                 visit(child)
         else:
             # Wholly undeclared: report the directory once. Empty ones are
             # skipped; systemd-tmpfiles recreates the directories that matter.
-            usage = measure(path, device)
+            usage = measure(path, device, root)
             if usage.files:
                 findings.append(Finding(path, "dir", usage))
 
     # The root itself can't be declared; always judge its children.
-    for child in sorted(root.iterdir()):
+    for child in _children(root):
         visit(child)
     return findings
 
@@ -263,10 +273,21 @@ def _is_socket(path: Path) -> bool:
         return False
 
 
-def declared_usage(declared: Mapping[Path, Declaration]) -> dict[Path, Usage]:
+def _children(directory: Path) -> list[Path]:
+    """Sorted entries of `directory`; none if it can't be listed (only
+    happens when not running as root, or if it vanished mid-walk)."""
+    try:
+        return sorted(directory.iterdir())
+    except OSError:
+        return []
+
+
+def declared_usage(
+    declared: Mapping[Path, Declaration], root: Path = Path("/")
+) -> dict[Path, Usage]:
     """Usage of each declared path, minus the declared paths nested inside it
     (those have their own backup class, e.g. a cache inside a restic folder)."""
-    total = {path: _usage_of(path) for path in declared}
+    total = {path: _usage_of(path, root) for path in declared}
     own = dict(total)
     for path in declared:
         if (parent := nearest_declared_parent(path, declared)) is not None:
@@ -274,13 +295,13 @@ def declared_usage(declared: Mapping[Path, Declaration]) -> dict[Path, Usage]:
     return own
 
 
-def _usage_of(path: Path) -> Usage:
+def _usage_of(path: Path, root: Path) -> Usage:
     try:
         st = path.lstat()
     except OSError:
         return Usage()  # declared but doesn't exist (yet)
     if stat.S_ISDIR(st.st_mode):
-        return measure(path, st.st_dev)
+        return measure(path, st.st_dev, root)
     return Usage(st.st_size, 1, st.st_mtime)
 
 
@@ -317,7 +338,7 @@ def write_atomic(path: Path, text: str) -> None:
 
 def cmd_report(root: Path, declared: Mapping[Path, Declaration], out_dir: Path) -> int:
     findings = find_undeclared(root, declared)
-    usage = declared_usage(declared)
+    usage = declared_usage(declared, root)
     report = {
         "generated": round(time.time(), 1),
         "undeclared": [f.to_json() for f in findings],
