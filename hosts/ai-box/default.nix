@@ -15,6 +15,7 @@
     ./caddy.nix
     ./apps-runner
     ./state # declared state + audit (impermanence prep)
+    ./backups # restic to Google Drive
     ./vector.nix
     ./hermes
     ../../hardware/jetson-agx-orin
