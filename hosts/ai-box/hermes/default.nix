@@ -76,12 +76,19 @@ in
     inputs.hermes-agent.nixosModules.default
     ./system-commands.nix # ai-box-switch / ai-box-test / ai-box-reboot
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
+    ./dotfiles.nix # ~/.gitconfig, ~/.bashrc, Claude Code settings
   ];
 
   services.hermes-agent = {
     enable = true;
 
     settings = {
+      # config.yaml is regenerated from these settings; the onboarding hints
+      # Hermes would otherwise record there at runtime are marked seen here.
+      onboarding.seen = {
+        busy_input_prompt = true;
+        profile_build_offered = true;
+      };
       # Main model for conversations Alex starts: Claude Opus 5.5 via Claude Pro subscription OAuth.
       model = {
         default = "claude-opus-5-5";
@@ -146,6 +153,8 @@ in
 
     extraPackages = with pkgs; [
       opVaultWrapper
+      # nixpkgs' claude-code lags behind what newer models require.
+      inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
       gh
       git
       jq
