@@ -8,17 +8,8 @@
 #               runs when its output changes, i.e. when an app needs Alex.
 #
 # Removing this directory (and its import) removes the whole feature.
-{
-  config,
-  pkgs,
-  ...
-}:
+{ pkgs, ... }:
 let
-  hermes = config.services.hermes-agent;
-  hermesBin = "${hermes.package}/bin/hermes";
-
-  cronName = "apps-health";
-  cronSchedule = "every 5m";
   cronPrompt = ''
     You watch the web apps on ai-box (Alex's home server). The monitor block
     above shows what changed in their health summary. Write a short Discord
@@ -59,37 +50,9 @@ in
     };
   };
 
-  # Monitor source for the cron job (cron scripts must live in HERMES_HOME/scripts).
-  services.hermes-agent.hermesHomeFiles."scripts/apps-health-monitor.py" = ./monitor.py;
-
-  # Keep the cron job declared here: create it, or update it in place.
-  systemd.services.hermes-cron-apps-health = {
-    description = "Declare the apps-health Hermes cron job";
-    after = [ "hermes-agent.service" ];
-    wantedBy = [ "multi-user.target" ];
-    restartTriggers = [ cronPrompt ];
-    path = [ pkgs.jq ];
-    environment = {
-      HERMES_HOME = "${hermes.stateDir}/.hermes";
-      HOME = hermes.stateDir;
-    };
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      User = hermes.user;
-      Group = hermes.group;
-    };
-    script = ''
-      id=$(jq -r '.jobs[]? | select(.name == "${cronName}") | .id' \
-        "$HERMES_HOME/cron/jobs.json" 2>/dev/null || true)
-      args=(--monitor-script apps-health-monitor.py --deliver discord)
-      if [ -n "$id" ]; then
-        ${hermesBin} cron edit "$id" --schedule "${cronSchedule}" \
-          --prompt ${pkgs.lib.escapeShellArg cronPrompt} "''${args[@]}"
-      else
-        ${hermesBin} cron create --name ${cronName} "''${args[@]}" \
-          "${cronSchedule}" ${pkgs.lib.escapeShellArg cronPrompt}
-      fi
-    '';
+  aiBox.hermesCron.apps-health = {
+    schedule = "every 5m";
+    monitorScript = ./monitor.py;
+    prompt = cronPrompt;
   };
 }
