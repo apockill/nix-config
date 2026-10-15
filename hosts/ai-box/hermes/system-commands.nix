@@ -86,8 +86,8 @@ let
   rebootRoot = pkgs.writeShellScriptBin "ai-box-reboot-root" ''
     if [ "''${1:-}" != "--force" ]; then
       if ! out=$(${config.aiBox.state.checkCommand}); then
-        echo "Refusing to reboot: undeclared state on the root filesystem."
-        echo "It survives a reboot today, but would be lost once the root is wiped on boot."
+        echo "Refusing to reboot: the root filesystem is wiped on boot, and these"
+        echo "paths aren't declared, so rebooting would delete them:"
         echo "$out"
         echo "Declare it in hosts/ai-box/state/paths.nix, or rerun with --force (ask Alex)."
         exit 1

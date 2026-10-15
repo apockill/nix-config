@@ -1,6 +1,6 @@
 # Every piece of state on ai-box's root filesystem, and how it's backed up.
-# Schema and classes: ./default.nix. Undeclared paths show up in the hourly
-# audit (and Discord), and block ai-box-reboot.
+# Anything not listed here is deleted on boot. Schema and classes:
+# ./default.nix.
 let
   hermes = "/var/lib/hermes";
   sites = "${hermes}/sites";
