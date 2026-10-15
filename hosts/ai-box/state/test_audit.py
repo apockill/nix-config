@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import subprocess
 from pathlib import Path
@@ -59,9 +60,19 @@ def test_empty_directories_are_ignored(tmp_path: Path) -> None:
 def test_managed_symlinks_are_ignored_but_others_are_reported(tmp_path: Path) -> None:
     (tmp_path / "localtime").symlink_to("/etc/zoneinfo/America/Los_Angeles")
     (tmp_path / "run").symlink_to("../run")
-    (tmp_path / "config").symlink_to("/nix/store/abc-config")
     (tmp_path / "handmade").symlink_to("/home/alex/thing")
     assert undeclared(tmp_path, {}) == ["handmade"]
+
+
+def test_store_links_are_managed_only_in_system_dirs(tmp_path: Path) -> None:
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "sshd_config").symlink_to("/nix/store/abc-sshd_config")
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin" / "sh").symlink_to("/nix/store/abc-bash/bin/sh")
+    home_bin = tmp_path / "var" / "lib" / "hermes" / ".local" / "bin"
+    home_bin.mkdir(parents=True)
+    (home_bin / "claude").symlink_to("/nix/store/abc-claude-code/bin/claude")
+    assert undeclared(tmp_path, {}) == ["var"]
 
 
 def test_managed_symlinks_inside_undeclared_dirs_are_not_counted(tmp_path: Path) -> None:
@@ -78,7 +89,7 @@ def test_nested_declarations_are_excluded_from_the_parents_usage(tmp_path: Path)
         tmp_path / "home" / "cache": decl(Backup.CACHE),
         tmp_path / "missing": decl(Backup.RESTIC),
     }
-    usage = audit.declared_usage(declared)
+    usage = audit.declared_usage(declared, tmp_path)
     assert usage[tmp_path / "home"].bytes == 10
     assert usage[tmp_path / "home" / "cache"].bytes == 100
     assert usage[tmp_path / "missing"] == Usage()
@@ -207,3 +218,45 @@ def test_backup_enum_matches_the_nix_classes() -> None:
     nix = (Path(__file__).parent / "default.nix").read_text()
     classes = nix.split("classes = [", 1)[1].split("];", 1)[0].split()
     assert sorted(c.strip('"') for c in classes) == sorted(b.value for b in Backup)
+
+
+def test_unreadable_directories_are_skipped_not_fatal(tmp_path: Path) -> None:
+    locked = tmp_path / "var" / "locked"
+    write(locked / "secret")
+    write(tmp_path / "var" / "stray")
+    declared = {tmp_path / "var" / "kept": decl()}
+    locked.chmod(0)
+    try:
+        if os.access(locked, os.R_OK):
+            pytest.skip("running as root; permissions aren't enforced")
+        assert "var/stray" in undeclared(tmp_path, declared)
+    finally:
+        locked.chmod(0o755)
+
+
+def test_runtime_written_files_in_watched_paths_are_noted(tmp_path: Path) -> None:
+    config = tmp_path / ".config"
+    write(config / "gh" / "hosts.yml")  # written at runtime: noted
+    (config / "git").mkdir(parents=True)
+    (config / "git" / "config").symlink_to("/nix/store/abc-hm-git-config")  # home-manager: skipped
+    (config / "empty").mkdir()  # nothing written: skipped
+    write(tmp_path / "other" / "file")  # not watched: skipped
+    declared = {
+        config: Declaration(backup=Backup.EPHEMERAL, why="t", watch=True),
+        tmp_path / "other": decl(Backup.EPHEMERAL),
+    }
+
+    written = audit.runtime_written(declared)
+
+    assert list(written) == [config / "gh"]
+    assert written[config / "gh"] == (config / "gh" / "hosts.yml").stat().st_mtime
+
+
+def test_watch_flag_is_loaded_from_the_nix_json(tmp_path: Path) -> None:
+    declared_json = tmp_path / "declared.json"
+    declared_json.write_text(json.dumps({
+        "/a": {"backup": "ephemeral", "why": "t", "watch": True},
+        "/b": {"backup": "cache", "why": "t"},
+    }))
+    declared = audit.load_declared(declared_json)
+    assert declared[Path("/a")].watch and not declared[Path("/b")].watch

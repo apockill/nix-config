@@ -210,6 +210,14 @@ in
       backup = "cache";
       why = "Agent logs; handy for debugging, not worth backing up.";
     };
+    "${hermes}/.hermes/config.yaml" = {
+      backup = "ephemeral";
+      why = "Regenerated from services.hermes-agent.settings on every activation.";
+    };
+    "${hermes}/.hermes/.env" = {
+      backup = "ephemeral";
+      why = "Generated from the 1Password templates in hermes/default.nix.";
+    };
     "${hermes}/.hermes/browser_screenshots" = {
       backup = "ephemeral";
       why = "Screenshots sent to Discord.";
@@ -228,32 +236,41 @@ in
       why = "Chromium profile with logged-in sessions (Gmail, Claude); re-login needs passkeys/CAPTCHAs.";
     };
     "${hermes}/.claude" = {
-      backup = "restic";
-      why = "Claude Code settings and session history.";
+      backup = "cache";
+      why = "Claude Code session history; handy across reboots, not needed on a new box.";
+    };
+    "${hermes}/.claude/settings.json" = {
+      backup = "ephemeral";
+      why = "home-manager activation (hermes/home.nix).";
+    };
+    "${hermes}/.claude/CLAUDE.md" = {
+      backup = "ephemeral";
+      why = "Installed from hermes/CLAUDE.md.";
     };
     "${hermes}/.claude.json" = {
-      backup = "restic";
-      why = "Claude Code onboarding state and settings.";
+      backup = "ephemeral";
+      why = "Claude Code's onboarding and trust flags, rewritten constantly; losing it means one first-run prompt.";
     };
     "${hermes}/.config" = {
-      backup = "restic";
-      why = "CLI configs (gh, op, browser-harness, code-server).";
+      backup = "ephemeral";
+      watch = true;
+      why = "Tool configs: home-manager's (hermes/home.nix) plus runtime clutter. Runtime-written files are noted by the audit.";
     };
     "${hermes}/.anki_vector" = {
       backup = "restic";
       why = "Vector SDK config (robot serial, cert path).";
     };
-    "${hermes}/.gitconfig" = {
-      backup = "restic";
-      why = "Agent git identity.";
+    "${hermes}/.nix-profile" = {
+      backup = "ephemeral";
+      why = "home-manager's profile link, recreated on activation.";
     };
-    "${hermes}/.bashrc" = {
-      backup = "restic";
-      why = "Agent shell config.";
+    "${hermes}/.nix-defexpr" = {
+      backup = "ephemeral";
+      why = "nix-env channel links home-manager creates; this system is flake-based.";
     };
-    "${hermes}/bin" = {
-      backup = "restic";
-      why = "Small agent helper scripts.";
+    "${hermes}/.bash_history" = {
+      backup = "cache";
+      why = "Shell history (VS Code terminal, ssh); handy, not needed on a new box.";
     };
     "${hermes}/.cache" = {
       backup = "cache";
@@ -268,8 +285,8 @@ in
       why = "Go module cache (Wire-Pod build).";
     };
     "${hermes}/.local" = {
-      backup = "cache";
-      why = "Tool state and caches (code-server, etc.).";
+      backup = "ephemeral";
+      why = "Runtime state of tools (locks, ids); tools come from nix-config, not ~/.local/bin.";
     };
     "${hermes}/Downloads" = {
       backup = "ephemeral";

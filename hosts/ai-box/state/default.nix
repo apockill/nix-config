@@ -41,7 +41,7 @@ let
   declaredJson = pkgs.writeText "state-declared.json" (
     builtins.toJSON (
       lib.mapAttrs (_: p: {
-        inherit (p) backup why;
+        inherit (p) backup why watch;
         repo = p.repo;
       }) cfg.paths
     )
@@ -67,6 +67,11 @@ in
             repo = lib.mkOption {
               type = lib.types.nullOr lib.types.str;
               default = null;
+            };
+            watch = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "List files written here at runtime (non-blocking), to spot config worth declaring.";
             };
           };
         }

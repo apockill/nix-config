@@ -7,9 +7,12 @@ and reports everything not covered by a declaration: state a reboot deletes.
 Other filesystems and subvolumes (/nix, /home, /proc, ...) are skipped; they
 aren't part of the root and aren't wiped.
 
-It also lists, as a low-key note, files inside `git` paths that aren't
-committed. Those are disposable by design (the repo is the source of truth),
-but it's worth seeing what accumulates there.
+It also lists two kinds of low-key notes, which never block a reboot:
+- files inside `git` paths that aren't committed. Disposable by design (the
+  repo is the source of truth), but worth seeing what accumulates there.
+- files written at runtime inside `watch`ed ephemeral paths, like ~/.config:
+  a tool saved config there that will be lost on reboot; declare it in
+  nix-config if it's worth keeping.
 """
 
 from __future__ import annotations
@@ -35,13 +38,17 @@ MAX_LISTED = 200
 # (e.g. /etc/localtime -> /etc/zoneinfo/..., /var/run -> ../run), so they
 # aren't state.
 MANAGED_LINK_PREFIXES = (
-    "/nix/store/",
     "/etc/static/",
     "/etc/zoneinfo/",
     "/proc/",
     "/run/",
     "../run",
 )
+
+# Links into the Nix store are recreated only in the system directories NixOS
+# populates (/etc, /bin/sh, /usr/bin/env, the /lib stub loader). Anywhere else nothing recreates
+# them: a hand-made ~/.local/bin/claude is state.
+NIX_STORE_LINK_DIRS = {"etc", "bin", "usr", "lib", "lib64"}
 
 # "ephemeral" paths bigger than this are flagged: anything this large is
 # probably a cache or data that was wrongly marked disposable.
@@ -77,6 +84,7 @@ class Declaration:
     backup: Backup
     why: str
     repo: str | None = None
+    watch: bool = False  # note files written here at runtime
 
 
 @dataclass(frozen=True)
@@ -116,7 +124,10 @@ def load_declared(json_file: Path) -> dict[Path, Declaration]:
     raw = json.loads(json_file.read_text())
     return {
         Path(path): Declaration(
-            backup=Backup(fields["backup"]), why=fields["why"], repo=fields.get("repo")
+            backup=Backup(fields["backup"]),
+            why=fields["why"],
+            repo=fields.get("repo"),
+            watch=fields.get("watch", False),
         )
         for path, fields in raw.items()
     }
@@ -144,20 +155,26 @@ def nearest_declared_parent(
     return next((p for p in path.parents if p in declared), None)
 
 
-def is_managed_symlink(path: Path) -> bool:
+def is_managed_symlink(path: Path, root: Path) -> bool:
+    """Is `path` a symlink that NixOS recreates? `root` is the filesystem root
+    being audited (so system directories can be recognized)."""
     try:
         target = str(path.readlink())
     except OSError:
         return False
-    return target.startswith(MANAGED_LINK_PREFIXES)
+    if target.startswith(MANAGED_LINK_PREFIXES):
+        return True
+    top_dir = path.relative_to(root).parts[0]
+    return target.startswith("/nix/store/") and top_dir in NIX_STORE_LINK_DIRS
 
 
-def measure(root: Path, device: int) -> Usage:
-    """Size, file count and newest mtime of the tree at `root`, without
-    leaving `device` (mounts and other subvolumes inside it are skipped)."""
+def measure(tree: Path, device: int, root: Path) -> Usage:
+    """Size, file count and newest mtime of `tree`, without leaving `device`
+    (mounts and other subvolumes inside it are skipped). `root` is the
+    filesystem root being audited."""
     total = files = 0
     newest = 0.0
-    for directory, subdirs, names in root.walk(on_error=lambda _: None):
+    for directory, subdirs, names in tree.walk(on_error=lambda _: None):
         # Prune in place, which stops walk() from descending: keep only real
         # directories on the same device (not symlinks, mounts or subvolumes).
         subdirs[:] = [d for d in subdirs if _is_dir_on(directory / d, device)]
@@ -167,7 +184,7 @@ def measure(root: Path, device: int) -> Usage:
                 st = entry.lstat()
             except OSError:
                 continue  # deleted while we were walking
-            if stat.S_ISLNK(st.st_mode) and is_managed_symlink(entry):
+            if stat.S_ISLNK(st.st_mode) and is_managed_symlink(entry, root):
                 continue
             files += 1
             if stat.S_ISREG(st.st_mode):
@@ -198,23 +215,23 @@ def find_undeclared(root: Path, declared: Mapping[Path, Declaration]) -> list[Fi
             return  # another filesystem (not wiped), or declared (kept)
 
         if stat.S_ISLNK(st.st_mode):
-            if not is_managed_symlink(path):
+            if not is_managed_symlink(path, root):
                 findings.append(Finding(path, "symlink", Usage(0, 1, st.st_mtime)))
         elif not stat.S_ISDIR(st.st_mode):
             findings.append(Finding(path, "file", Usage(st.st_size, 1, st.st_mtime)))
         elif has_declared_descendant(path, declared):
             # Partly declared, like /var/lib: judge each child on its own.
-            for child in sorted(path.iterdir()):
+            for child in _children(path):
                 visit(child)
         else:
             # Wholly undeclared: report the directory once. Empty ones are
             # skipped; systemd-tmpfiles recreates the directories that matter.
-            usage = measure(path, device)
+            usage = measure(path, device, root)
             if usage.files:
                 findings.append(Finding(path, "dir", usage))
 
     # The root itself can't be declared; always judge its children.
-    for child in sorted(root.iterdir()):
+    for child in _children(root):
         visit(child)
     return findings
 
@@ -256,6 +273,40 @@ def uncommitted_in_git_paths(declared: Mapping[Path, Declaration]) -> list[Path]
     return found
 
 
+def runtime_written(declared: Mapping[Path, Declaration]) -> dict[Path, float]:
+    """Entries directly inside `watch`ed paths that contain regular files,
+    with their newest mtime. Files Nix generates (home-manager links into the
+    store) aren't regular files, so what's left was written at runtime."""
+    found: dict[Path, float] = {}
+    for path, decl in sorted(declared.items()):
+        if not decl.watch:
+            continue
+        for entry in _children(path):
+            newest = _newest_regular_file(entry)
+            if newest is not None:
+                found[entry] = newest
+    return found
+
+
+def _newest_regular_file(path: Path) -> float | None:
+    """Newest mtime of the regular files at or under `path`, if any."""
+    try:
+        st = path.lstat()
+    except OSError:
+        return None
+    if stat.S_ISREG(st.st_mode):
+        return st.st_mtime
+    if not stat.S_ISDIR(st.st_mode):
+        return None  # a symlink (e.g. home-manager's) or something special
+    mtimes = [
+        (directory / name).lstat().st_mtime
+        for directory, _, names in path.walk(on_error=lambda _: None)
+        for name in names
+        if (directory / name).is_file() and not (directory / name).is_symlink()
+    ]
+    return max(mtimes, default=None)
+
+
 def _is_socket(path: Path) -> bool:
     try:
         return stat.S_ISSOCK(path.lstat().st_mode)
@@ -263,10 +314,21 @@ def _is_socket(path: Path) -> bool:
         return False
 
 
-def declared_usage(declared: Mapping[Path, Declaration]) -> dict[Path, Usage]:
+def _children(directory: Path) -> list[Path]:
+    """Sorted entries of `directory`; none if it can't be listed (only
+    happens when not running as root, or if it vanished mid-walk)."""
+    try:
+        return sorted(directory.iterdir())
+    except OSError:
+        return []
+
+
+def declared_usage(
+    declared: Mapping[Path, Declaration], root: Path = Path("/")
+) -> dict[Path, Usage]:
     """Usage of each declared path, minus the declared paths nested inside it
     (those have their own backup class, e.g. a cache inside a restic folder)."""
-    total = {path: _usage_of(path) for path in declared}
+    total = {path: _usage_of(path, root) for path in declared}
     own = dict(total)
     for path in declared:
         if (parent := nearest_declared_parent(path, declared)) is not None:
@@ -274,13 +336,13 @@ def declared_usage(declared: Mapping[Path, Declaration]) -> dict[Path, Usage]:
     return own
 
 
-def _usage_of(path: Path) -> Usage:
+def _usage_of(path: Path, root: Path) -> Usage:
     try:
         st = path.lstat()
     except OSError:
         return Usage()  # declared but doesn't exist (yet)
     if stat.S_ISDIR(st.st_mode):
-        return measure(path, st.st_dev)
+        return measure(path, st.st_dev, root)
     return Usage(st.st_size, 1, st.st_mtime)
 
 
@@ -317,11 +379,14 @@ def write_atomic(path: Path, text: str) -> None:
 
 def cmd_report(root: Path, declared: Mapping[Path, Declaration], out_dir: Path) -> int:
     findings = find_undeclared(root, declared)
-    usage = declared_usage(declared)
+    usage = declared_usage(declared, root)
     report = {
         "generated": round(time.time(), 1),
         "undeclared": [f.to_json() for f in findings],
         "uncommitted_in_git": [str(p) for p in uncommitted_in_git_paths(declared)],
+        "runtime_written": {
+            str(p): mtime for p, mtime in runtime_written(declared).items()
+        },
         "declared": [
             {
                 "path": str(path),
@@ -352,6 +417,12 @@ def cmd_check(root: Path, declared: Mapping[Path, Declaration]) -> int:
               "(disposable; see report.json):", file=sys.stderr)
         for path in uncommitted[:MAX_LISTED]:
             print(f"  {path}", file=sys.stderr)
+    if written := runtime_written(declared):
+        print(f"Note: {len(written)} paths written at runtime in watched config "
+              "locations; lost on reboot unless declared in nix-config:", file=sys.stderr)
+        for path, mtime in list(written.items())[:MAX_LISTED]:
+            day = time.strftime("%a %b %d", time.localtime(mtime))
+            print(f"  {path}  (last written {day})", file=sys.stderr)
     return 1 if findings else 0
 
 
