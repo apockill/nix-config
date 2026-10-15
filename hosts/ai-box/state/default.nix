@@ -90,6 +90,16 @@ in
       ]) cfg.paths
     );
 
+    # Two layers, on purpose:
+    # - This root service does the walk and writes summary.txt. It has to be
+    #   root: as hermes it can't see /root, NetworkManager's connections or
+    #   /var/lib/private, which is exactly where undeclared state hides.
+    #   ai-box-reboot runs the same audit directly, with no Hermes involved.
+    # - The hermesCron job below only reads summary.txt (cron monitor scripts
+    #   run as hermes) and wakes the cron model when it changes.
+    # aiBox.hermesCron could grow a `collector` option that generates this
+    # service and timer; not worth it until a second job needs a timed root
+    # collector (apps-health's collector is a long-running supervisor).
     systemd.services.state-audit = {
       description = "Audit root filesystem for undeclared state";
       serviceConfig = {
