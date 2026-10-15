@@ -1,0 +1,209 @@
+"""Tests for audit.py. Run with `just test`."""
+
+from __future__ import annotations
+
+import json
+import socket
+import subprocess
+from pathlib import Path
+
+import pytest
+
+import audit
+from audit import Backup, Declaration, Usage
+
+
+def write(path: Path, size: int = 10) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"x" * size)
+    return path
+
+
+def decl(backup: Backup = Backup.RESTIC) -> Declaration:
+    return Declaration(backup=backup, why="test")
+
+
+def undeclared(root: Path, declared: dict[Path, Declaration]) -> list[str]:
+    return [str(f.path.relative_to(root)) for f in audit.find_undeclared(root, declared)]
+
+
+def test_declared_paths_and_their_contents_are_not_reported(tmp_path: Path) -> None:
+    write(tmp_path / "kept" / "deep" / "file")
+    write(tmp_path / "kept-file")
+    declared = {tmp_path / "kept": decl(), tmp_path / "kept-file": decl()}
+    assert undeclared(tmp_path, declared) == []
+
+
+def test_undeclared_directory_is_reported_once_with_its_usage(tmp_path: Path) -> None:
+    write(tmp_path / "junk" / "a", size=3)
+    write(tmp_path / "junk" / "sub" / "b", size=4)
+    [finding] = audit.find_undeclared(tmp_path, {})
+    assert finding.path == tmp_path / "junk"
+    assert finding.kind == "dir"
+    assert (finding.usage.bytes, finding.usage.files) == (7, 2)
+
+
+def test_partly_declared_directory_is_judged_child_by_child(tmp_path: Path) -> None:
+    write(tmp_path / "var" / "lib" / "kept" / "db")
+    write(tmp_path / "var" / "lib" / "stray" / "db")
+    write(tmp_path / "var" / "lib" / "stray-file")
+    declared = {tmp_path / "var" / "lib" / "kept": decl()}
+    assert undeclared(tmp_path, declared) == ["var/lib/stray", "var/lib/stray-file"]
+
+
+def test_empty_directories_are_ignored(tmp_path: Path) -> None:
+    (tmp_path / "empty" / "nested").mkdir(parents=True)
+    assert undeclared(tmp_path, {}) == []
+
+
+def test_managed_symlinks_are_ignored_but_others_are_reported(tmp_path: Path) -> None:
+    (tmp_path / "localtime").symlink_to("/etc/zoneinfo/America/Los_Angeles")
+    (tmp_path / "run").symlink_to("../run")
+    (tmp_path / "config").symlink_to("/nix/store/abc-config")
+    (tmp_path / "handmade").symlink_to("/home/alex/thing")
+    assert undeclared(tmp_path, {}) == ["handmade"]
+
+
+def test_managed_symlinks_inside_undeclared_dirs_are_not_counted(tmp_path: Path) -> None:
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "static-link").symlink_to("/etc/static/foo")
+    assert undeclared(tmp_path, {}) == []
+
+
+def test_nested_declarations_are_excluded_from_the_parents_usage(tmp_path: Path) -> None:
+    write(tmp_path / "home" / "notes", size=10)
+    write(tmp_path / "home" / "cache" / "blob", size=100)
+    declared = {
+        tmp_path / "home": decl(Backup.RESTIC),
+        tmp_path / "home" / "cache": decl(Backup.CACHE),
+        tmp_path / "missing": decl(Backup.RESTIC),
+    }
+    usage = audit.declared_usage(declared)
+    assert usage[tmp_path / "home"].bytes == 10
+    assert usage[tmp_path / "home" / "cache"].bytes == 100
+    assert usage[tmp_path / "missing"] == Usage()
+
+
+def test_summary_is_ok_when_nothing_is_wrong() -> None:
+    assert audit.summarize([], {}, {}) == audit.OK_SUMMARY
+
+
+def test_summary_lists_undeclared_paths_and_large_ephemeral_ones(tmp_path: Path) -> None:
+    write(tmp_path / "stray")
+    findings = audit.find_undeclared(tmp_path, {})
+    big, small = Path("/var/cache"), Path("/tmp")
+    declared = {big: decl(Backup.EPHEMERAL), small: decl(Backup.EPHEMERAL)}
+    usage = {big: Usage(bytes=audit.LARGE_EPHEMERAL_BYTES + 1), small: Usage(bytes=1)}
+
+    summary = audit.summarize(findings, declared, usage)
+
+    assert str(tmp_path / "stray") in summary
+    assert "/var/cache" in summary
+    assert "/tmp" not in summary
+
+
+def test_summary_has_no_sizes_so_it_only_changes_when_paths_do(tmp_path: Path) -> None:
+    write(tmp_path / "stray" / "f", size=1)
+    first = audit.summarize(audit.find_undeclared(tmp_path, {}), {}, {})
+    write(tmp_path / "stray" / "g", size=5000)
+    assert audit.summarize(audit.find_undeclared(tmp_path, {}), {}, {}) == first
+
+
+@pytest.fixture
+def declared_json(tmp_path: Path) -> Path:
+    path = tmp_path / "declared.json"
+    path.write_text(
+        json.dumps({str(tmp_path / "root" / "kept"): {"backup": "cache", "why": "t"}})
+    )
+    return path
+
+
+def test_check_exits_1_only_when_something_is_undeclared(
+    tmp_path: Path, declared_json: Path
+) -> None:
+    root = tmp_path / "root"
+    write(root / "kept" / "f")
+    assert audit.main(["--root", str(root), "check", str(declared_json)]) == 0
+    write(root / "stray")
+    assert audit.main(["--root", str(root), "check", str(declared_json)]) == 1
+
+
+def test_report_writes_report_and_summary(tmp_path: Path, declared_json: Path) -> None:
+    root, out = tmp_path / "root", tmp_path / "out"
+    write(root / "kept" / "f", size=7)
+    write(root / "stray")
+    out.mkdir()
+
+    audit.main(["--root", str(root), "report", str(declared_json), str(out)])
+
+    report = json.loads((out / "report.json").read_text())
+    assert [u["path"] for u in report["undeclared"]] == [str(root / "stray")]
+    assert report["declared"][0]["bytes"] == 7
+    assert (out / "summary.txt").read_text().startswith("UNDECLARED STATE")
+
+
+def test_sqlite_sidecars_are_covered_by_their_database(tmp_path: Path) -> None:
+    write(tmp_path / "app" / "data.db")
+    write(tmp_path / "app" / "data.db-wal")
+    write(tmp_path / "app" / "other.db-wal")
+    declared = {tmp_path / "app" / "data.db": decl()}
+    assert undeclared(tmp_path, declared) == ["app/other.db-wal"]
+
+
+def git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+
+def test_uncommitted_files_in_git_paths_are_noted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "sites"
+    write(repo / "app" / "main.py")
+    write(repo / ".gitignore").write_text("*.db\n__pycache__/\n*.log\n")
+    git(repo.parent, "init", "-q", str(repo))
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init")
+    write(repo / "app" / "kept.db")          # ignored, but declared separately
+    write(repo / "app" / "kept.db-wal")      # its SQLite sidecar
+    write(repo / "app" / "stray.db")         # ignored, undeclared: noted
+    write(repo / "app" / "notes.txt")        # untracked: noted
+    write(repo / "app" / "__pycache__" / "main.pyc")  # build output: skipped
+    write(repo / "app" / "dist" / "index.js")  # build output: skipped
+    write(repo / "app" / "app.log")  # runtime file: skipped
+    write(repo / "app" / ".runner.pid")  # runtime file: skipped
+    # Runtime socket: skipped. Bound by relative path; full tmp paths can
+    # exceed the 108-byte AF_UNIX limit.
+    monkeypatch.chdir(repo / "app")
+    sock = socket.socket(socket.AF_UNIX)
+    sock.bind("app.sock")
+    declared = {
+        repo: Declaration(backup=Backup.GIT, why="t", repo="example"),
+        repo / "app" / "kept.db": decl(),
+    }
+
+    found = audit.uncommitted_in_git_paths(declared)
+
+    sock.close()
+    assert sorted(str(p.relative_to(repo)) for p in found) == ["app/notes.txt", "app/stray.db"]
+
+
+def test_uncommitted_note_never_fails_the_check(tmp_path: Path) -> None:
+    repo = tmp_path / "root" / "repo"
+    write(repo / "untracked")
+    git(repo.parent, "init", "-q", str(repo))
+    declared_json = tmp_path / "declared.json"
+    declared_json.write_text(json.dumps({str(repo): {"backup": "git", "why": "t", "repo": "x"}}))
+    assert audit.main(["--root", str(tmp_path / "root"), "check", str(declared_json)]) == 0
+
+
+def test_unknown_backup_class_is_rejected(tmp_path: Path) -> None:
+    declared_json = tmp_path / "declared.json"
+    declared_json.write_text(json.dumps({"/x": {"backup": "nope", "why": "t"}}))
+    with pytest.raises(ValueError):
+        audit.load_declared(declared_json)
+
+
+def test_backup_enum_matches_the_nix_classes() -> None:
+    nix = (Path(__file__).parent / "default.nix").read_text()
+    classes = nix.split("classes = [", 1)[1].split("];", 1)[0].split()
+    assert sorted(c.strip('"') for c in classes) == sorted(b.value for b in Backup)

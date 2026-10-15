@@ -81,12 +81,22 @@ let
     exit $rc
   '';
 
-  # ai-box-reboot: for staged updates. The agent asks Alex first.
+  # ai-box-reboot: for staged updates. The agent asks Alex first. Refuses while
+  # undeclared state exists (see hosts/ai-box/state), unless given --force.
   rebootRoot = pkgs.writeShellScriptBin "ai-box-reboot-root" ''
+    if [ "''${1:-}" != "--force" ]; then
+      if ! out=$(${config.aiBox.state.checkCommand}); then
+        echo "Refusing to reboot: the root filesystem is wiped on boot, and these"
+        echo "paths aren't declared, so rebooting would delete them:"
+        echo "$out"
+        echo "Declare it in hosts/ai-box/state/paths.nix, or rerun with --force (ask Alex)."
+        exit 1
+      fi
+    fi
     exec ${pkgs.systemd}/bin/systemctl reboot
   '';
   rebootWrapper = pkgs.writeShellScriptBin "ai-box-reboot" ''
-    exec sudo ${rootBin "ai-box-reboot"}
+    exec sudo ${rootBin "ai-box-reboot"} "$@"
   '';
 
   rootCommands = [
