@@ -7,9 +7,12 @@ and reports everything not covered by a declaration: state a reboot deletes.
 Other filesystems and subvolumes (/nix, /home, /proc, ...) are skipped; they
 aren't part of the root and aren't wiped.
 
-It also lists, as a low-key note, files inside `git` paths that aren't
-committed. Those are disposable by design (the repo is the source of truth),
-but it's worth seeing what accumulates there.
+It also lists two kinds of low-key notes, which never block a reboot:
+- files inside `git` paths that aren't committed. Disposable by design (the
+  repo is the source of truth), but worth seeing what accumulates there.
+- files written at runtime inside `watch`ed ephemeral paths, like ~/.config:
+  a tool saved config there that will be lost on reboot; declare it in
+  nix-config if it's worth keeping.
 """
 
 from __future__ import annotations
@@ -81,6 +84,7 @@ class Declaration:
     backup: Backup
     why: str
     repo: str | None = None
+    watch: bool = False  # note files written here at runtime
 
 
 @dataclass(frozen=True)
@@ -120,7 +124,10 @@ def load_declared(json_file: Path) -> dict[Path, Declaration]:
     raw = json.loads(json_file.read_text())
     return {
         Path(path): Declaration(
-            backup=Backup(fields["backup"]), why=fields["why"], repo=fields.get("repo")
+            backup=Backup(fields["backup"]),
+            why=fields["why"],
+            repo=fields.get("repo"),
+            watch=fields.get("watch", False),
         )
         for path, fields in raw.items()
     }
@@ -266,6 +273,40 @@ def uncommitted_in_git_paths(declared: Mapping[Path, Declaration]) -> list[Path]
     return found
 
 
+def runtime_written(declared: Mapping[Path, Declaration]) -> dict[Path, float]:
+    """Entries directly inside `watch`ed paths that contain regular files,
+    with their newest mtime. Files Nix generates (home-manager links into the
+    store) aren't regular files, so what's left was written at runtime."""
+    found: dict[Path, float] = {}
+    for path, decl in sorted(declared.items()):
+        if not decl.watch:
+            continue
+        for entry in _children(path):
+            newest = _newest_regular_file(entry)
+            if newest is not None:
+                found[entry] = newest
+    return found
+
+
+def _newest_regular_file(path: Path) -> float | None:
+    """Newest mtime of the regular files at or under `path`, if any."""
+    try:
+        st = path.lstat()
+    except OSError:
+        return None
+    if stat.S_ISREG(st.st_mode):
+        return st.st_mtime
+    if not stat.S_ISDIR(st.st_mode):
+        return None  # a symlink (e.g. home-manager's) or something special
+    mtimes = [
+        (directory / name).lstat().st_mtime
+        for directory, _, names in path.walk(on_error=lambda _: None)
+        for name in names
+        if (directory / name).is_file() and not (directory / name).is_symlink()
+    ]
+    return max(mtimes, default=None)
+
+
 def _is_socket(path: Path) -> bool:
     try:
         return stat.S_ISSOCK(path.lstat().st_mode)
@@ -343,6 +384,9 @@ def cmd_report(root: Path, declared: Mapping[Path, Declaration], out_dir: Path) 
         "generated": round(time.time(), 1),
         "undeclared": [f.to_json() for f in findings],
         "uncommitted_in_git": [str(p) for p in uncommitted_in_git_paths(declared)],
+        "runtime_written": {
+            str(p): mtime for p, mtime in runtime_written(declared).items()
+        },
         "declared": [
             {
                 "path": str(path),
@@ -373,6 +417,12 @@ def cmd_check(root: Path, declared: Mapping[Path, Declaration]) -> int:
               "(disposable; see report.json):", file=sys.stderr)
         for path in uncommitted[:MAX_LISTED]:
             print(f"  {path}", file=sys.stderr)
+    if written := runtime_written(declared):
+        print(f"Note: {len(written)} paths written at runtime in watched config "
+              "locations; lost on reboot unless declared in nix-config:", file=sys.stderr)
+        for path, mtime in list(written.items())[:MAX_LISTED]:
+            day = time.strftime("%a %b %d", time.localtime(mtime))
+            print(f"  {path}  (last written {day})", file=sys.stderr)
     return 1 if findings else 0
 
 

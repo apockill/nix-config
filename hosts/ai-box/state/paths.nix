@@ -241,7 +241,7 @@ in
     };
     "${hermes}/.claude/settings.json" = {
       backup = "ephemeral";
-      why = "Generated (hermes/dotfiles.nix).";
+      why = "home-manager activation (hermes/home.nix).";
     };
     "${hermes}/.claude/CLAUDE.md" = {
       backup = "ephemeral";
@@ -253,19 +253,20 @@ in
     };
     "${hermes}/.config" = {
       backup = "ephemeral";
-      why = "Tool configs and clutter; anything worth keeping is declared in nix-config.";
+      watch = true;
+      why = "Tool configs: home-manager's (hermes/home.nix) plus runtime clutter. Runtime-written files are noted by the audit.";
     };
     "${hermes}/.anki_vector" = {
       backup = "restic";
       why = "Vector SDK config (robot serial, cert path).";
     };
-    "${hermes}/.gitconfig" = {
+    "${hermes}/.nix-profile" = {
       backup = "ephemeral";
-      why = "Generated (hermes/dotfiles.nix).";
+      why = "home-manager's profile link, recreated on activation.";
     };
-    "${hermes}/.bashrc" = {
+    "${hermes}/.nix-defexpr" = {
       backup = "ephemeral";
-      why = "Generated (hermes/dotfiles.nix).";
+      why = "nix-env channel links home-manager creates; this system is flake-based.";
     };
     "${hermes}/.bash_history" = {
       backup = "cache";

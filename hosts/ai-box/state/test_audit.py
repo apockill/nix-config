@@ -232,3 +232,31 @@ def test_unreadable_directories_are_skipped_not_fatal(tmp_path: Path) -> None:
         assert "var/stray" in undeclared(tmp_path, declared)
     finally:
         locked.chmod(0o755)
+
+
+def test_runtime_written_files_in_watched_paths_are_noted(tmp_path: Path) -> None:
+    config = tmp_path / ".config"
+    write(config / "gh" / "hosts.yml")  # written at runtime: noted
+    (config / "git").mkdir(parents=True)
+    (config / "git" / "config").symlink_to("/nix/store/abc-hm-git-config")  # home-manager: skipped
+    (config / "empty").mkdir()  # nothing written: skipped
+    write(tmp_path / "other" / "file")  # not watched: skipped
+    declared = {
+        config: Declaration(backup=Backup.EPHEMERAL, why="t", watch=True),
+        tmp_path / "other": decl(Backup.EPHEMERAL),
+    }
+
+    written = audit.runtime_written(declared)
+
+    assert list(written) == [config / "gh"]
+    assert written[config / "gh"] == (config / "gh" / "hosts.yml").stat().st_mtime
+
+
+def test_watch_flag_is_loaded_from_the_nix_json(tmp_path: Path) -> None:
+    declared_json = tmp_path / "declared.json"
+    declared_json.write_text(json.dumps({
+        "/a": {"backup": "ephemeral", "why": "t", "watch": True},
+        "/b": {"backup": "cache", "why": "t"},
+    }))
+    declared = audit.load_declared(declared_json)
+    assert declared[Path("/a")].watch and not declared[Path("/b")].watch
