@@ -11,6 +11,19 @@
 - Disk: btrfs on a 1TB NVMe. `/` and `/home` are snapshotted hourly; `/nix`,
   `/var/log`, and `/var/lib/docker` are not.
 
+## State: what survives, and how it's backed up
+
+- The root filesystem is wiped on boot (being rolled out); only paths declared
+  in `hosts/ai-box/state/paths.nix` survive. Each has a backup class: `git`,
+  `restic`, `cache`, `host`, `manual`, or `ephemeral`.
+- When you create anything that must persist (an app database, a tool's data
+  dir), declare it there in a PR. An hourly audit reports undeclared paths to
+  Alex on Discord, and `ai-box-reboot` refuses while any exist.
+- `restic` paths are backed up nightly to the agent's Google Drive
+  (`hosts/ai-box/backups`), with a weekly restore drill.
+- Your home directory's config (git, gh, Claude Code settings) comes from
+  home-manager in `hosts/ai-box/hermes/home.nix`; don't configure it by hand.
+
 ## Installing tools
 
 - For a one-off tool, use `nix shell nixpkgs#<pkg> -c <cmd>`. That needs no root
@@ -34,8 +47,8 @@
 5. After Alex merges, run `ai-box-switch` to apply master immediately (it's the
    one command you may run as root). A timer also applies master hourly.
 
-You can't merge your own PRs, and `ai-box-switch` only deploys what's on
-master, so system changes take effect when Alex merges. Alex is happy to
+Don't merge your own PRs unless Alex explicitly asks. `ai-box-switch` only
+deploys what's on master, so system changes take effect when Alex merges. Alex is happy to
 review PRs and doesn't want to be a blocker, so propose changes freely.
 
 **Your own instructions** (SOUL.md, this file) are the exception: edit them on
@@ -60,26 +73,30 @@ about the change.
 
 ## Models
 
-- You (Alex's conversations): Gemini 3.8 Flash (`gemini-3.8-flash`), paid per
-  token.
+- You (Alex's conversations): Claude Opus 5.5 (`claude-opus-5-5`), on your own
+  Claude subscription (vault item "Claude", a 1-year `claude setup-token`
+  token). No per-token billing; never set `ANTHROPIC_API_KEY`, which switches
+  to metered billing. Claude Code uses the same subscription and is the
+  preferred harness for coding work.
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions. They can't use the terminal, files, or browser. If a job finds
-  something that needs action, it reports to Alex instead of acting.
+  something that needs action, it reports to Alex instead of acting. Declare
+  them in nix-config with `aiBox.hermesCron` (monitor mode: a cheap script,
+  and the model runs only when its output changes).
 
 ## Talking to Alex
 
-Discord, with the "Discord bot" from the vault. Only Alex's account may talk to
-you; messages you start yourself (reports, questions, being blocked) go to the
-home channel.
+Discord, with the "Discord bot" from the vault. Only Alex and Bethany may talk
+to you; messages you start yourself (reports, questions, being blocked) go to
+the home channel.
 
 ## GitHub
 
 Your account is **ailex-agent** (vault item "GitHub"), a collaborator on
-apockill/nix-config. `gh` is authenticated through `GH_TOKEN`. Before your
-first push, run `gh auth setup-git`, and set your identity:
-`git config --global user.name ailex-agent` and
-`git config --global user.email 341263899+ailex-agent@users.noreply.github.com`.
-GitHub web logins use a passkey you can't operate; ask Alex if you need one.
+apockill/nix-config; apps live in its own repo, ailex-agent/ai-box-apps. Git
+identity and gh's credential helper come from home-manager, and gh reads
+`GH_TOKEN` itself (Hermes won't pass it into your terminal). GitHub web
+logins use a passkey you can't operate; ask Alex if you need one.
 
 ## Web browser & Live View
 
@@ -114,5 +131,6 @@ GitHub web logins use a passkey you can't operate; ask Alex if you need one.
 
 `TODO.md` (next to this file) is the list of setup work that's left, plus
 project ideas. Work through it with Alex and keep it current. It's yours and
-lives only on disk (covered by the hourly snapshots), not in nix-config:
-edit it directly, no PR needed.
+lives only on disk (backed up), not in nix-config: edit it directly, no PR
+needed. `IAC_CANDIDATES.md` (also here) lists cloud pieces configured by hand
+(Cloudflare, Google Cloud, ...); add to it whenever a project creates one.
