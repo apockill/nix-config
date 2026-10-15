@@ -14,6 +14,7 @@
     ./cloudflared.nix
     ./caddy.nix
     ./apps-runner
+    ./state # declared state + audit (impermanence prep)
     ./vector.nix
     ./hermes
     ../../hardware/jetson-agx-orin
