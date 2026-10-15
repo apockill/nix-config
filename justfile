@@ -24,6 +24,10 @@ format:
     nixfmt .
     black .
 
+# Python unit tests, with pytest from this flake's nixpkgs (nothing to install).
+test:
+    nix shell --inputs-from . nixpkgs#python3Packages.pytest -c pytest hosts
+
 install-pipx-deps:
     pipx install tdirstat termite-ai
     pipx install --editable ./tools --force

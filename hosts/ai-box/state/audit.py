@@ -1,196 +1,293 @@
-"""State audit: what on the root filesystem would be lost by a root wipe?
+"""Find state on the root filesystem that isn't declared.
 
-Walks the root subvolume (other subvolumes and mounts are skipped by device
-id) and compares it with the declared state list (aiBox.state.paths). Anything
-not covered by a declared path is "unexplained": today it survives, but it
-would be lost once the root is wiped on boot (impermanence stage 3).
+The root filesystem is wiped on every boot; only the paths declared in
+aiBox.state.paths (hosts/ai-box/state/paths.nix) are kept. This walks the root
+and reports everything not covered by a declaration: state a reboot deletes.
 
-Symlinks into /nix/store, /etc/static, /etc/zoneinfo, /proc or /run are
-system-managed (recreated at boot or activation) and ignored. Empty
-directories are ignored (systemd-tmpfiles recreates them).
-
-Usage:
-  audit.py <declared.json> <out-dir>   write report.json + summary.txt
-  audit.py --check <declared.json>     exit 1 if anything is unexplained
+Other filesystems and subvolumes (/nix, /home, /proc, ...) are skipped; they
+aren't part of the root and aren't wiped.
 """
 
+from __future__ import annotations
+
+import argparse
 import json
 import os
 import stat
 import sys
 import time
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal
 
-MAX_LIST = 200
-LARGE_EPHEMERAL = 500e6  # flag "ephemeral" paths this big: are they really disposable?
-MANAGED_LINK_TARGETS = ("/nix/store/", "/etc/static/", "/etc/zoneinfo/", "/proc/",
-                        "/run/", "../run")
+# Most paths listed in the summary and the reboot-gate output, so a runaway
+# directory can't flood Discord or the terminal.
+MAX_LISTED = 200
+
+# Symlinks pointing into these are recreated at boot or by NixOS activation
+# (e.g. /etc/localtime -> /etc/zoneinfo/..., /var/run -> ../run), so they
+# aren't state.
+MANAGED_LINK_PREFIXES = (
+    "/nix/store/",
+    "/etc/static/",
+    "/etc/zoneinfo/",
+    "/proc/",
+    "/run/",
+    "../run",
+)
+
+# "ephemeral" paths bigger than this are flagged: anything this large is
+# probably a cache or data that was wrongly marked disposable.
+LARGE_EPHEMERAL_BYTES = 500 * 1000**2  # 500 MB
+
+OK_SUMMARY = "OK: all state on the root filesystem is declared"
 
 
-def load_declared(path):
-    with open(path) as f:
-        return json.load(f)  # {path: {"backup": ..., "why": ..., "repo": ...}}
+@dataclass(frozen=True)
+class Declaration:
+    backup: str  # git | restic | cache | manual | ephemeral
+    why: str
+    repo: str | None = None
 
 
-def covered(path, declared):
-    """Is `path` itself declared, or inside a declared path?"""
-    p = path
-    while p and p != "/":
-        if p in declared:
-            return True
-        p = os.path.dirname(p)
-    return False
+@dataclass(frozen=True)
+class Usage:
+    bytes: int = 0
+    files: int = 0
+    newest: float = 0.0  # mtime of the most recently modified entry
+
+    def __sub__(self, other: Usage) -> Usage:
+        return Usage(
+            max(0, self.bytes - other.bytes),
+            max(0, self.files - other.files),
+            self.newest,
+        )
 
 
-def has_declared_below(path, declared_sorted):
-    prefix = path.rstrip("/") + "/"
-    return any(d.startswith(prefix) for d in declared_sorted)
+@dataclass(frozen=True)
+class Finding:
+    """An undeclared path. Undeclared directories are reported as one unit."""
+
+    path: Path
+    kind: Literal["dir", "file", "symlink"]
+    usage: Usage
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "path": str(self.path),
+            "kind": self.kind,
+            "bytes": self.usage.bytes,
+            "files": self.usage.files,
+            "newest": self.usage.newest,
+        }
 
 
-def managed_symlink(path):
+def load_declared(json_file: Path) -> dict[Path, Declaration]:
+    """Read the declarations Nix exports: {path: {backup, why, repo}}."""
+    raw = json.loads(json_file.read_text())
+    return {Path(path): Declaration(**fields) for path, fields in raw.items()}
+
+
+def is_covered(path: Path, declared: Mapping[Path, Declaration]) -> bool:
+    """Is `path` declared, or inside a declared path?"""
+    return any(p in declared for p in (path, *path.parents))
+
+
+def has_declared_descendant(path: Path, declared: Mapping[Path, Declaration]) -> bool:
+    return any(path in d.parents for d in declared)
+
+
+def nearest_declared_parent(
+    path: Path, declared: Mapping[Path, Declaration]
+) -> Path | None:
+    return next((p for p in path.parents if p in declared), None)
+
+
+def is_managed_symlink(path: Path) -> bool:
     try:
-        target = os.readlink(path)
+        target = str(path.readlink())
     except OSError:
         return False
-    return target.startswith(MANAGED_LINK_TARGETS)
+    return target.startswith(MANAGED_LINK_PREFIXES)
 
 
-def summarize(path, dev):
-    """(bytes, files, newest_mtime) of a tree on one device."""
-    size = files = 0
+def measure(root: Path, device: int) -> Usage:
+    """Size, file count and newest mtime of the tree at `root`, without
+    leaving `device` (mounts and other subvolumes inside it are skipped)."""
+    total = files = 0
     newest = 0.0
-    for dp, dns, fns in os.walk(path, onerror=lambda e: None):
-        kept = []
-        for d in dns:
-            full = os.path.join(dp, d)
+    for directory, subdirs, names in root.walk(on_error=lambda _: None):
+        # Prune in place, which stops walk() from descending: keep only real
+        # directories on the same device (not symlinks, mounts or subvolumes).
+        subdirs[:] = [d for d in subdirs if _is_dir_on(directory / d, device)]
+        for name in names:
+            entry = directory / name
             try:
-                s = os.lstat(full)
+                st = entry.lstat()
             except OSError:
+                continue  # deleted while we were walking
+            if stat.S_ISLNK(st.st_mode) and is_managed_symlink(entry):
                 continue
-            if stat.S_ISDIR(s.st_mode) and s.st_dev == dev:
-                kept.append(d)
-        dns[:] = kept
-        for f in fns:
-            full = os.path.join(dp, f)
-            try:
-                s = os.lstat(full)
-            except OSError:
-                continue
-            if stat.S_ISLNK(s.st_mode) and managed_symlink(full):
-                continue
-            size += s.st_size if stat.S_ISREG(s.st_mode) else 0
             files += 1
-            newest = max(newest, s.st_mtime)
-    return size, files, newest
+            if stat.S_ISREG(st.st_mode):
+                total += st.st_size
+            newest = max(newest, st.st_mtime)
+    return Usage(total, files, newest)
 
 
-def audit(declared):
-    root_dev = os.stat("/").st_dev
-    declared_sorted = sorted(declared)
-    unexplained = []
+def _is_dir_on(path: Path, device: int) -> bool:
+    try:
+        st = path.lstat()
+    except OSError:
+        return False
+    return stat.S_ISDIR(st.st_mode) and st.st_dev == device
 
-    def visit(path):
+
+def find_undeclared(root: Path, declared: Mapping[Path, Declaration]) -> list[Finding]:
+    """Walk `root` and return everything that no declaration covers."""
+    device = root.lstat().st_dev
+    findings: list[Finding] = []
+
+    def visit(path: Path) -> None:
         try:
-            s = os.lstat(path)
+            st = path.lstat()
         except OSError:
-            return
-        if s.st_dev != root_dev:
-            return  # another subvolume or a mount (/nix, /home, /proc, ...)
-        if covered(path, declared):
-            return
-        if stat.S_ISLNK(s.st_mode):
-            if not managed_symlink(path):
-                unexplained.append({"path": path, "bytes": 0, "files": 1,
-                                    "newest": s.st_mtime, "kind": "symlink"})
-            return
-        if not stat.S_ISDIR(s.st_mode):
-            unexplained.append({"path": path, "bytes": s.st_size, "files": 1,
-                                "newest": s.st_mtime, "kind": "file"})
-            return
-        if has_declared_below(path, declared_sorted):
-            try:
-                children = sorted(os.listdir(path))
-            except OSError:
-                return
-            for c in children:
-                visit(os.path.join(path, c))
-            return
-        size, files, newest = summarize(path, root_dev)
-        if files:
-            unexplained.append({"path": path, "bytes": size, "files": files,
-                                "newest": newest, "kind": "dir"})
+            return  # deleted while we were walking
+        if st.st_dev != device or is_covered(path, declared):
+            return  # another filesystem (not wiped), or declared (kept)
 
-    visit("/")
-    return unexplained
+        if stat.S_ISLNK(st.st_mode):
+            if not is_managed_symlink(path):
+                findings.append(Finding(path, "symlink", Usage(0, 1, st.st_mtime)))
+        elif not stat.S_ISDIR(st.st_mode):
+            findings.append(Finding(path, "file", Usage(st.st_size, 1, st.st_mtime)))
+        elif has_declared_descendant(path, declared):
+            # Partly declared, like /var/lib: judge each child on its own.
+            for child in sorted(path.iterdir()):
+                visit(child)
+        else:
+            # Wholly undeclared: report the directory once. Empty ones are
+            # skipped; systemd-tmpfiles recreates the directories that matter.
+            usage = measure(path, device)
+            if usage.files:
+                findings.append(Finding(path, "dir", usage))
+
+    # The root itself can't be declared; always judge its children.
+    for child in sorted(root.iterdir()):
+        visit(child)
+    return findings
 
 
-def declared_status(declared):
-    """Per declared path: size of what it covers itself, i.e. minus nested
-    declared paths (which may have a different backup class)."""
-    totals = {}
-    for p in declared:
-        size = files = 0
-        if os.path.isdir(p) and not os.path.islink(p):
-            size, files, _ = summarize(p, os.stat(p).st_dev)
-        elif os.path.lexists(p):
-            size, files = os.lstat(p).st_size, 1
-        totals[p] = (size, files)
-
-    def parent_decl(p):
-        q = os.path.dirname(p)
-        while q and q != "/":
-            if q in declared:
-                return q
-            q = os.path.dirname(q)
-        return None
-
-    own = dict(totals)
-    for p in declared:
-        parent = parent_decl(p)
-        if parent:
-            ps, pf = own[parent]
-            own[parent] = (ps - totals[p][0], pf - totals[p][1])
-    return [{"path": p, **d, "exists": os.path.lexists(p),
-             "bytes": max(0, own[p][0]), "files": max(0, own[p][1])}
-            for p, d in sorted(declared.items())]
+def declared_usage(declared: Mapping[Path, Declaration]) -> dict[Path, Usage]:
+    """Usage of each declared path, minus the declared paths nested inside it
+    (those have their own backup class, e.g. a cache inside a restic folder)."""
+    total = {path: _usage_of(path) for path in declared}
+    own = dict(total)
+    for path in declared:
+        if (parent := nearest_declared_parent(path, declared)) is not None:
+            own[parent] -= total[path]
+    return own
 
 
-def main():
-    if sys.argv[1] == "--check":
-        unexplained = audit(load_declared(sys.argv[2]))
-        for u in unexplained[:MAX_LIST]:
-            print(f"  {u['path']}  ({u['files']} files, {u['bytes'] / 1e6:.1f} MB)")
-        sys.exit(1 if unexplained else 0)
+def _usage_of(path: Path) -> Usage:
+    try:
+        st = path.lstat()
+    except OSError:
+        return Usage()  # declared but doesn't exist (yet)
+    if stat.S_ISDIR(st.st_mode):
+        return measure(path, st.st_dev)
+    return Usage(st.st_size, 1, st.st_mtime)
 
-    declared = load_declared(sys.argv[1])
-    out_dir = sys.argv[2]
-    unexplained = audit(declared)
+
+def summarize(
+    findings: Sequence[Finding],
+    declared: Mapping[Path, Declaration],
+    usage: Mapping[Path, Usage],
+) -> str:
+    """Text for the cron monitor. Paths only (no sizes or times), so it only
+    changes, and wakes the model, when the set of problems changes."""
+    sections = []
+    if findings:
+        paths = [str(f.path) for f in findings[:MAX_LISTED]]
+        sections.append("UNDECLARED STATE (deleted on reboot):\n" + "\n".join(paths))
+    large = [
+        str(path)
+        for path, decl in sorted(declared.items())
+        if decl.backup == "ephemeral" and usage[path].bytes > LARGE_EPHEMERAL_BYTES
+    ]
+    if large:
+        sections.append(
+            "LARGE EPHEMERAL (over 500 MB but declared disposable; is that right?):\n"
+            + "\n".join(large)
+        )
+    return "\n".join(sections) or OK_SUMMARY
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """Write via a temp file, so readers never see a half-written file."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text)
+    tmp.replace(path)
+
+
+def cmd_report(root: Path, declared: Mapping[Path, Declaration], out_dir: Path) -> int:
+    findings = find_undeclared(root, declared)
+    usage = declared_usage(declared)
     report = {
         "generated": round(time.time(), 1),
-        "unexplained": unexplained,
-        "declared": declared_status(declared),
+        "undeclared": [f.to_json() for f in findings],
+        "declared": [
+            {
+                "path": str(path),
+                "backup": decl.backup,
+                "why": decl.why,
+                "repo": decl.repo,
+                "exists": os.path.lexists(path),
+                "bytes": usage[path].bytes,
+                "files": usage[path].files,
+            }
+            for path, decl in sorted(declared.items())
+        ],
     }
-    tmp = os.path.join(out_dir, "report.json.tmp")
-    with open(tmp, "w") as f:
-        json.dump(report, f, indent=1)
-    os.replace(tmp, os.path.join(out_dir, "report.json"))
-
-    # Stable summary for the cron monitor: paths only, no sizes or times.
-    parts = []
-    lines = [u["path"] for u in unexplained][:MAX_LIST]
-    if lines:
-        parts.append("UNEXPLAINED STATE (would be lost on a root wipe):\n" + "\n".join(lines))
-    large = [d["path"] for d in report["declared"]
-             if d["backup"] == "ephemeral" and d["bytes"] > LARGE_EPHEMERAL]
-    if large:
-        parts.append("LARGE EPHEMERAL (over 500 MB, declared disposable; is that right?):\n"
-                     + "\n".join(large))
-    summary = "\n".join(parts) or "OK: all state on the root filesystem is declared"
-    tmp = os.path.join(out_dir, "summary.txt.tmp")
-    with open(tmp, "w") as f:
-        f.write(summary + "\n")
-    os.replace(tmp, os.path.join(out_dir, "summary.txt"))
+    summary = summarize(findings, declared, usage)
+    write_atomic(out_dir / "report.json", json.dumps(report, indent=1))
+    write_atomic(out_dir / "summary.txt", summary + "\n")
     print(summary)
+    return 0
+
+
+def cmd_check(root: Path, declared: Mapping[Path, Declaration]) -> int:
+    findings = find_undeclared(root, declared)
+    for f in findings[:MAX_LISTED]:
+        print(f"  {f.path}  ({f.usage.files} files, {f.usage.bytes / 1e6:.1f} MB)")
+    return 1 if findings else 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--root", type=Path, default=Path("/"), help="filesystem root to audit"
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    report = commands.add_parser(
+        "report", help="write report.json and summary.txt to OUT_DIR"
+    )
+    report.add_argument("declared", type=Path, help="declarations JSON from Nix")
+    report.add_argument("out_dir", type=Path)
+
+    check = commands.add_parser(
+        "check", help="list undeclared paths; exit 1 if there are any"
+    )
+    check.add_argument("declared", type=Path, help="declarations JSON from Nix")
+
+    args = parser.parse_args(argv)
+    declared = load_declared(args.declared)
+    if args.command == "report":
+        return cmd_report(args.root, declared, args.out_dir)
+    return cmd_check(args.root, declared)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,16 +1,16 @@
-# Explicit state: every path on the root filesystem that should survive a
-# root wipe is declared here with an answer to "how is it backed up?".
+# Explicit state. The root filesystem is wiped on every boot; the paths in
+# aiBox.state.paths (./paths.nix) are the only state that survives, each with
+# an answer to "how is it backed up?".
 #
-# Stage 1 (now): declarations, build-time checks, an hourly audit of anything
-# undeclared (pinged to Alex via the local cron model), and a gate that stops
-# ai-box-reboot while undeclared state exists. Nothing is wiped yet.
-# Stage 2: restic backups generated from the `restic` entries.
-# Stage 3: wipe root on boot; persist exactly these paths.
+# Undeclared state is caught three ways: the build fails on incomplete
+# declarations, an hourly audit (./audit.py) reports undeclared paths to Alex
+# through the local cron model, and ai-box-reboot refuses to run while any
+# exist.
 #
 # Backup classes:
 #   git        valuable parts live in a git remote (`repo`); runtime files
 #              inside may be declared separately (usually as restic)
-#   restic     backed up off-box (stage 2)
+#   restic     backed up off-box with restic
 #   cache      kept to avoid rebuilding or re-downloading; never backed up
 #   manual     re-provisioned by a human on a new box (e.g. the vault token)
 #   ephemeral  NOT kept: fine to lose on every boot
@@ -67,7 +67,7 @@ in
     checkCommand = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
-      default = "${python} ${./audit.py} --check ${declaredJson}";
+      default = "${python} ${./audit.py} check ${declaredJson}";
       description = "Exits 1 and lists paths if undeclared state exists (used by ai-box-reboot).";
     };
   };
@@ -99,7 +99,7 @@ in
         UMask = "0022";
         Nice = 19;
         IOSchedulingClass = "idle";
-        ExecStart = "${python} ${./audit.py} ${declaredJson} ${auditDir}";
+        ExecStart = "${python} ${./audit.py} report ${declaredJson} ${auditDir}";
       };
     };
     # Hourly, plus a minute after any deploy that changes the declarations or
@@ -123,11 +123,11 @@ in
       prompt = ''
         You watch ai-box (Alex's home server) for undeclared state. The monitor
         block lists paths on the root filesystem that nix-config doesn't
-        declare. Once the root is wiped on boot, these would be lost. Write a
-        short Discord message for Alex, under 120 words:
+        declare. The root is wiped on boot, so these are deleted on the next
+        reboot. Write a short Discord message for Alex, under 120 words:
         - For each newly listed path: the path, and in a few words what it
-          probably is (guess only from the path). Say it would be lost on a root
-          wipe and needs a decision: keep it with a backup class (git, restic,
+          probably is (guess only from the path). Say it is deleted on the next
+          reboot and needs a decision: keep it with a backup class (git, restic,
           cache, manual) or mark it ephemeral in hosts/ai-box/state/paths.nix.
         - If paths disappeared from the list (now declared or deleted), one line
           saying so.
