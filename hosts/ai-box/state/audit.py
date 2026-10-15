@@ -246,8 +246,17 @@ def uncommitted_in_git_paths(declared: Mapping[Path, Declaration]) -> list[Path]
             continue
         # safe.directory: the audit runs as root, but the repos belong to hermes.
         result = subprocess.run(
-            ["git", "-c", "safe.directory=*", "-C", str(repo),
-             "status", "--porcelain", "--ignored", "-z"],
+            [
+                "git",
+                "-c",
+                "safe.directory=*",
+                "-C",
+                str(repo),
+                "status",
+                "--porcelain",
+                "--ignored",
+                "-z",
+            ],
             capture_output=True,
             text=True,
         )
@@ -413,13 +422,19 @@ def cmd_check(root: Path, declared: Mapping[Path, Declaration]) -> int:
         print(f"  {f.path}  ({f.usage.files} files, {f.usage.bytes / 1e6:.1f} MB)")
     # Informational only: never fails the check.
     if uncommitted := uncommitted_in_git_paths(declared):
-        print(f"Note: {len(uncommitted)} uncommitted paths inside git repos "
-              "(disposable; see report.json):", file=sys.stderr)
+        print(
+            f"Note: {len(uncommitted)} uncommitted paths inside git repos "
+            "(disposable; see report.json):",
+            file=sys.stderr,
+        )
         for path in uncommitted[:MAX_LISTED]:
             print(f"  {path}", file=sys.stderr)
     if written := runtime_written(declared):
-        print(f"Note: {len(written)} paths written at runtime in watched config "
-              "locations; lost on reboot unless declared in nix-config:", file=sys.stderr)
+        print(
+            f"Note: {len(written)} paths written at runtime in watched config "
+            "locations; lost on reboot unless declared in nix-config:",
+            file=sys.stderr,
+        )
         for path, mtime in list(written.items())[:MAX_LISTED]:
             day = time.strftime("%a %b %d", time.localtime(mtime))
             print(f"  {path}  (last written {day})", file=sys.stderr)

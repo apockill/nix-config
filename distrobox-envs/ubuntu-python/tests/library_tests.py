@@ -1,4 +1,4 @@
-def test_opencv():
+def test_opencv() -> None:
     import cv2
     import numpy as np
 
@@ -9,13 +9,13 @@ def test_opencv():
     cv2.destroyAllWindows()
 
 
-def test_torch():
+def test_torch() -> None:
     import torch
 
     assert torch.cuda.is_available(), "No CUDA-compatible GPU found!"
 
 
-def test_genesis():
+def test_genesis() -> None:
     """Validate genesis can open a window (which requires a OpenGL context to work)"""
 
     import genesis as gs
@@ -23,19 +23,19 @@ def test_genesis():
     gs.init(backend=gs.gpu)
 
     scene = gs.Scene(show_viewer=True)
-    plane = scene.add_entity(gs.morphs.Plane())
+    _plane = scene.add_entity(gs.morphs.Plane())
     scene.build()
 
     for _ in range(10):
         scene.step()
 
 
-def test_pillow():
+def test_pillow() -> None:
     """Validate pillow was able to install at all, which requires certain libraries"""
-    import PIL
+    import PIL  # noqa: F401 (the import itself is the test)
 
 
-def test_gymnasium():
+def test_gymnasium() -> None:
     """A basic test of gym that ensures SWIG and clang are installed, and that it can
     correctly spin up and run a gym"""
     import gymnasium as gym
@@ -43,7 +43,7 @@ def test_gymnasium():
     env = gym.make("LunarLander-v3", render_mode="human")
     observation, info = env.reset()
 
-    episode_over = False
+    _episode_over = False
     for _ in range(3):
         action = (
             env.action_space.sample()
@@ -51,6 +51,6 @@ def test_gymnasium():
         assert action is not None
         observation, reward, terminated, truncated, info = env.step(action)
 
-        episode_over = terminated or truncated
+        _episode_over = terminated or truncated
 
     env.close()

@@ -1,7 +1,7 @@
 import library_tests
 
 
-def main():
+def main() -> None:
     print("Validating opencv-python")
     library_tests.test_opencv()
 

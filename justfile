@@ -23,6 +23,17 @@ ai-box-flash:
 format:
     nixfmt .
     black .
+    nix shell --inputs-from . nixpkgs#ruff -c ruff check --select I --fix --quiet .
+
+# Python lint: ruff, black (check only), and mypy with typed functions required.
+# Tools come from this flake's nixpkgs. mypy runs once per directory, because
+# several standalone scripts share a name (monitor.py).
+lint:
+    nix shell --inputs-from . nixpkgs#ruff nixpkgs#black nixpkgs#mypy -c sh -c '\
+      ruff check . && black --check --quiet . && \
+      for dir in $(git ls-files "*.py" | xargs -n1 dirname | sort -u); do \
+        mypy "$dir" || exit 1; \
+      done'
 
 # Python unit tests, with pytest from this flake's nixpkgs (nothing to install).
 test:

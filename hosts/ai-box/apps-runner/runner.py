@@ -33,11 +33,11 @@ STATUS = os.path.join(STATE, "status.json")
 
 # Timings (env overrides exist for testing with a fake sites dir).
 _T = float(os.environ.get("RUNNER_TIME_SCALE", "1"))
-LOOP_S = 10 * _T            # supervision tick
-CHECK_EVERY_S = 30 * _T     # health-check interval per app
-GRACE_S = 180 * _T          # time after launch before checks count (nix develop is slow)
-FAILS_TO_HEAL = 3           # consecutive failed checks before a restart (~90 s)
-MAX_RESTARTS = 3            # restarts allowed per window before giving up
+LOOP_S = 10 * _T  # supervision tick
+CHECK_EVERY_S = 30 * _T  # health-check interval per app
+GRACE_S = 180 * _T  # time after launch before checks count (nix develop is slow)
+FAILS_TO_HEAL = 3  # consecutive failed checks before a restart (~90 s)
+MAX_RESTARTS = 3  # restarts allowed per window before giving up
 WINDOW_S = 3600 * _T
 BACKOFF_S = [10 * _T, 60 * _T, 300 * _T]  # delay before restart n (crash or heal)
 LOG_TAIL = 15
@@ -51,25 +51,25 @@ def log(msg: str) -> None:
     print(f"[apps-runner] {msg}", flush=True)
 
 
-def record(app: str, kind: str, **fields) -> None:
+def record(app: str, kind: str, **fields: object) -> None:
     event = {"ts": round(now(), 1), "app": app, "event": kind, **fields}
     with open(EVENTS, "a") as f:
         f.write(json.dumps(event) + "\n")
     log(f"{app}: {kind} {fields.get('reason', '')}".rstrip())
 
 
-def tail(path: str, n: int = LOG_TAIL) -> list:
+def tail(path: str, n: int = LOG_TAIL) -> list[str]:
     try:
         with open(path, "rb") as f:
             f.seek(0, os.SEEK_END)
             f.seek(max(0, f.tell() - 16384))
             lines = f.read().decode("utf-8", "replace").splitlines()
-        return [l[:300] for l in lines[-n:]]
+        return [line[:300] for line in lines[-n:]]
     except OSError:
         return []
 
 
-def http_check(sock_path: str) -> tuple:
+def http_check(sock_path: str) -> tuple[bool, str]:
     """(ok, reason). Up = the server answers GET / with a status below 500."""
     if not os.path.exists(sock_path):
         return False, "app.sock missing"
@@ -92,8 +92,12 @@ def http_check(sock_path: str) -> tuple:
 
 def git_rev(app: str) -> str:
     try:
-        out = subprocess.run(["git", "-C", SITES, "log", "-1", "--format=%H", "--", app],
-                             capture_output=True, text=True, timeout=10)
+        out = subprocess.run(
+            ["git", "-C", SITES, "log", "-1", "--format=%H", "--", app],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
         return out.stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return ""
@@ -103,19 +107,19 @@ class App:
     def __init__(self, name: str):
         self.name = name
         self.dir = os.path.join(SITES, name)
-        self.proc = None
+        self.proc: subprocess.Popen[bytes] | None = None
         self.started = 0.0
         self.status = "starting"
         self.since = now()
         self.reason = ""
         self.fails = 0
         self.last_check = 0.0
-        self.restarts = deque()
+        self.restarts: deque[float] = deque()
         self.next_launch = 0.0
-        self.failed_rev = None
+        self.failed_rev: str | None = None
 
     # -- bookkeeping ---------------------------------------------------
-    def set_status(self, status: str, reason: str = "", **extra) -> None:
+    def set_status(self, status: str, reason: str = "", **extra: object) -> None:
         if status == self.status and not extra:
             return
         prev, self.status, self.since, self.reason = self.status, status, now(), reason
@@ -133,9 +137,14 @@ class App:
     # -- process control -----------------------------------------------
     def launch(self, why: str) -> None:
         logf = open(os.path.join(self.dir, "app.log"), "w")
-        self.proc = subprocess.Popen(["./start.sh"], cwd=self.dir, stdout=logf,
-                                     stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                     start_new_session=True)
+        self.proc = subprocess.Popen(
+            ["./start.sh"],
+            cwd=self.dir,
+            stdout=logf,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
         logf.close()
         with open(os.path.join(self.dir, ".runner.pid"), "w") as f:
             f.write(str(self.proc.pid))
@@ -227,7 +236,7 @@ class App:
             self.schedule_restart(f"health check failed {self.fails}x: {why}")
 
 
-def discover() -> list:
+def discover() -> list[str]:
     names = []
     for name in sorted(os.listdir(SITES)):
         if name.startswith((".", "_")) or name == "default":
@@ -237,14 +246,18 @@ def discover() -> list:
     return names
 
 
-def write_status(apps: dict, runner_started: float) -> None:
+def write_status(apps: dict[str, App], runner_started: float) -> None:
     snap = {
         "heartbeat": round(now(), 1),
         "runner_started": runner_started,
         "apps": {
-            a.name: {"status": a.status, "since": round(a.since, 1), "reason": a.reason,
-                     "restarts_1h": a.recent_restarts(),
-                     "pid": a.proc.pid if a.proc and a.proc.poll() is None else None}
+            a.name: {
+                "status": a.status,
+                "since": round(a.since, 1),
+                "reason": a.reason,
+                "restarts_1h": a.recent_restarts(),
+                "pid": a.proc.pid if a.proc and a.proc.poll() is None else None,
+            }
             for a in apps.values()
         },
     }
@@ -265,8 +278,8 @@ def main() -> None:
     started = round(now(), 1)
     record("_runner", "runner_start", prev_heartbeat=prev_heartbeat)
 
-    apps = {}
-    stopping = []
+    apps: dict[str, App] = {}
+    stopping: list[bool] = []
     signal.signal(signal.SIGTERM, lambda *_: stopping.append(True))
     while not stopping:
         present = discover()
@@ -279,8 +292,13 @@ def main() -> None:
                     apps[name].failed_rev = git_rev(name)
                     with open(apps[name].failed_marker) as f:
                         apps[name].reason = f.read().strip()
-                    record(name, "status", status="failed", prev="unknown",
-                           reason=apps[name].reason)
+                    record(
+                        name,
+                        "status",
+                        status="failed",
+                        prev="unknown",
+                        reason=apps[name].reason,
+                    )
         for name in list(apps):
             if name not in present:
                 apps[name].stop()

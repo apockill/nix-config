@@ -1,11 +1,9 @@
-import os
 import argparse
-import fnmatch
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Sequence
-import re
 
 # Pattern for directories to wholesale ignore
 _DEFAULT_IGNORES = (
@@ -61,7 +59,7 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def generate_tree_output(start_dir: Path, ignore_pattern: str) -> Optional[str]:
+def generate_tree_output(start_dir: Path, ignore_pattern: str) -> str | None:
     """
     Generates the directory tree string using the external 'tree' command.
 
@@ -122,7 +120,7 @@ def write_markdown_file(
 
         print(f"Successfully generated initial context file: {output_file}")
 
-    except IOError as e:
+    except OSError as e:
         print(f"Error writing to output file {output_file}: {e}", file=sys.stderr)
     except Exception as e:
         print(f"An unexpected error occurred during file writing: {e}", file=sys.stderr)
@@ -174,6 +172,10 @@ def extract_file_contexts(
             file=sys.stderr,
         )
 
+    def is_ignored(name: str) -> bool:
+        # ignore_regex is None when the pattern was empty or invalid (warned above).
+        return ignore_regex is not None and ignore_regex.match(name) is not None
+
     markdown_parts = ["# File Contents\n"]  # Start with the main section header
     start_dir = start_dir.resolve()  # Work with absolute paths internally
 
@@ -181,13 +183,13 @@ def extract_file_contexts(
         current_path = Path(root)
 
         # Pruning Ignored Directories
-        dirs[:] = [d for d in dirs if not ignore_regex.match(d)]
+        dirs[:] = [d for d in dirs if not is_ignored(d)]
 
         # Processing Files
         files.sort()
         for filename in files:
             # Check if filename itself matches an ignore pattern
-            if ignore_regex.match(filename):
+            if is_ignored(filename):
                 continue
 
             # Include this file
