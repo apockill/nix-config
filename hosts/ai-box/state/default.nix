@@ -50,7 +50,10 @@ let
   python = "${pkgs.python3}/bin/python3";
 in
 {
-  imports = [ ./paths.nix ];
+  imports = [
+    ./paths.nix
+    ./users.nix
+  ];
 
   options.aiBox.state = {
     paths = lib.mkOption {

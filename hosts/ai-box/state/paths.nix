@@ -37,26 +37,30 @@ in
       backup = "host";
       why = "NixOS uid/gid allocation map; must stay stable on this box or file ownership breaks.";
     };
-    # users.mutableUsers = true: passwd changes live in these files.
+    # Users are declared (./users.nix): NixOS regenerates these on every boot.
     "/etc/passwd" = {
-      backup = "restic";
-      why = "User accounts (mutableUsers).";
+      backup = "ephemeral";
+      why = "Generated from the users config (mutableUsers = false).";
     };
     "/etc/group" = {
-      backup = "restic";
-      why = "Groups (mutableUsers).";
+      backup = "ephemeral";
+      why = "Generated from the users config.";
     };
     "/etc/shadow" = {
-      backup = "restic";
-      why = "Password hashes, including alex's (changed with passwd).";
+      backup = "ephemeral";
+      why = "Generated; alex's hash comes from /var/lib/user-passwords.";
     };
     "/etc/subuid" = {
-      backup = "restic";
-      why = "Subordinate uid ranges (mutableUsers).";
+      backup = "ephemeral";
+      why = "Generated from the users config.";
     };
     "/etc/subgid" = {
-      backup = "restic";
-      why = "Subordinate gid ranges (mutableUsers).";
+      backup = "ephemeral";
+      why = "Generated from the users config.";
+    };
+    "/var/lib/user-passwords" = {
+      backup = "host";
+      why = "alex's password hash (./users.nix); without it alex can't sudo. A new box gets a new password at install.";
     };
     "/etc/NetworkManager/system-connections" = {
       backup = "host";
