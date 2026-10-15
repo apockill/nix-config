@@ -23,6 +23,7 @@ import sys
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
@@ -59,9 +60,21 @@ SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
 OK_SUMMARY = "OK: all state on the root filesystem is declared"
 
 
+class Backup(StrEnum):
+    """How a declared path is backed up. Mirrors the classes in default.nix,
+    which documents what each one means."""
+
+    GIT = "git"
+    RESTIC = "restic"
+    CACHE = "cache"
+    HOST = "host"
+    MANUAL = "manual"
+    EPHEMERAL = "ephemeral"
+
+
 @dataclass(frozen=True)
 class Declaration:
-    backup: str  # git | restic | cache | manual | ephemeral
+    backup: Backup
     why: str
     repo: str | None = None
 
@@ -101,7 +114,12 @@ class Finding:
 def load_declared(json_file: Path) -> dict[Path, Declaration]:
     """Read the declarations Nix exports: {path: {backup, why, repo}}."""
     raw = json.loads(json_file.read_text())
-    return {Path(path): Declaration(**fields) for path, fields in raw.items()}
+    return {
+        Path(path): Declaration(
+            backup=Backup(fields["backup"]), why=fields["why"], repo=fields.get("repo")
+        )
+        for path, fields in raw.items()
+    }
 
 
 def is_covered(path: Path, declared: Mapping[Path, Declaration]) -> bool:
@@ -207,7 +225,7 @@ def uncommitted_in_git_paths(declared: Mapping[Path, Declaration]) -> list[Path]
     what accumulates."""
     found: list[Path] = []
     for repo, decl in sorted(declared.items()):
-        if decl.backup != "git":
+        if decl.backup != Backup.GIT:
             continue
         # safe.directory: the audit runs as root, but the repos belong to hermes.
         result = subprocess.run(
@@ -280,7 +298,7 @@ def summarize(
     large = [
         str(path)
         for path, decl in sorted(declared.items())
-        if decl.backup == "ephemeral" and usage[path].bytes > LARGE_EPHEMERAL_BYTES
+        if decl.backup == Backup.EPHEMERAL and usage[path].bytes > LARGE_EPHEMERAL_BYTES
     ]
     if large:
         sections.append(

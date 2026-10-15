@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 import audit
-from audit import Declaration, Usage
+from audit import Backup, Declaration, Usage
 
 
 def write(path: Path, size: int = 10) -> Path:
@@ -19,7 +19,7 @@ def write(path: Path, size: int = 10) -> Path:
     return path
 
 
-def decl(backup: str = "restic") -> Declaration:
+def decl(backup: Backup = Backup.RESTIC) -> Declaration:
     return Declaration(backup=backup, why="test")
 
 
@@ -74,9 +74,9 @@ def test_nested_declarations_are_excluded_from_the_parents_usage(tmp_path: Path)
     write(tmp_path / "home" / "notes", size=10)
     write(tmp_path / "home" / "cache" / "blob", size=100)
     declared = {
-        tmp_path / "home": decl("restic"),
-        tmp_path / "home" / "cache": decl("cache"),
-        tmp_path / "missing": decl("restic"),
+        tmp_path / "home": decl(Backup.RESTIC),
+        tmp_path / "home" / "cache": decl(Backup.CACHE),
+        tmp_path / "missing": decl(Backup.RESTIC),
     }
     usage = audit.declared_usage(declared)
     assert usage[tmp_path / "home"].bytes == 10
@@ -92,7 +92,7 @@ def test_summary_lists_undeclared_paths_and_large_ephemeral_ones(tmp_path: Path)
     write(tmp_path / "stray")
     findings = audit.find_undeclared(tmp_path, {})
     big, small = Path("/var/cache"), Path("/tmp")
-    declared = {big: decl("ephemeral"), small: decl("ephemeral")}
+    declared = {big: decl(Backup.EPHEMERAL), small: decl(Backup.EPHEMERAL)}
     usage = {big: Usage(bytes=audit.LARGE_EPHEMERAL_BYTES + 1), small: Usage(bytes=1)}
 
     summary = audit.summarize(findings, declared, usage)
@@ -177,7 +177,7 @@ def test_uncommitted_files_in_git_paths_are_noted(
     sock = socket.socket(socket.AF_UNIX)
     sock.bind("app.sock")
     declared = {
-        repo: Declaration(backup="git", why="t", repo="example"),
+        repo: Declaration(backup=Backup.GIT, why="t", repo="example"),
         repo / "app" / "kept.db": decl(),
     }
 
@@ -194,3 +194,16 @@ def test_uncommitted_note_never_fails_the_check(tmp_path: Path) -> None:
     declared_json = tmp_path / "declared.json"
     declared_json.write_text(json.dumps({str(repo): {"backup": "git", "why": "t", "repo": "x"}}))
     assert audit.main(["--root", str(tmp_path / "root"), "check", str(declared_json)]) == 0
+
+
+def test_unknown_backup_class_is_rejected(tmp_path: Path) -> None:
+    declared_json = tmp_path / "declared.json"
+    declared_json.write_text(json.dumps({"/x": {"backup": "nope", "why": "t"}}))
+    with pytest.raises(ValueError):
+        audit.load_declared(declared_json)
+
+
+def test_backup_enum_matches_the_nix_classes() -> None:
+    nix = (Path(__file__).parent / "default.nix").read_text()
+    classes = nix.split("classes = [", 1)[1].split("];", 1)[0].split()
+    assert sorted(c.strip('"') for c in classes) == sorted(b.value for b in Backup)
