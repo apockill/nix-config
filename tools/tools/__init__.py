@@ -3,3 +3,6 @@ from .git_branch_diff import git_branch_diff
 from .git_gc import git_gc
 from .make_llm_context import make_llm_context
 from .unix_scripts import ls
+
+# Entry points for [tool.poetry.scripts] in pyproject.toml.
+__all__ = ["file_explorer", "git_branch_diff", "git_gc", "ls", "make_llm_context"]

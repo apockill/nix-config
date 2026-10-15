@@ -8,9 +8,8 @@ import socket
 import subprocess
 from pathlib import Path
 
-import pytest
-
 import audit
+import pytest
 from audit import Backup, Declaration, Usage
 
 
@@ -25,7 +24,9 @@ def decl(backup: Backup = Backup.RESTIC) -> Declaration:
 
 
 def undeclared(root: Path, declared: dict[Path, Declaration]) -> list[str]:
-    return [str(f.path.relative_to(root)) for f in audit.find_undeclared(root, declared)]
+    return [
+        str(f.path.relative_to(root)) for f in audit.find_undeclared(root, declared)
+    ]
 
 
 def test_declared_paths_and_their_contents_are_not_reported(tmp_path: Path) -> None:
@@ -75,13 +76,17 @@ def test_store_links_are_managed_only_in_system_dirs(tmp_path: Path) -> None:
     assert undeclared(tmp_path, {}) == ["var"]
 
 
-def test_managed_symlinks_inside_undeclared_dirs_are_not_counted(tmp_path: Path) -> None:
+def test_managed_symlinks_inside_undeclared_dirs_are_not_counted(
+    tmp_path: Path,
+) -> None:
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "static-link").symlink_to("/etc/static/foo")
     assert undeclared(tmp_path, {}) == []
 
 
-def test_nested_declarations_are_excluded_from_the_parents_usage(tmp_path: Path) -> None:
+def test_nested_declarations_are_excluded_from_the_parents_usage(
+    tmp_path: Path,
+) -> None:
     write(tmp_path / "home" / "notes", size=10)
     write(tmp_path / "home" / "cache" / "blob", size=100)
     declared = {
@@ -99,7 +104,9 @@ def test_summary_is_ok_when_nothing_is_wrong() -> None:
     assert audit.summarize([], {}, {}) == audit.OK_SUMMARY
 
 
-def test_summary_lists_undeclared_paths_and_large_ephemeral_ones(tmp_path: Path) -> None:
+def test_summary_lists_undeclared_paths_and_large_ephemeral_ones(
+    tmp_path: Path,
+) -> None:
     write(tmp_path / "stray")
     findings = audit.find_undeclared(tmp_path, {})
     big, small = Path("/var/cache"), Path("/tmp")
@@ -174,10 +181,10 @@ def test_uncommitted_files_in_git_paths_are_noted(
     git(repo.parent, "init", "-q", str(repo))
     git(repo, "add", "-A")
     git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init")
-    write(repo / "app" / "kept.db")          # ignored, but declared separately
-    write(repo / "app" / "kept.db-wal")      # its SQLite sidecar
-    write(repo / "app" / "stray.db")         # ignored, undeclared: noted
-    write(repo / "app" / "notes.txt")        # untracked: noted
+    write(repo / "app" / "kept.db")  # ignored, but declared separately
+    write(repo / "app" / "kept.db-wal")  # its SQLite sidecar
+    write(repo / "app" / "stray.db")  # ignored, undeclared: noted
+    write(repo / "app" / "notes.txt")  # untracked: noted
     write(repo / "app" / "__pycache__" / "main.pyc")  # build output: skipped
     write(repo / "app" / "dist" / "index.js")  # build output: skipped
     write(repo / "app" / "app.log")  # runtime file: skipped
@@ -195,7 +202,10 @@ def test_uncommitted_files_in_git_paths_are_noted(
     found = audit.uncommitted_in_git_paths(declared)
 
     sock.close()
-    assert sorted(str(p.relative_to(repo)) for p in found) == ["app/notes.txt", "app/stray.db"]
+    assert sorted(str(p.relative_to(repo)) for p in found) == [
+        "app/notes.txt",
+        "app/stray.db",
+    ]
 
 
 def test_uncommitted_note_never_fails_the_check(tmp_path: Path) -> None:
@@ -203,8 +213,12 @@ def test_uncommitted_note_never_fails_the_check(tmp_path: Path) -> None:
     write(repo / "untracked")
     git(repo.parent, "init", "-q", str(repo))
     declared_json = tmp_path / "declared.json"
-    declared_json.write_text(json.dumps({str(repo): {"backup": "git", "why": "t", "repo": "x"}}))
-    assert audit.main(["--root", str(tmp_path / "root"), "check", str(declared_json)]) == 0
+    declared_json.write_text(
+        json.dumps({str(repo): {"backup": "git", "why": "t", "repo": "x"}})
+    )
+    assert (
+        audit.main(["--root", str(tmp_path / "root"), "check", str(declared_json)]) == 0
+    )
 
 
 def test_unknown_backup_class_is_rejected(tmp_path: Path) -> None:
@@ -238,7 +252,9 @@ def test_runtime_written_files_in_watched_paths_are_noted(tmp_path: Path) -> Non
     config = tmp_path / ".config"
     write(config / "gh" / "hosts.yml")  # written at runtime: noted
     (config / "git").mkdir(parents=True)
-    (config / "git" / "config").symlink_to("/nix/store/abc-hm-git-config")  # home-manager: skipped
+    (config / "git" / "config").symlink_to(
+        "/nix/store/abc-hm-git-config"
+    )  # home-manager: skipped
     (config / "empty").mkdir()  # nothing written: skipped
     write(tmp_path / "other" / "file")  # not watched: skipped
     declared = {
@@ -254,9 +270,13 @@ def test_runtime_written_files_in_watched_paths_are_noted(tmp_path: Path) -> Non
 
 def test_watch_flag_is_loaded_from_the_nix_json(tmp_path: Path) -> None:
     declared_json = tmp_path / "declared.json"
-    declared_json.write_text(json.dumps({
-        "/a": {"backup": "ephemeral", "why": "t", "watch": True},
-        "/b": {"backup": "cache", "why": "t"},
-    }))
+    declared_json.write_text(
+        json.dumps(
+            {
+                "/a": {"backup": "ephemeral", "why": "t", "watch": True},
+                "/b": {"backup": "cache", "why": "t"},
+            }
+        )
+    )
     declared = audit.load_declared(declared_json)
     assert declared[Path("/a")].watch and not declared[Path("/b")].watch

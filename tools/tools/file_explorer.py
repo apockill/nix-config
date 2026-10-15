@@ -1,7 +1,7 @@
 import os
 import sys
 
-from asciimatics.event import KeyboardEvent
+from asciimatics.event import Event, KeyboardEvent
 from asciimatics.exceptions import ResizeScreenError, StopApplication
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
@@ -23,8 +23,8 @@ except ImportError:
 
 
 class DemoFrame(Frame):
-    def __init__(self, screen):
-        super(DemoFrame, self).__init__(
+    def __init__(self, screen: Screen) -> None:
+        super().__init__(
             screen, screen.height, screen.width, has_border=False, name="My Form"
         )
 
@@ -53,15 +53,13 @@ class DemoFrame(Frame):
         # Prepare the Frame for use.
         self.fix()
 
-    def popup(self):
+    def popup(self) -> None:
         # Just confirm whenever the user actually selects something.
         self._scene.add_effect(
-            PopUpDialog(
-                self._screen, "You selected: {}".format(self._list.value), ["OK"]
-            )
+            PopUpDialog(self._screen, f"You selected: {self._list.value}", ["OK"])
         )
 
-    def details(self):
+    def details(self) -> None:
         # If python magic is installed, provide a little more detail of the current file.
         if self._list.value:
             if os.path.isdir(self._list.value):
@@ -76,23 +74,23 @@ class DemoFrame(Frame):
         else:
             self._details.value = "--"
 
-    def process_event(self, event):
+    def process_event(self, event: Event) -> Event | None:
         # Do the key handling for this Frame.
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("q"), ord("Q"), Screen.ctrl("c")]:
                 raise StopApplication("User quit")
 
         # Now pass on to lower levels for normal handling of the event.
-        return super(DemoFrame, self).process_event(event)
+        return super().process_event(event)
 
 
-def demo(screen, old_scene):
+def demo(screen: Screen, old_scene: Scene | None) -> None:
     screen.play(
         [Scene([DemoFrame(screen)], -1)], stop_on_resize=True, start_scene=old_scene
     )
 
 
-def file_explorer():
+def file_explorer() -> None:
     last_scene = None
     while True:
         try:

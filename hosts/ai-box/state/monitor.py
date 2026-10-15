@@ -5,7 +5,9 @@ import os
 import time
 from pathlib import Path
 
-SUMMARY = Path(os.environ.get("STATE_AUDIT_DIR", "/var/lib/state-audit")) / "summary.txt"
+SUMMARY = (
+    Path(os.environ.get("STATE_AUDIT_DIR", "/var/lib/state-audit")) / "summary.txt"
+)
 # The audit runs hourly; a report older than 3 hours means it has stopped.
 STALE_SECONDS = 3 * 60 * 60  # 3 hours
 
@@ -18,7 +20,9 @@ def main() -> None:
         print("PROBLEM: no state-audit report yet (is state-audit.timer running?)")
         return
     if age > STALE_SECONDS:
-        print("PROBLEM: the state-audit report is stale; the hourly audit isn't running.")
+        print(
+            "PROBLEM: the state-audit report is stale; the hourly audit isn't running."
+        )
     print(summary)
 
 

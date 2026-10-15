@@ -1,10 +1,7 @@
-import argparse as ArgumentParser
 from pathlib import Path
 
-import colorful as cf
 
-
-def ls():
+def ls() -> None:
     """ls clone"""
     files = list(Path(".").iterdir())
     files.sort(key=lambda file: file.name)

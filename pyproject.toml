@@ -1,0 +1,21 @@
+# Lint/format settings for the Python in this repo (`just lint`, `just format`).
+# The tools/ package keeps its own pyproject.toml for packaging.
+
+[tool.black]
+target-version = ["py313"]
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+# Pyflakes + pycodestyle (ruff's defaults), plus import sorting, pyupgrade and
+# bugbear.
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.13"
+disallow_untyped_defs = true
+# Scripts run in environments (Nix shells, the distrobox) whose third-party
+# packages aren't installed where lint runs.
+ignore_missing_imports = true
+warn_unused_ignores = true
