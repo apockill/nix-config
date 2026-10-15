@@ -172,6 +172,10 @@ def extract_file_contexts(
             file=sys.stderr,
         )
 
+    def is_ignored(name: str) -> bool:
+        # ignore_regex is None when the pattern was empty or invalid (warned above).
+        return ignore_regex is not None and ignore_regex.match(name) is not None
+
     markdown_parts = ["# File Contents\n"]  # Start with the main section header
     start_dir = start_dir.resolve()  # Work with absolute paths internally
 
@@ -179,15 +183,13 @@ def extract_file_contexts(
         current_path = Path(root)
 
         # Pruning Ignored Directories
-        # ignore_regex is None if the pattern failed to compile, and this then
-        # raises AttributeError; kept as-is to avoid a behavior change.
-        dirs[:] = [d for d in dirs if not ignore_regex.match(d)]  # type: ignore[union-attr]
+        dirs[:] = [d for d in dirs if not is_ignored(d)]
 
         # Processing Files
         files.sort()
         for filename in files:
             # Check if filename itself matches an ignore pattern
-            if ignore_regex.match(filename):  # type: ignore[union-attr]  # see above
+            if is_ignored(filename):
                 continue
 
             # Include this file
