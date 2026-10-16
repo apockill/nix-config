@@ -17,6 +17,7 @@
     ./state # declared state + audit (impermanence prep)
     ./backups # restic to Google Drive
     ./vector.nix
+    ./matter # Matter controller (desk light plug)
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
