@@ -93,6 +93,10 @@ in
 
   services.hermes-agent = {
     enable = true;
+    # Puts the gateway's own hermes build on PATH (and HERMES_HOME system-wide),
+    # so scripts and apps (e.g. sites/hermes, the web dashboard) run `hermes`
+    # instead of digging the store path out of the service.
+    addToSystemPackages = true;
 
     settings = {
       # Hermes shows some hints once (e.g. the first time Alex messages while
