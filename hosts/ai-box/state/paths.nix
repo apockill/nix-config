@@ -1,9 +1,8 @@
-# Every piece of state on ai-box's root filesystem, and how it's backed up.
-# Anything not listed here is deleted on boot. Schema and classes:
-# ./default.nix.
+# State on ai-box's root filesystem, and how it's backed up. Feature modules
+# declare their own state the same way (e.g. ../sites for the web apps).
+# Anything not declared is deleted on boot. Schema and classes: ./default.nix.
 let
   hermes = "/var/lib/hermes";
-  sites = "${hermes}/sites";
 in
 {
   aiBox.state.paths = {
@@ -73,11 +72,6 @@ in
     };
 
     # --- System caches and runtime -------------------------------------------
-    # host
-    "/var/lib/apps-health" = {
-      backup = "host";
-      why = "This box's uptime and incident history (portal Status tab).";
-    };
     # cache
     "/root/.cache" = {
       backup = "cache";
@@ -299,32 +293,6 @@ in
     "${hermes}/Downloads" = {
       backup = "ephemeral";
       why = "Browser downloads; scratch.";
-    };
-
-    # --- Web apps (ai-box-apps) ----------------------------------------------
-    # git
-    "${sites}" = {
-      backup = "git";
-      repo = "github.com/ailex-agent/ai-box-apps";
-      why = "All web apps; code is committed. Runtime data inside is declared below.";
-    };
-    # restic
-    "${sites}/code/.data" = {
-      backup = "restic";
-      why = "VS Code settings and extensions.";
-    };
-    "${sites}/markets/markets.db" = {
-      backup = "restic";
-      why = "Signal Markets interests, negatives, tracked markets and alerts.";
-    };
-    "${sites}/vector/vector_credentials.json" = {
-      backup = "restic";
-      why = "Vector SDK session token (re-pairing is a hassle).";
-    };
-    # host
-    "${sites}/monitor/telemetry.db" = {
-      backup = "host";
-      why = "This box's System Monitor history.";
     };
   };
 }

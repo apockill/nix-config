@@ -6,8 +6,6 @@
 #               portal status page reads it).
 #   monitor.py  cheap Hermes cron "monitor" source: the local cron model only
 #               runs when its output changes, i.e. when an app needs Alex.
-#
-# Removing this directory (and its import) removes the whole feature.
 { pkgs, ... }:
 let
   cronPrompt = ''
