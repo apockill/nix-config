@@ -46,6 +46,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
    Apps live entirely in `ai-box-apps`. Never modify NixOS configuration or Caddy rules for individual applications. If a system change or shared package is needed, propose a PR against `nix-config` and ask Alex first.
 7. **Mobile and Foldable Support:**
    Test viewports down to narrow screens (280px–340px width, such as the Pixel 11 Pro Fold outer display). Ensure primary controls and status indicators remain visible without layout breakages or horizontal overflow.
+8. **Apps that drive hardware** (Vector, other robots, devices on the LAN): read `references/robotics-hardware-bridges.md` first. Add a rule there only after actually hitting the problem.
 
 ## Workflow
 
