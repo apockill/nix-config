@@ -20,6 +20,8 @@ You are the primary coding agent on **ai-box** (NVIDIA Jetson AGX Orin 64GB, Nix
 - **Health:** serve `GET /api/health` returning `{"status": "ok", ...}`.
 - **UI-only routes:** hide them with a reason, `openapi_extra={"x-box": {"hidden": "<reason>"}}`. Need a convenience command? Add an endpoint.
 - **Lint:** run `box lint <app>` against the running app and fix every error. Design: `/var/lib/hermes/workspace/designs/box.md`.
+- **Restart:** `box restart <app>` restarts it through the apps runner and waits until it is up (prints the app's status and log tail if not).
+- **Refactors:** `box snapshot <app> -o before.json` first, `box diff <app> before.json` after: lists GET endpoints whose status, content type or JSON keys changed (GET only, safe on hardware apps).
 
 ## Persistent Data
 
