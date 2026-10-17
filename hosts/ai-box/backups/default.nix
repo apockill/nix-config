@@ -1,7 +1,7 @@
 # Off-box backups: restic to the agent's Google Drive (ai-box/backups/restic),
 # via rclone. What's backed up is generated from the `restic` entries in
 # aiBox.state.paths (../state/paths.nix), minus nested paths declared with
-# another class.
+# another class. Paths with a `*` segment are expanded at backup time.
 #
 # Credentials live in 1Password (vault ai-assistant), fetched into RAM at boot:
 # - "Backups (ai-box)": restic password, rclone's Drive token, folder id.
@@ -46,16 +46,35 @@ let
   # Paths to back up, and nested paths of other classes to leave out.
   declared = config.aiBox.state.paths;
   resticPaths = lib.attrNames (lib.filterAttrs (_: p: p.backup == "restic") declared);
-  isInside = parent: path: lib.hasPrefix "${parent}/" path;
+  # Is `path` strictly inside `parent`? A `*` segment on either side matches
+  # any name, so a pattern counts as inside whatever its matches would be in.
+  isInside =
+    parent: path:
+    let
+      parentSegments = lib.splitString "/" parent;
+      pathSegments = lib.splitString "/" path;
+    in
+    lib.length pathSegments > lib.length parentSegments
+    && lib.all (pair: pair.fst == pair.snd || pair.fst == "*" || pair.snd == "*") (
+      lib.zipLists parentSegments pathSegments
+    );
   excluded = lib.filter (
     path: declared.${path}.backup != "restic" && lib.any (r: isInside r path) resticPaths
   ) (lib.attrNames declared);
   inSnapshot = path: "${snapshot}${path}";
+  # `path` as a shell word: each segment quoted, except `*` segments, which
+  # the shell expands. Exact paths come out as one literal word.
+  shellWord =
+    path:
+    "/"
+    + lib.concatMapStringsSep "/" (
+      segment: if segment == "*" then "*" else lib.escapeShellArg segment
+    ) (lib.tail (lib.splitString "/" path));
 
   # Files whose restore the weekly drill checks.
   drillFiles = [
     "/var/lib/hermes/.hermes/state.db"
-    "/var/lib/hermes/sites/markets/markets.db"
+    "/var/lib/hermes/sites/markets/state/markets.db"
   ];
   drillDir = "/var/tmp/restic-drill";
   restic = "${pkgs.restic}/bin/restic";
@@ -98,9 +117,12 @@ in
     rcloneConfigFile = "${secretsDir}/rclone.conf";
     initialize = true;
     # Generated at backup time so SQLite's -wal/-shm files (recent writes) are
-    # included next to declared databases, but only when they exist.
+    # included next to declared databases, but only when they exist, and so
+    # `*` segments expand to what's in the snapshot (nullglob: a pattern with
+    # no matches lists nothing; dotglob: `*` matches any name, as in the audit).
     dynamicFilesFrom = ''
-      for path in ${lib.escapeShellArgs (map inSnapshot resticPaths)}; do
+      shopt -s nullglob dotglob
+      for path in ${lib.concatMapStringsSep " " (p: shellWord (inSnapshot p)) resticPaths}; do
         echo "$path"
         for sidecar in "$path-wal" "$path-shm"; do
           if [ -e "$sidecar" ]; then echo "$sidecar"; fi
