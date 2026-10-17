@@ -82,6 +82,13 @@ let
     fi
     exec ${pkgs.gh}/bin/gh "$@"
   '';
+
+  # `box`: the CLI for the apps in sites/ (ai-box-apps). It builds each app's
+  # commands from its /openapi.json over app.sock. The code lives in the apps
+  # repo (stdlib only), so it updates with the apps rather than with a switch.
+  boxWrapper = pkgs.writeShellScriptBin "box" ''
+    exec ${pkgs.python3}/bin/python3 ${cfg.stateDir}/sites/box.py "$@"
+  '';
 in
 {
   imports = [
@@ -171,6 +178,7 @@ in
 
     extraPackages = with pkgs; [
       opVaultWrapper
+      boxWrapper
       claude-code # current release, via the overlay below
       ghWrapper
       git
