@@ -13,6 +13,9 @@ It also lists two kinds of low-key notes, which never block a reboot:
 - files written at runtime inside `watch`ed ephemeral paths, like ~/.config:
   a tool saved config there that will be lost on reboot; declare it in
   nix-config if it's worth keeping.
+
+A declared path may contain `*` as a whole segment, matching any one name
+(e.g. /var/lib/hermes/sites/*/state is every app's state directory).
 """
 
 from __future__ import annotations
@@ -64,6 +67,9 @@ RUNTIME_SUFFIXES = (".log", ".pid")
 # database covers them.
 SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
 
+# A path segment that matches any one name in a declared path.
+WILDCARD = "*"
+
 OK_SUMMARY = "OK: all state on the root filesystem is declared"
 
 
@@ -100,6 +106,13 @@ class Usage:
             self.newest,
         )
 
+    def __add__(self, other: Usage) -> Usage:
+        return Usage(
+            self.bytes + other.bytes,
+            self.files + other.files,
+            max(self.newest, other.newest),
+        )
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -120,7 +133,8 @@ class Finding:
 
 
 def load_declared(json_file: Path) -> dict[Path, Declaration]:
-    """Read the declarations Nix exports: {path: {backup, why, repo}}."""
+    """Read the declarations Nix exports: {path: {backup, why, repo}}. A
+    path may be a pattern (see `matches`)."""
     raw = json.loads(json_file.read_text())
     return {
         Path(path): Declaration(
@@ -133,26 +147,66 @@ def load_declared(json_file: Path) -> dict[Path, Declaration]:
     }
 
 
+def matches(path: Path, declared_path: Path) -> bool:
+    """Does `declared_path` name `path`? Equal segments match, and a `*`
+    segment in `declared_path` matches any one name."""
+    return len(path.parts) == len(declared_path.parts) and all(
+        part == pattern or pattern == WILDCARD
+        for part, pattern in zip(path.parts, declared_path.parts, strict=True)
+    )
+
+
+def declaration_of(path: Path, declared: Mapping[Path, Declaration]) -> Path | None:
+    """The declared path (exact, or a pattern) that names `path`, if any."""
+    if path in declared:
+        return path
+    return next((d for d in declared if WILDCARD in d.parts and matches(path, d)), None)
+
+
+def is_inside(declared_path: Path, path: Path) -> bool:
+    """Could `declared_path` name something strictly inside `path`? True when
+    its leading segments match `path`, with patterns allowed there."""
+    depth = len(path.parts)
+    return len(declared_path.parts) > depth and matches(
+        path, Path(*declared_path.parts[:depth])
+    )
+
+
 def is_covered(path: Path, declared: Mapping[Path, Declaration]) -> bool:
     """Is `path` declared, inside a declared path, or a declared SQLite
     database's sidecar file?"""
-    if any(p in declared for p in (path, *path.parents)):
+    if any(declaration_of(p, declared) for p in (path, *path.parents)):
         return True
     return any(
         path.name.endswith(suffix)
-        and path.with_name(path.name.removesuffix(suffix)) in declared
+        and declaration_of(path.with_name(path.name.removesuffix(suffix)), declared)
         for suffix in SQLITE_SIDECARS
     )
 
 
 def has_declared_descendant(path: Path, declared: Mapping[Path, Declaration]) -> bool:
-    return any(path in d.parents for d in declared)
+    return any(is_inside(d, path) for d in declared)
 
 
 def nearest_declared_parent(
     path: Path, declared: Mapping[Path, Declaration]
 ) -> Path | None:
-    return next((p for p in path.parents if p in declared), None)
+    return next(
+        (d for p in path.parents if (d := declaration_of(p, declared)) is not None),
+        None,
+    )
+
+
+def expand(declared_path: Path) -> list[Path]:
+    """The existing paths `declared_path` names: itself if it has no `*`
+    segment, else every match (`*` also matches names starting with ".")."""
+    candidates = [Path(declared_path.anchor)]
+    for part in declared_path.parts[1:]:
+        if part == WILDCARD:
+            candidates = [child for c in candidates for child in _children(c)]
+        else:
+            candidates = [c / part for c in candidates]
+    return [c for c in candidates if os.path.lexists(c)]
 
 
 def is_managed_symlink(path: Path, root: Path) -> bool:
@@ -241,9 +295,13 @@ def uncommitted_in_git_paths(declared: Mapping[Path, Declaration]) -> list[Path]
     of their own. Disposable by design; reported only so we can keep an eye on
     what accumulates."""
     found: list[Path] = []
-    for repo, decl in sorted(declared.items()):
-        if decl.backup != Backup.GIT:
-            continue
+    repos = [
+        repo
+        for declared_repo, decl in sorted(declared.items())
+        if decl.backup == Backup.GIT
+        for repo in expand(declared_repo)
+    ]
+    for repo in repos:
         # safe.directory: the audit runs as root, but the repos belong to hermes.
         result = subprocess.run(
             [
@@ -276,7 +334,7 @@ def uncommitted_in_git_paths(declared: Mapping[Path, Declaration]) -> list[Path]
             ):
                 continue
             # Declared separately inside the repo (e.g. a database as restic)?
-            inner = {p: d for p, d in declared.items() if repo in p.parents}
+            inner = {p: d for p, d in declared.items() if is_inside(p, repo)}
             if not is_covered(path, inner):
                 found.append(path)
     return found
@@ -287,9 +345,13 @@ def runtime_written(declared: Mapping[Path, Declaration]) -> dict[Path, float]:
     with their newest mtime. Files Nix generates (home-manager links into the
     store) aren't regular files, so what's left was written at runtime."""
     found: dict[Path, float] = {}
-    for path, decl in sorted(declared.items()):
-        if not decl.watch:
-            continue
+    watched = [
+        path
+        for declared_path, decl in sorted(declared.items())
+        if decl.watch
+        for path in expand(declared_path)
+    ]
+    for path in watched:
         for entry in _children(path):
             newest = _newest_regular_file(entry)
             if newest is not None:
@@ -345,11 +407,20 @@ def declared_usage(
     return own
 
 
-def _usage_of(path: Path, root: Path) -> Usage:
+def _usage_of(declared_path: Path, root: Path) -> Usage:
+    """Combined usage of every path `declared_path` names (none if nothing
+    exists yet)."""
+    usage = Usage()
+    for path in expand(declared_path):
+        usage += _usage_of_one(path, root)
+    return usage
+
+
+def _usage_of_one(path: Path, root: Path) -> Usage:
     try:
         st = path.lstat()
     except OSError:
-        return Usage()  # declared but doesn't exist (yet)
+        return Usage()  # deleted since it was expanded
     if stat.S_ISDIR(st.st_mode):
         return measure(path, st.st_dev, root)
     return Usage(st.st_size, 1, st.st_mtime)
@@ -402,7 +473,7 @@ def cmd_report(root: Path, declared: Mapping[Path, Declaration], out_dir: Path) 
                 "backup": decl.backup,
                 "why": decl.why,
                 "repo": decl.repo,
-                "exists": os.path.lexists(path),
+                "exists": bool(expand(path)),
                 "bytes": usage[path].bytes,
                 "files": usage[path].files,
             }

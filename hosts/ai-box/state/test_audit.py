@@ -280,3 +280,66 @@ def test_watch_flag_is_loaded_from_the_nix_json(tmp_path: Path) -> None:
     )
     declared = audit.load_declared(declared_json)
     assert declared[Path("/a")].watch and not declared[Path("/b")].watch
+
+
+def test_pattern_segment_covers_any_one_name(tmp_path: Path) -> None:
+    write(tmp_path / "sites" / "a" / "state" / "db.sqlite")
+    write(tmp_path / "sites" / ".hidden" / "state" / "f")
+    write(tmp_path / "sites" / "b" / "other")  # not the declared segment
+    write(tmp_path / "sites" / "b" / "deep" / "state" / "f")  # one level too deep
+    declared = {tmp_path / "sites" / "*" / "state": decl()}
+    assert undeclared(tmp_path, declared) == ["sites/b/deep", "sites/b/other"]
+
+
+def test_sqlite_sidecars_are_covered_under_a_pattern(tmp_path: Path) -> None:
+    write(tmp_path / "apps" / "a" / "data.db-wal")
+    write(tmp_path / "apps" / "a" / "other.db-wal")
+    declared = {tmp_path / "apps" / "*" / "data.db": decl()}
+    assert undeclared(tmp_path, declared) == ["apps/a/other.db-wal"]
+
+
+def test_descendants_are_found_through_a_pattern(tmp_path: Path) -> None:
+    declared = {tmp_path / "sites" / "*" / "state": decl()}
+    assert audit.has_declared_descendant(tmp_path / "sites" / "a", declared)
+    assert audit.has_declared_descendant(tmp_path / "sites", declared)
+    assert not audit.has_declared_descendant(
+        tmp_path / "sites" / "a" / "state", declared
+    )
+    assert not audit.has_declared_descendant(tmp_path / "other" / "a", declared)
+
+
+def test_exact_declarations_dont_match_as_patterns(tmp_path: Path) -> None:
+    declared = {tmp_path / "a" / "b": decl()}
+    assert audit.is_covered(tmp_path / "a" / "b" / "c", declared)
+    assert not audit.is_covered(tmp_path / "a" / "x", declared)
+    assert not audit.is_covered(tmp_path / "a", declared)
+
+
+def test_pattern_usage_sums_its_matches(tmp_path: Path) -> None:
+    write(tmp_path / "sites" / "a" / "state" / "f", size=3)
+    write(tmp_path / "sites" / "b" / "state" / "f", size=4)
+    write(tmp_path / "sites" / "b" / "state" / "cache" / "f", size=100)
+    write(tmp_path / "sites" / "c" / "code", size=1000)  # no state dir
+    pattern = tmp_path / "sites" / "*" / "state"
+    cache = tmp_path / "sites" / "b" / "state" / "cache"
+    usage = audit.declared_usage({pattern: decl(), cache: decl(Backup.CACHE)}, tmp_path)
+    assert usage[pattern].bytes == 7
+    assert usage[cache].bytes == 100
+    assert audit.expand(tmp_path / "nothing" / "*") == []
+
+
+def test_declarations_under_a_pattern_count_inside_git_repos(tmp_path: Path) -> None:
+    repo = tmp_path / "sites"
+    write(repo / "app" / "main.py")
+    write(repo / ".gitignore").write_text("state/\n")
+    git(repo.parent, "init", "-q", str(repo))
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init")
+    write(repo / "app" / "state" / "db")  # ignored, declared by the pattern
+    write(repo / "app" / "notes.txt")  # untracked: noted
+    declared = {
+        repo: Declaration(backup=Backup.GIT, why="t", repo="example"),
+        repo / "*" / "state": decl(),
+    }
+    found = audit.uncommitted_in_git_paths(declared)
+    assert [str(p.relative_to(repo)) for p in found] == ["app/notes.txt"]

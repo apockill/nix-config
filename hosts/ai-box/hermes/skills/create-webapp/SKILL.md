@@ -33,13 +33,20 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
    Scaffold from existing templates in `/var/lib/hermes/sites/_templates/` rather than starting from scratch:
    - Full-stack modern apps (React 19 + Vite + Tailwind + Lucide + FastAPI): see [`_templates/backend/README.md`](/var/lib/hermes/sites/_templates/backend/README.md).
    - Static viewer / dashboard: see [`_templates/static/README.md`](/var/lib/hermes/sites/_templates/static/README.md).
-3. **App Metadata:** Every app must have a valid `meta.json` (`title`, `description`, `icon`, `type`) in its root.
+3. **App Metadata:** Every app must have a valid `meta.json` (`title`, `description`, `icon`, `type`) in its root. An app that wraps a third-party server we don't write (code-server, noVNC, the Hermes dashboard) also sets `"upstream": "<what it wraps>"`.
+3a. **An app's API is its CLI (`box`).** `sites/box.py` generates a command for every `/api` route of every FastAPI backend from its `/openapi.json` over `app.sock` (`box <app> --help`, `box <app> <cmd> --flag`, `box <app> api METHOD PATH`). Alex wants every useful UI action usable by an LLM this way, without a browser. So for every backend:
+   - FastAPI only; every `/api` route has a one-sentence imperative docstring (it becomes `--help`); `GET /api/health` exists.
+   - Need a convenience or composite command? Add an API endpoint; the UI can use it too. Never write CLI-side code per app.
+   - UI-only routes: pages outside `/api` get `include_in_schema=False`; UI-only `/api` routes (video streams) get `openapi_extra={"x-box": {"hidden": "<reason>"}}`. Override an awkward command name with `{"x-box": {"command": "..."}}`.
+   - Run `box lint <app>` after any backend change (it checks a running app, so restart first). Use `box` instead of `curl --unix-socket` for checks and for operating apps.
+   - Spec and naming rules (CRUD mapping, output format): `/var/lib/hermes/workspace/designs/box.md`.
 4. **Portless Socket Binding:** Server backends bind to `./app.sock`. Never hardcode TCP ports in web servers.
-5. **One instance per app, owned by the runner:** `ai-box-apps-runner` launches, health-checks, and heals every app (see `hosts/ai-box/apps-runner/` in nix-config). Never start a second copy (`python main.py`, `./start.sh`) by hand: when it exits, it deletes the shared `app.sock` and the live app goes dark (this broke vector and markets once). Test backend logic with imports or FastAPI's `TestClient`. To pick up code changes, run `touch <app>/.runner.restart` (doesn't count against the healing cap). Don't kill the PID; that counts as a crash.
+5. **One instance per app, owned by the runner:** `ai-box-apps-runner` launches, health-checks, and heals every app (see `hosts/ai-box/sites/runner.nix` in nix-config). Never start a second copy (`python main.py`, `./start.sh`) by hand: when it exits, it deletes the shared `app.sock` and the live app goes dark (this broke vector and markets once). Test backend logic with imports or FastAPI's `TestClient`. To pick up code changes, run `touch <app>/.runner.restart` (doesn't count against the healing cap). Don't kill the PID; that counts as a crash.
 6. **Dotfiles Boundary:**
    Apps live entirely in `ai-box-apps`. Never modify NixOS configuration or Caddy rules for individual applications. If a system change or shared package is needed, propose a PR against `nix-config` and ask Alex first.
 7. **Mobile and Foldable Support:**
    Test viewports down to narrow screens (280px–340px width, such as the Pixel 11 Pro Fold outer display). Ensure primary controls and status indicators remain visible without layout breakages or horizontal overflow.
+8. **Apps that drive hardware** (Vector, other robots, devices on the LAN): read `references/robotics-hardware-bridges.md` first. Add a rule there only after actually hitting the problem.
 
 ## Workflow
 
@@ -63,7 +70,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
    - For backends: verify `./start.sh` starts and `curl -s --unix-socket ./app.sock http://localhost/` returns 200.
    - For public routing: test over Cloudflare Access with service tokens.
    - For visuals: navigate Chromium via CDP, capture screenshot, and verify layout with `vision_analyze`.
-4. Commit: `git add <app-name> && git commit -m "feat(<app-name>): initial implementation"`.
+4. Commit: `git add <app-name> && git commit -m "feat(<app-name>): initial implementation"`. Stage only your own paths: the live checkout carries runtime churn (tracked `.pyc` files, Wire-Pod logs and jdocs) that must not ride along.
 
 ### Modifying an Existing App
 
@@ -72,12 +79,21 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 3. If the backend process was modified, restart the process to clear in-memory caches.
 4. Verify endpoints over the Unix domain socket and inspect the rendered visual state in Chromium before committing.
 
+### Repo-wide changes (several apps, shared tooling)
+
+1. Develop on a branch in a git worktree (`git worktree add -b <branch> <scratch-dir> main`), never in the live checkout; delegate to Claude Code with a brief that forbids restarting apps, touching the live checkout, non-GET requests to live sockets (Vector moves a physical robot) and pushing.
+2. Before merging, snapshot each app's GET responses (status code and key shape per endpoint) and each UI's status: `bash ~/.hermes/skills/create-webapp/scripts/api-baseline.sh snap <app> <dir> <paths...>`. Run `check` against the still-old apps once to prove the comparison itself is sound before restarting anything.
+3. `git merge --ff-only <branch>` into the live checkout (a merge doesn't trigger the push hook), then restart apps one at a time with `bash ~/.hermes/skills/create-webapp/scripts/restart-app.sh <app>` (check `hermes kanban list --status running` first for apps a worker is using). After each: `bash ~/.hermes/skills/create-webapp/scripts/api-baseline.sh check <app> <dir>`, `box lint <app>`, and one or two read-only `box <app> ...` commands.
+4. Only when every app passes: `git push origin main`, then remove the worktree and branch.
+- **Moving an app's data** (e.g. into `state/`): move it by hand and write the repo as if it had always been that way. No migration code in `start.sh` or the app (Alex doesn't want vestigial code). `chmod -x <app>/start.sh` makes the runner stop the app (SIGTERM to its process group, then wait; it drops out of `status.json`); move the files; `chmod +x` relaunches it. Never move files under a running app: it reopens paths and recreates empty files at the old location.
+
 ## Troubleshooting
 
 - **404 on Subdomain:**
   Caddy checks for an executable `start.sh` in the app root to route traffic to `app.sock`. Ensure `start.sh` exists and has executable permissions (`chmod +x start.sh`).
 - **502 Bad Gateway:**
   The backend is down or its socket is gone. The runner heals this on its own within ~2–5 min. Check `/var/lib/apps-health/status.json`, the portal's Status tab, and `app.log`.
+- **Never commit ignored artifacts** (`node_modules`, `__pycache__`): `nix develop` copies the tracked tree into the store whenever the checkout changed, and with ~24k `node_modules` files tracked plus `.pyc` churn, every first restart sat in `starting` for ~4 min (nix-daemon at 100% CPU). `git ls-files -ci --exclude-standard` lists offenders; untrack with `git rm --cached`.
 - **App marked `failed`:** auto-healing gave up after 3 restarts in an hour, and the `apps-health` cron job (local Gemma) pinged Alex. Fix the cause, then re-arm: delete `<app>/.runner.failed` or commit a change to the app.
 - **Cloudflare Access Verification:**
   Include `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers when making automated curl checks against `*.alexthiele.io`.

@@ -22,6 +22,10 @@
 #
 # A nested path with a different class overrides its parent (e.g. a cache
 # folder inside a restic folder is excluded from backups).
+#
+# A path segment may be `*`, matching any one directory name, so a feature can
+# declare one path for many directories: "/var/lib/hermes/sites/*/state" is
+# every web app's state. No other glob syntax is allowed.
 {
   config,
   lib,
@@ -92,6 +96,18 @@ in
         {
           assertion = lib.hasPrefix "/" path && !(lib.hasSuffix "/" path) && path != "/";
           message = "aiBox.state.paths.\"${path}\": must be absolute, not '/', without a trailing slash.";
+        }
+        {
+          assertion = lib.all (
+            segment:
+            segment == "*"
+            || !(lib.any (c: lib.hasInfix c segment) [
+              "*"
+              "?"
+              "["
+            ])
+          ) (lib.splitString "/" path);
+          message = "aiBox.state.paths.\"${path}\": a segment may be exactly `*` (any one name); no other `*`, `?` or `[`.";
         }
         {
           assertion = lib.stringLength (lib.trim p.why) > 0;

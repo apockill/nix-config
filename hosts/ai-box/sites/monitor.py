@@ -1,4 +1,4 @@
-"""Cron monitor source for app health (see hosts/ai-box/apps-runner).
+"""Cron monitor source for app health (see hosts/ai-box/sites/runner.nix).
 
 Prints a stable summary of anything that needs Alex. Hermes runs the cron
 model only when this output changes, so it must not contain timestamps or

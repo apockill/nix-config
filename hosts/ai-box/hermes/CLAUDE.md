@@ -12,6 +12,19 @@ You are the primary coding agent on **ai-box** (NVIDIA Jetson AGX Orin 64GB, Nix
   - Python and system packages via the app's local `flake.nix`.
 - **Templates:** Always scaffold from `/var/lib/hermes/sites/_templates/`. For full-stack applications with React 19, Tailwind, Lucide, and FastAPI, follow [`_templates/backend/README.md`](/var/lib/hermes/sites/_templates/backend/README.md).
 
+## `box`: Every App's API Is Its CLI
+
+`box` (`/var/lib/hermes/sites/box.py`) generates a command for every `/api` route of every backend app (`box vector --help`, `box vector state`). Use it to operate apps instead of the browser. When building or changing a backend:
+
+- **Docstrings:** every route handler gets one short sentence saying what it does; it becomes the command's `--help`.
+- **Health:** serve `GET /api/health` returning `{"status": "ok", ...}`.
+- **UI-only routes:** hide them with a reason, `openapi_extra={"x-box": {"hidden": "<reason>"}}`. Need a convenience command? Add an endpoint.
+- **Lint:** run `box lint <app>` against the running app and fix every error. Design: `/var/lib/hermes/workspace/designs/box.md`.
+
+## Persistent Data
+
+Keep every file an app must not lose (databases, settings, credentials) in `<app>/state/`, created at startup. It is gitignored and backed up nightly; anything else uncommitted in an app folder is disposable.
+
 ## Design Standards
 
 Every dashboard and web application must be visually dense, polished, and purposeful:
