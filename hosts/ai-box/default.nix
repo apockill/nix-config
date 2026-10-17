@@ -16,6 +16,7 @@
     ./state # declared state + audit (impermanence prep)
     ./backups # restic to Google Drive
     ./vector.nix
+    ./matter.nix
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
