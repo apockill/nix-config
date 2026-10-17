@@ -6,7 +6,8 @@
 #               files.
 #   runner.nix  launches, health-checks and heals the apps (runner.py), and
 #               alerts Alex when one fails (monitor.py).
-#   below       the `box` CLI for the agent and the apps' declared state.
+#   below       the `box` CLI for the agent, and the apps' declared state: each
+#               app keeps its persistent data in its own state/ directory.
 #
 # Removing this directory (and its import) removes the whole feature.
 { config, pkgs, ... }:
@@ -36,23 +37,11 @@ in
       why = "All web apps; code is committed. Runtime data inside is declared below.";
     };
     # restic
-    "${sites}/code/.data" = {
+    "${sites}/*/state" = {
       backup = "restic";
-      why = "VS Code settings and extensions.";
-    };
-    "${sites}/markets/markets.db" = {
-      backup = "restic";
-      why = "Signal Markets interests, negatives, tracked markets and alerts.";
-    };
-    "${sites}/vector/vector_credentials.json" = {
-      backup = "restic";
-      why = "Vector SDK session token (re-pairing is a hassle).";
+      why = "Each app's persistent data (databases, settings, credentials), kept in <app>/state/ (gitignored in ai-box-apps).";
     };
     # host
-    "${sites}/monitor/telemetry.db" = {
-      backup = "host";
-      why = "This box's System Monitor history.";
-    };
     "/var/lib/apps-health" = {
       backup = "host";
       why = "This box's uptime and incident history (portal Status tab).";
