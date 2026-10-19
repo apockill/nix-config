@@ -89,9 +89,9 @@ in
       backup = "cache";
       why = "Stamps for installing SOUL/AGENTS/CLAUDE.md; if lost, the repo versions are reinstalled.";
     };
-    "/var/lib/llama-cpp" = {
+    "/var/lib/private/llama-cpp" = {
       backup = "cache";
-      why = "llama-cpp service state.";
+      why = "llama-cpp service state (StateDirectory of a DynamicUser service; /var/lib/llama-cpp is systemd's symlink to it).";
     };
     "/var/lib/logrotate.status" = {
       backup = "cache";

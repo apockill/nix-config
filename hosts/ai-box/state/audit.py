@@ -38,7 +38,9 @@ from typing import Literal
 MAX_LISTED = 200
 
 # Symlinks pointing into these are recreated at boot or by NixOS activation
-# (e.g. /etc/localtime -> /etc/zoneinfo/..., /var/run -> ../run), so they
+# (e.g. /etc/localtime -> /etc/zoneinfo/..., /var/run -> ../run), or by
+# systemd when a DynamicUser service starts (/var/lib/<name> ->
+# private/<name>; the data itself lives under /var/lib/private), so they
 # aren't state.
 MANAGED_LINK_PREFIXES = (
     "/etc/static/",
@@ -46,6 +48,7 @@ MANAGED_LINK_PREFIXES = (
     "/proc/",
     "/run/",
     "../run",
+    "private/",
 )
 
 # Links into the Nix store are recreated only in the system directories NixOS
