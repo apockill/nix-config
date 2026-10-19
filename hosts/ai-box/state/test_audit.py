@@ -65,6 +65,18 @@ def test_managed_symlinks_are_ignored_but_others_are_reported(tmp_path: Path) ->
     assert undeclared(tmp_path, {}) == ["handmade"]
 
 
+def test_dynamic_user_state_is_judged_by_its_private_dir(tmp_path: Path) -> None:
+    """systemd recreates /var/lib/<name> -> private/<name> for DynamicUser
+    services; only the data under /var/lib/private needs a declaration."""
+    lib = tmp_path / "var" / "lib"
+    write(lib / "private" / "kept" / "state.db")
+    write(lib / "private" / "leftover" / "fabric.json")
+    (lib / "kept").symlink_to("private/kept")
+    (lib / "leftover").symlink_to("private/leftover")
+    declared = {tmp_path / "var" / "lib" / "private" / "kept": decl(Backup.CACHE)}
+    assert undeclared(tmp_path, declared) == ["var/lib/private/leftover"]
+
+
 def test_store_links_are_managed_only_in_system_dirs(tmp_path: Path) -> None:
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "sshd_config").symlink_to("/nix/store/abc-sshd_config")
