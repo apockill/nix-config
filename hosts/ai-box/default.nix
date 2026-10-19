@@ -17,6 +17,7 @@
     ./backups # restic to Google Drive
     ./vector.nix
     ./matter.nix
+    ./display.nix
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
