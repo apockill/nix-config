@@ -24,9 +24,22 @@ let
   '';
 in
 {
+  # After a power cut ai-box boots with its clock at 1970 until NTP sets it, and the
+  # runner's uptime history then gets 1970 timestamps (seen on the 2026-10-18 and -20 boots).
+  # Start it once the clock is synchronized; give up waiting after 5 min (no network).
+  systemd.additionalUpstreamSystemUnits = [ "systemd-time-wait-sync.service" ];
+  systemd.services.systemd-time-wait-sync = {
+    wantedBy = [ "sysinit.target" ];
+    serviceConfig.TimeoutStartSec = "5min";
+  };
+
   systemd.services.ai-box-apps-runner = {
     description = "Supervisor and health recorder for ai-box web apps";
-    after = [ "network.target" ];
+    after = [
+      "network.target"
+      "time-sync.target"
+    ];
+    wants = [ "time-sync.target" ];
     wantedBy = [ "multi-user.target" ];
     path = [
       pkgs.bash
