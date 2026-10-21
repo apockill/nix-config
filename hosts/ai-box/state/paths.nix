@@ -198,6 +198,11 @@ in
       repo = "github.com/apockill/nix-config";
       why = "Agent's clone of this repo.";
     };
+    "${hermes}/projects/syseng-spec-dev" = {
+      backup = "git";
+      repo = "github.com/apockill/syseng-spec-dev";
+      why = "Long-term development project; ${hermes}/projects/ holds one clone per project.";
+    };
     # restic
     "${hermes}/.anki_vector" = {
       backup = "restic";
