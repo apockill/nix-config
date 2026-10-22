@@ -19,6 +19,7 @@
     ./matter.nix
     ./display.nix
     ./robotics
+    ./projects
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
