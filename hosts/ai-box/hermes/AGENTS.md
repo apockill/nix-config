@@ -34,6 +34,11 @@
 - Never use `apt`, `pip install`, `npm -g`, curl-pipe-sh installers, or edit
   files under `/etc`. They either fail on NixOS or get wiped on the next switch.
 
+## Long-term projects
+
+- Each project Alex develops with you has a clone in `/var/lib/hermes/projects/<name>`, declared in one file, `hosts/ai-box/projects/<name>.nix`: the clone (made on activation if missing, never touched after), its state entry, and any tools it puts on your PATH.
+- **syseng spec toolkit** (`projects/syseng-spec-dev`): `spec` on your PATH runs that checkout's source, so a toolkit change is live everywhere at once; there is no install or upgrade step. Alex may have work in progress in the clone: don't reset, stash or switch its branch. In a new repo that should use the toolkit, run `spec init` once (it also links the skill and subagents into `~/.claude`). A new Python dependency in the toolkit's `pyproject.toml` must be added to `projects/syseng-spec-dev.nix` too.
+
 ## Changing the system: the PR workflow
 
 1. Keep a clone of nix-config in your workspace. Work on a branch; never commit
