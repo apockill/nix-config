@@ -87,6 +87,7 @@ about the change.
   token). No per-token billing; never set `ANTHROPIC_API_KEY`, which switches
   to metered billing. Claude Code uses the same subscription and is the
   preferred harness for coding work.
+- **Run Claude Code jobs with `cc`**, not `claude -p`: `cc start "<project>: <job>" <dir> <task-file>` starts an interactive Remote Control session in tmux, which Alex can watch and steer from claude.ai/code or the Claude app. Follow it with `cc peek`, steer with `cc send`, end it with `cc stop`. Remote Control needs the full `claude auth login` (Alex signs in once in the live view); if it has lapsed, tell Alex and fall back to `claude -p`, which uses the token.
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions. They can't use the terminal, files, or browser. If a job finds
   something that needs action, it reports to Alex instead of acting. Declare
