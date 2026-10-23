@@ -6,9 +6,15 @@
 # ~/.claude/.credentials.json); the long-lived CLAUDE_CODE_OAUTH_TOKEN can't
 # open Remote Control sessions and takes precedence, so jobs run without it.
 # Plain `claude -p` keeps using the token, as the fallback when the login lapses.
-{ config, pkgs, ... }:
+#
+# The tmux server runs as its own service (cc-tmux), not under the agent: a
+# gateway restart (every switch, including the hourly upgrade) killed jobs
+# whose tmux lived in hermes-agent's cgroup. A switch doesn't restart it either.
+{ config, lib, pkgs, ... }:
 let
   cfg = config.services.hermes-agent;
+  sock = "/run/cc-tmux/sock";
+  tmux = "${pkgs.tmux}/bin/tmux -S ${sock}";
 
   cc = pkgs.writeShellApplication {
     name = "cc";
@@ -31,6 +37,7 @@ let
         exit 2
       }
 
+      tmux() { command tmux -S ${sock} "$@"; }
       slug() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'; }
 
       cmd=''${1:-}
@@ -53,8 +60,10 @@ let
           jq --arg d "$dir" '.projects[$d].hasTrustDialogAccepted = true' "$conf" >"$tmp"
           chmod 600 "$tmp"
           mv "$tmp" "$conf"
+          # The server's environment is the service's; pass the caller's non-secret basics.
           tmux new-session -d -s "$s" -x 200 -y 50 -c "$dir" \
-            env -u CLAUDE_CODE_OAUTH_TOKEN claude --remote-control "$name" "$task"
+            -e "PATH=$PATH" -e "HOME=$HOME" -e "TMPDIR=''${TMPDIR:-/tmp}" -e "LANG=''${LANG:-C.UTF-8}" \
+            claude --remote-control "$name" "$task"
           # Keep the pane after claude exits, so its last screen can still be read.
           tmux set-option -t "$s" remain-on-exit on >/dev/null
           echo "session: $s"
@@ -85,7 +94,7 @@ let
           tmux capture-pane -p -J -t "=$1:" | grep -v '^[[:space:]]*$' | tail -n "''${2:-40}"
           ;;
         list)
-          tmux list-sessions -F '#{session_name} #{?pane_dead,exited,running} since #{t:session_created}' 2>/dev/null || echo "no jobs"
+          tmux list-sessions -F '#{session_name} #{?pane_dead,exited,running} since #{t:session_created}' 2>/dev/null | grep -v '^_keep ' || echo "no jobs"
           ;;
         stop)
           [ $# -eq 1 ] || usage
@@ -98,4 +107,29 @@ let
 in
 {
   services.hermes-agent.extraPackages = [ cc ];
+
+  systemd.services.cc-tmux = {
+    description = "tmux server for the agent's Claude Code jobs (cc)";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    # Updating the unit must not end running jobs; the new one applies on the next start.
+    restartIfChanged = false;
+    environment = {
+      HOME = cfg.stateDir;
+      PATH = lib.mkForce "/run/wrappers/bin:/etc/profiles/per-user/${cfg.user}/bin:/run/current-system/sw/bin";
+    };
+    serviceConfig = {
+      User = cfg.user;
+      Group = cfg.group;
+      Type = "forking";
+      RuntimeDirectory = "cc-tmux";
+      RuntimeDirectoryMode = "0700";
+      WorkingDirectory = cfg.stateDir;
+      # A placeholder session keeps the server up with no jobs.
+      ExecStart = "${tmux} new-session -d -s _keep ${pkgs.coreutils}/bin/sleep infinity";
+      ExecStop = "${tmux} kill-server";
+      Restart = "on-failure";
+    };
+  };
 }
