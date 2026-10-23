@@ -226,7 +226,7 @@ in
     };
     "${hermes}/.claude" = {
       backup = "cache";
-      why = "Claude Code session history; handy across reboots, not needed on a new box.";
+      why = "Claude Code session history and its claude.ai login (Remote Control; cc.nix); handy across reboots, not needed on a new box (sign in again).";
     };
     "${hermes}/.hermes/cache" = {
       backup = "cache";
