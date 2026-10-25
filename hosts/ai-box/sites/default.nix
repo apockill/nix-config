@@ -6,6 +6,8 @@
 #               files.
 #   runner.nix  launches, health-checks and heals the apps (runner.py), and
 #               alerts Alex when one fails (monitor.py).
+#   desklab-calibration.nix  tells Alex on Discord when desklab's calibration
+#               pipeline pauses for a decision.
 #   below       the `box` CLI for the agent, and the apps' declared state: each
 #               app keeps its persistent data in its own state/ directory.
 #
@@ -25,6 +27,7 @@ in
   imports = [
     ./caddy.nix
     ./runner.nix
+    ./desklab-calibration.nix
   ];
 
   services.hermes-agent.extraPackages = [ boxWrapper ];
