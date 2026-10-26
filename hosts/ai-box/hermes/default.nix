@@ -56,18 +56,8 @@ let
     CF_ACCESS_CLIENT_ID={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_id }}
     CF_ACCESS_CLIENT_SECRET={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_secret }}
 
-    # Email gateway: mail to the agent's Gmail is a message to Hermes, like
-    # Discord. Only allowlisted, authenticated senders get through ("Email
-    # allowlist", owned by Alex, kept out of this public repo); the gateway also
-    # drops automated (no-reply, bulk) senders and unauthenticated From:.
-    EMAIL_ADDRESS=ailex.agent.bot@gmail.com
-    EMAIL_PASSWORD={{ op://ai-assistant/2rc2yvkz6qo4xvcftyyenvvpk4/password }}
-    EMAIL_IMAP_HOST=imap.gmail.com
-    EMAIL_SMTP_HOST=smtp.gmail.com
-    # Sender authentication trusts only Gmail's own Authentication-Results;
-    # without this pin the gateway rejects every sender (fail-closed).
-    EMAIL_AUTHSERV_ID=mx.google.com
-    EMAIL_ALLOWED_USERS={{ op://ai-assistant/ej3omo5n7ljkuttiav3xfvj6lq/password }}
+    ${config.aiBox.hermesSecrets}
+
   '';
 
   # Upstream Hermes bug (NousResearch/hermes-agent issue #108335 / PR #129628):
@@ -96,16 +86,6 @@ let
     exec ${pkgs.gh}/bin/gh "$@"
   '';
 
-  # Sessions that didn't start on Discord (email, cron-free scripts) can't post
-  # there: `hermes send` needs the bot token, which only the gateway's
-  # environment has. This reads it (and the home channel) from the secrets file
-  # for the one call, like ghWrapper. `notify-alex "text"` posts to Alex's DM.
-  notifyAlex = pkgs.writeShellScriptBin "notify-alex" ''
-    set -a
-    eval "$(${pkgs.gnugrep}/bin/grep -E '^DISCORD_(BOT_TOKEN|HOME_CHANNEL)=' ${secretsDir}/env)"
-    set +a
-    exec hermes send --quiet --to discord "$@"
-  '';
 in
 {
   imports = [
@@ -114,6 +94,15 @@ in
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
     ./cc # cc: Claude Code jobs as Remote Control sessions
     ./home.nix # home-manager: git, gh, Claude Code settings
+    ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
+    {
+      # More `op inject` lines for the secrets file from feature modules (e.g.
+      # ./email.nix): vault references only, never secrets.
+      options.aiBox.hermesSecrets = lib.mkOption {
+        type = lib.types.lines;
+        default = "";
+      };
+    }
   ];
 
   services.hermes-agent = {
@@ -198,7 +187,6 @@ in
       opVaultWrapper
       claude-code # current release, via the overlay below
       ghWrapper
-      notifyAlex
       git
       jq
       just
