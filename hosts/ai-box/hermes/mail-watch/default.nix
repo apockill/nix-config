@@ -77,6 +77,17 @@ in
     };
   };
 
+  # `agent-mail list | archive UID.. | snooze UID YYYY-MM-DD`: Hermes' inbox
+  # actions (skill: agent-mail). Reads only the app password from the secrets
+  # file, like ghWrapper does for GH_TOKEN.
+  services.hermes-agent.extraPackages = [
+    (pkgs.writeShellScriptBin "agent-mail" ''
+      MAIL_APP_PASSWORD=$(${pkgs.gnused}/bin/sed -n 's/^MAIL_APP_PASSWORD=//p' /run/hermes-secrets/env)
+      export MAIL_APP_PASSWORD
+      exec ${pkgs.python3}/bin/python3 ${./mail_watch.py} "$@"
+    '')
+  ];
+
   systemd.services.mail-watch = {
     description = "Wake Hermes on new email (IMAP -> Gemma triage -> webhook)";
     wantedBy = [ "multi-user.target" ];

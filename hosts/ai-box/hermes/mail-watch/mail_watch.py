@@ -138,7 +138,41 @@ def post(route: str, payload: dict[str, Any]) -> None:
         log(f"  -> {route}: HTTP {resp.status}")
 
 
-def handle(uid: int, uidvalidity: int, raw: bytes, trusted: set[str]) -> None:
+SNOOZE_PREFIX = "Snoozed/"
+
+
+def archive(m: imaplib.IMAP4, uid: int) -> None:
+    """Gmail archive, with INBOX selected: move the message out of the inbox (it stays
+    in All Mail). Storing -X-GM-LABELS Inbox is a silent no-op from inside INBOX."""
+    typ, d = m.uid("MOVE", str(uid), '"[Gmail]/All Mail"')
+    if typ != "OK":
+        raise OSError(f"archive {uid}: {d}")
+
+
+def wake_snoozed(m: imaplib.IMAP4) -> None:
+    """Snoozed mail is archived with a label Snoozed/YYYY-MM-DD; on or after that date it
+    goes back to the inbox (Gmail's own snooze isn't reachable over IMAP)."""
+    today = time.strftime("%Y-%m-%d")
+    typ, boxes = m.list('""', f'"{SNOOZE_PREFIX}*"')
+    for b in boxes or []:
+        if not isinstance(b, bytes):
+            continue
+        mm = re.search(rb'"?(Snoozed/(\d{4}-\d{2}-\d{2}))"?\s*$', b)
+        if not mm or mm.group(2).decode() > today:
+            continue
+        label = mm.group(1).decode()
+        m.select(f'"{label}"')
+        typ, data = m.uid("search", "ALL")
+        for u in data[0].split() if data and data[0] else []:
+            m.uid("store", u.decode(), "+X-GM-LABELS", "(\\Inbox)")
+            log(f"snooze {label}: uid {u.decode()} back to the inbox")
+        m.select("INBOX")
+        m.delete(f'"{label}"')  # drops the label from its messages too
+
+
+def handle(
+    m: imaplib.IMAP4, uid: int, uidvalidity: int, raw: bytes, trusted: set[str]
+) -> None:
     msg = email.message_from_bytes(raw, policy=email.policy.default)
     assert isinstance(msg, EmailMessage)
     sender = str(msg.get("From", ""))
@@ -164,6 +198,8 @@ def handle(uid: int, uidvalidity: int, raw: bytes, trusted: set[str]) -> None:
     payload["reason"] = reason
     log(f"  gemma: needs_hermes={needs} ({reason})")
     post("mail-flagged" if needs else "mail-ignored", payload)
+    if not needs:
+        archive(m, uid)  # inbox zero: only actionable mail stays
 
 
 def run_once(state: dict[str, Any]) -> None:
@@ -172,7 +208,8 @@ def run_once(state: dict[str, Any]) -> None:
     m = imaplib.IMAP4_SSL("imap.gmail.com", 993)
     try:
         m.login(USER, pw)
-        m.select("INBOX", readonly=True)
+        wake_snoozed(m)
+        m.select("INBOX")  # read-write to archive; BODY.PEEK keeps mail unread
         uv = int(m.response("UIDVALIDITY")[1][0])
         typ, data = m.uid("search", "ALL")
         uids = [int(u) for u in data[0].split()] if data and data[0] else []
@@ -187,7 +224,7 @@ def run_once(state: dict[str, Any]) -> None:
             typ, d = m.uid("fetch", str(uid), "(BODY.PEEK[])")
             raw = next((p[1] for p in d if isinstance(p, tuple)), None)
             if raw:
-                handle(uid, uv, raw, trusted)
+                handle(m, uid, uv, raw, trusted)
             state["last_uid"] = uid
             save_state(state)
     finally:
@@ -197,7 +234,50 @@ def run_once(state: dict[str, Any]) -> None:
             pass
 
 
+def command(args: list[str]) -> None:
+    """`agent-mail list|archive UID..|snooze UID YYYY-MM-DD`: Hermes' inbox actions."""
+    m = imaplib.IMAP4_SSL("imap.gmail.com", 993)
+    m.login(USER, os.environ["MAIL_APP_PASSWORD"])
+    m.select("INBOX")
+    try:
+        if args[0] == "list":
+            typ, data = m.uid("search", "ALL")
+            for u in data[0].split() if data and data[0] else []:
+                typ, d = m.uid(
+                    "fetch",
+                    u.decode(),
+                    "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])",
+                )
+                h = next((p[1] for p in d if isinstance(p, tuple)), b"")
+                hm = email.message_from_bytes(h, policy=email.policy.default)
+                print(
+                    f"{u.decode()}\t{hm.get('Date', '')}\t{hm.get('From', '')}\t{hm.get('Subject', '')}"
+                )
+        elif args[0] == "archive":
+            for u in args[1:]:
+                archive(m, int(u))
+                print(f"archived {u}")
+        elif args[0] == "snooze":
+            u, day = args[1], args[2]
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+                raise SystemExit("date must be YYYY-MM-DD")
+            m.create(f'"{SNOOZE_PREFIX}{day}"')
+            typ, d = m.uid("MOVE", u, f'"{SNOOZE_PREFIX}{day}"')
+            if typ != "OK":
+                raise OSError(f"snooze {u}: {d}")
+            print(f"snoozed {u} until {day}")
+        else:
+            raise SystemExit(
+                "usage: agent-mail list | archive UID.. | snooze UID YYYY-MM-DD"
+            )
+    finally:
+        m.logout()
+
+
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] != "--once":
+        command(sys.argv[1:])
+        return
     state = load_state()
     log(
         f"mail-watch: {USER}, poll {POLL_S}s, {len(trusted_senders())} trusted sender(s)"
