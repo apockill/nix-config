@@ -55,6 +55,13 @@ let
     # "Cloudflare Access" (Service Token)
     CF_ACCESS_CLIENT_ID={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_id }}
     CF_ACCESS_CLIENT_SECRET={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_secret }}
+
+    # mail-watch (./mail-watch): "AI Gmail App Password (IMAP)", the
+    # "Hermes webhook secret" (also the gateway's global webhook secret), and
+    # "Alex Primary Email" (the trusted sender; kept out of this public repo)
+    MAIL_APP_PASSWORD={{ op://ai-assistant/2rc2yvkz6qo4xvcftyyenvvpk4/password }}
+    WEBHOOK_SECRET={{ op://ai-assistant/aookusstix6wxyoc42mj2yeh7m/password }}
+    MAIL_TRUSTED={{ op://ai-assistant/62f7fm7ha4kfkna4stqqcs2qly/notesPlain }}
   '';
 
   # Upstream Hermes bug (NousResearch/hermes-agent issue #108335 / PR #129628):
@@ -89,6 +96,7 @@ in
     ./system-commands.nix # ai-box-switch / ai-box-test / ai-box-reboot
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
     ./cc # cc: Claude Code jobs as Remote Control sessions
+    ./mail-watch # an email to the agent's Gmail wakes Hermes
     ./home.nix # home-manager: git, gh, Claude Code settings
   ];
 
