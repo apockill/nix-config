@@ -64,6 +64,9 @@ let
     EMAIL_PASSWORD={{ op://ai-assistant/2rc2yvkz6qo4xvcftyyenvvpk4/password }}
     EMAIL_IMAP_HOST=imap.gmail.com
     EMAIL_SMTP_HOST=smtp.gmail.com
+    # Sender authentication trusts only Gmail's own Authentication-Results;
+    # without this pin the gateway rejects every sender (fail-closed).
+    EMAIL_AUTHSERV_ID=mx.google.com
     EMAIL_ALLOWED_USERS={{ op://ai-assistant/ej3omo5n7ljkuttiav3xfvj6lq/password }}
   '';
 
