@@ -29,20 +29,6 @@ in
       # ghWrapper (hermes/default.nix), which supplies the token.
       programs.gh.enable = true;
 
-      # himalaya: the agent's own mailbox from the terminal (list, read, archive
-      # to All Mail, snooze labels); skill agent-mail. The app password comes
-      # from the vault at use, never stored on disk.
-      programs.himalaya.enable = true;
-      accounts.email.accounts.agent = {
-        primary = true;
-        address = "ailex.agent.bot@gmail.com";
-        userName = "ailex.agent.bot@gmail.com";
-        realName = "Ailex (Alex's assistant)";
-        flavor = "gmail.com";
-        passwordCommand = "op read op://ai-assistant/2rc2yvkz6qo4xvcftyyenvvpk4/password";
-        himalaya.enable = true;
-      };
-
       # No programs.bash: Hermes builds the agent's terminal environment from a
       # login-shell snapshot and strips credentials (GH_TOKEN, ...) it finds
       # there. Shell rc files that load secrets would get them stripped. The
