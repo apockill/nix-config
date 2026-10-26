@@ -55,6 +55,16 @@ let
     # "Cloudflare Access" (Service Token)
     CF_ACCESS_CLIENT_ID={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_id }}
     CF_ACCESS_CLIENT_SECRET={{ op://ai-assistant/mikp2glua2oqvkkvqbmwvntmje/client_secret }}
+
+    # Email gateway: mail to the agent's Gmail is a message to Hermes, like
+    # Discord. Only allowlisted, authenticated senders get through ("Email
+    # allowlist", owned by Alex, kept out of this public repo); the gateway also
+    # drops automated (no-reply, bulk) senders and unauthenticated From:.
+    EMAIL_ADDRESS=ailex.agent.bot@gmail.com
+    EMAIL_PASSWORD={{ op://ai-assistant/2rc2yvkz6qo4xvcftyyenvvpk4/password }}
+    EMAIL_IMAP_HOST=imap.gmail.com
+    EMAIL_SMTP_HOST=smtp.gmail.com
+    EMAIL_ALLOWED_USERS={{ op://ai-assistant/ej3omo5n7ljkuttiav3xfvj6lq/password }}
   '';
 
   # Upstream Hermes bug (NousResearch/hermes-agent issue #108335 / PR #129628):
