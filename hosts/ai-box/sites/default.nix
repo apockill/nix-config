@@ -25,6 +25,7 @@ in
   imports = [
     ./caddy.nix
     ./runner.nix
+    ./desk-idle.nix
   ];
 
   services.hermes-agent.extraPackages = [ boxWrapper ];
