@@ -136,6 +136,15 @@ in
         image_input_mode = "auto";
       };
 
+      # Image analysis (vision_analyze) on the local Gemma without its thinking
+      # step: with it, one overhead desk photo ran past the 120 s timeout in
+      # the desk-idle cron job; without it the same question takes ~15 s.
+      auxiliary.vision = {
+        provider = "local";
+        model = "gemma-4-26b-a4b";
+        extra_body.chat_template_kwargs.enable_thinking = false;
+      };
+
       # Scheduled jobs only read, check, summarize, and report back: no
       # terminal, files, browser (which carries the vault), or delegation.
       platform_toolsets.cron = [
