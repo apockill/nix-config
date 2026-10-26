@@ -95,6 +95,17 @@ let
     fi
     exec ${pkgs.gh}/bin/gh "$@"
   '';
+
+  # Sessions that didn't start on Discord (email, cron-free scripts) can't post
+  # there: `hermes send` needs the bot token, which only the gateway's
+  # environment has. This reads it (and the home channel) from the secrets file
+  # for the one call, like ghWrapper. `notify-alex "text"` posts to Alex's DM.
+  notifyAlex = pkgs.writeShellScriptBin "notify-alex" ''
+    set -a
+    eval "$(${pkgs.gnugrep}/bin/grep -E '^DISCORD_(BOT_TOKEN|HOME_CHANNEL)=' ${secretsDir}/env)"
+    set +a
+    exec hermes send --quiet --to discord "$@"
+  '';
 in
 {
   imports = [
@@ -187,6 +198,7 @@ in
       opVaultWrapper
       claude-code # current release, via the overlay below
       ghWrapper
+      notifyAlex
       git
       jq
       just
