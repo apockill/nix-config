@@ -1,9 +1,12 @@
-# Declarative Hermes cron jobs in "monitor" mode.
+# Declarative Hermes cron jobs.
 #
 #   aiBox.hermesCron.<name> = {
 #     schedule = "every 5m";
-#     monitorScript = ./monitor.py;  # cheap source; its output must be stable
-#     prompt = "...";                # run by the cron model only when output changes
+#     monitorScript = ./monitor.py;  # optional: cheap source; output must be stable,
+#                                    # the model runs only when it changes
+#     prompt = "...";
+#     toolsets = [ "terminal" ];     # optional: this job's tools, instead of
+#                                    # platform_toolsets.cron (web, vision, ...)
 #   };
 #
 # The script is installed into HERMES_HOME/scripts (cron requires that), and a
@@ -18,18 +21,26 @@
 let
   hermes = config.services.hermes-agent;
   hermesBin = "${hermes.package}/bin/hermes";
+  hermesPython = "${hermes.package.passthru.hermesVenv}/bin/python3";
   jobs = config.aiBox.hermesCron;
   scriptName = name: "${name}-monitor.py";
 in
 {
   options.aiBox.hermesCron = lib.mkOption {
     default = { };
-    description = "Hermes cron jobs in monitor mode, declared in nix-config.";
+    description = "Hermes cron jobs, declared in nix-config.";
     type = lib.types.attrsOf (
       lib.types.submodule {
         options = {
           schedule = lib.mkOption { type = lib.types.str; };
-          monitorScript = lib.mkOption { type = lib.types.path; };
+          monitorScript = lib.mkOption {
+            type = lib.types.nullOr lib.types.path;
+            default = null;
+          };
+          toolsets = lib.mkOption {
+            type = lib.types.nullOr (lib.types.listOf lib.types.str);
+            default = null;
+          };
           prompt = lib.mkOption { type = lib.types.str; };
           deliver = lib.mkOption {
             type = lib.types.str;
@@ -43,7 +54,7 @@ in
   config = lib.mkIf (jobs != { }) {
     services.hermes-agent.hermesHomeFiles = lib.mapAttrs' (
       name: job: lib.nameValuePair "scripts/${scriptName name}" job.monitorScript
-    ) jobs;
+    ) (lib.filterAttrs (_: job: job.monitorScript != null) jobs);
 
     systemd.services = lib.mapAttrs' (
       name: job:
@@ -66,7 +77,9 @@ in
         script = ''
           id=$(jq -r '.jobs[]? | select(.name == "${name}") | .id' \
             "$HERMES_HOME/cron/jobs.json" 2>/dev/null || true)
-          args=(--monitor-script ${scriptName name} --deliver ${job.deliver})
+          args=(${
+            lib.optionalString (job.monitorScript != null) "--monitor-script ${scriptName name}"
+          } --deliver ${job.deliver})
           if [ -n "$id" ]; then
             ${hermesBin} cron edit "$id" --schedule ${lib.escapeShellArg job.schedule} \
               --prompt ${lib.escapeShellArg job.prompt} "''${args[@]}"
@@ -74,6 +87,11 @@ in
             ${hermesBin} cron create --name ${name} "''${args[@]}" \
               ${lib.escapeShellArg job.schedule} ${lib.escapeShellArg job.prompt}
           fi
+          # The CLI can't set per-job toolsets; Hermes' own API can (under its lock).
+          ${hermesPython} -c 'import json, sys; from cron.jobs import list_jobs, update_job
+          j = [j for j in list_jobs(True) if j["name"] == sys.argv[1]][0]
+          update_job(j["id"], {"enabled_toolsets": json.loads(sys.argv[2])})' \
+            ${name} ${lib.escapeShellArg (builtins.toJSON job.toolsets)}
         '';
       }
     ) jobs;

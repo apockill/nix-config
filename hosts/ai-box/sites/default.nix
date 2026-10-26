@@ -25,6 +25,7 @@ in
   imports = [
     ./caddy.nix
     ./runner.nix
+    ./desk-idle.nix # hourly: Gemma puts the desk to sleep when nobody uses it
   ];
 
   services.hermes-agent.extraPackages = [ boxWrapper ];
