@@ -136,14 +136,12 @@ in
         image_input_mode = "auto";
       };
 
-      # Image analysis (vision_analyze) on the local Gemma without its thinking
-      # step: with it, one overhead desk photo ran past the 120 s timeout in
-      # the desk-idle cron job; without it the same question takes ~15 s.
-      auxiliary.vision = {
-        provider = "local";
-        model = "gemma-4-26b-a4b";
-        extra_body.chat_template_kwargs.enable_thinking = false;
-      };
+      # When Gemma (cron jobs) analyses an image, skip its thinking step: with
+      # it, one overhead desk photo ran past the 120 s timeout in desk-idle;
+      # without it ~15-55 s. No provider or model here on purpose: naming a
+      # vision backend makes Hermes route EVERY session's images through it
+      # (image_input_mode auto), so the main model would lose native vision.
+      auxiliary.vision.extra_body.chat_template_kwargs.enable_thinking = false;
 
       # Scheduled jobs only read, check, summarize, and report back: no
       # terminal, files, browser (which carries the vault), or delegation.
