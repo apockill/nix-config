@@ -10,10 +10,15 @@
 # The tmux server runs as its own service (cc-tmux), not under the agent: a
 # gateway restart (every switch, including the hourly upgrade) killed jobs
 # whose tmux lived in hermes-agent's cgroup. A switch doesn't restart it either.
+# A boot still ends every job, so `cc start` records each one (name, dir, Claude
+# session id, environment) and cc-restore resumes the recorded conversations
+# whenever the tmux server starts. `cc stop` deletes the record.
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.hermes-agent;
   sock = "/run/cc-tmux/sock";
+  # Inside ~/.claude (declared state), next to the transcripts the records point to.
+  jobs = "${cfg.stateDir}/.claude/cc-jobs";
   tmuxCmd = "${pkgs.tmux}/bin/tmux -S ${sock}";
 
   cc = pkgs.writeShellApplication {
@@ -25,7 +30,10 @@ let
       gnugrep
       gnused
     ];
-    runtimeEnv.CC_TMUX_SOCK = sock;
+    runtimeEnv = {
+      CC_TMUX_SOCK = sock;
+      CC_JOBS = jobs;
+    };
     text = builtins.readFile ./cc.sh;
   };
 in
@@ -54,6 +62,20 @@ in
       ExecStart = "${tmuxCmd} new-session -d -s _keep ${pkgs.coreutils}/bin/sleep infinity";
       ExecStop = "${tmuxCmd} kill-server";
       Restart = "on-failure";
+    };
+  };
+
+  # Pulled in by every start of cc-tmux (boot, or a restart after a crash took the jobs with it).
+  systemd.services.cc-restore = {
+    description = "Resume the agent's recorded Claude Code jobs (cc restore)";
+    wantedBy = [ "cc-tmux.service" ];
+    after = [ "cc-tmux.service" ];
+    environment.HOME = cfg.stateDir;
+    serviceConfig = {
+      User = cfg.user;
+      Group = cfg.group;
+      Type = "oneshot";
+      ExecStart = "${cc}/bin/cc restore";
     };
   };
 }
