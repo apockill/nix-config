@@ -27,6 +27,11 @@
     firmware.autoUpdate = true;
   };
 
+  # Power mode: MAXN (nvpmodel profile 0). NVIDIA's shipped default is
+  # MODE_30W, which caps the GPU at 612 MHz and switches 4 of the 12 CPU cores
+  # off; local Gemma ran at ~9.5 tokens/s under it.
+  services.nvpmodel.profileNumber = 0;
+
   # Needed even for CUDA and containers
   hardware.graphics.enable = true;
   hardware.enableRedistributableFirmware = true;
