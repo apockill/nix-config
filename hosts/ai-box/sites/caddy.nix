@@ -7,6 +7,11 @@
   pkgs,
   ...
 }:
+let
+  # Top-level directories of sites/ that aren't apps, so they get no subdomain:
+  # spec/ holds the repo's spec-driven development files.
+  notApps = [ "spec" ];
+in
 {
   services.caddy = {
     enable = true;
@@ -14,6 +19,10 @@
       http:// {
         @subhost host *.alexthiele.io
         handle @subhost {
+          @notApp host ${lib.concatMapStringsSep " " (d: "${d}.alexthiele.io") notApps}
+          handle @notApp {
+            respond 404
+          }
           @hasBackend {
             file {
               root /var/lib/hermes/sites/{labels.2}
