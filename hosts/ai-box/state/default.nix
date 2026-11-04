@@ -47,11 +47,13 @@
 # Kept files (not directories) need `file = true`: impermanence bind-mounts
 # files and directories differently.
 #
-# Tests: ./test_audit.py (the `state` check).
+# Tests: ./test_audit.py (the `state` check) and ./test-persist.nix (`persist`,
+# which boots the wipe in a VM).
 {
   config,
   lib,
   pkgs,
+  inputs,
   pytestCheck,
   ...
 }:
@@ -126,6 +128,7 @@ in
       dir = ./.;
       inputs = [ git ];
     };
+    aiBox.checks.persist = import ./test-persist.nix { inherit inputs pkgs; };
 
     assertions = lib.flatten (
       lib.mapAttrsToList (path: p: [
