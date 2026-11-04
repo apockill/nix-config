@@ -57,6 +57,10 @@ in
     restartIfChanged = false;
     environment = {
       HOME = cfg.stateDir;
+      # Claude Code's .claude.json lives in ~/.claude, which survives the root
+      # wipe as one directory (state/paths.nix); a file of its own in ~ can't
+      # be bind-mounted, because Claude Code replaces it by renaming.
+      CLAUDE_CONFIG_DIR = "${cfg.stateDir}/.claude";
       PATH = lib.mkForce "/run/wrappers/bin:/etc/profiles/per-user/${cfg.user}/bin:/run/current-system/sw/bin";
     };
     serviceConfig = {

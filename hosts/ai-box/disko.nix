@@ -1,7 +1,12 @@
 # The 1TB NVMe is the only disk NixOS uses; the built-in 64GB eMMC is left alone.
 #
-# btrfs subvolumes are split by whether rolling them back makes sense (see
-# snapshots.nix): / and /home get snapshotted; /nix, /var/log, and docker don't.
+# btrfs subvolumes are split by what survives a boot and whether rolling them
+# back makes sense (see snapshots.nix):
+#   @root     /, wiped on every boot: the initrd moves it to old_roots/ on the
+#             top level and creates an empty one (state/persist.nix)
+#   @persist  the declared state, bind-mounted into place; snapshotted
+#   @home     snapshotted
+#   @nix, @log, @docker  kept as they are, never snapshotted
 { ... }:
 let
   opts = [
@@ -43,6 +48,11 @@ in
                 mountpoint = "/";
                 mountOptions = opts;
               };
+              # Every declared path that survives a boot (state/paths.nix)
+              "@persist" = {
+                mountpoint = "/persist";
+                mountOptions = opts;
+              };
               "@home" = {
                 mountpoint = "/home";
                 mountOptions = opts;
@@ -63,9 +73,9 @@ in
                 mountpoint = "/var/lib/docker";
                 mountOptions = opts;
               };
-              # Where snapper keeps snapshots of / and /home
+              # Where snapper keeps snapshots of /persist and /home
               "@snapshots" = {
-                mountpoint = "/.snapshots";
+                mountpoint = "/persist/.snapshots";
                 mountOptions = opts;
               };
               "@home-snapshots" = {

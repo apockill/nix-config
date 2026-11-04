@@ -238,9 +238,9 @@ def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", lower).strip("-")
 
 
-def trust_dir(home: Path, cwd: Path) -> None:
-    """Mark the directory trusted in ~/.claude.json, so no trust dialog waits for a keypress."""
-    conf = home / ".claude.json"
+def trust_dir(config_dir: Path, cwd: Path) -> None:
+    """Mark the directory trusted in Claude Code's .claude.json, so no trust dialog waits for a keypress."""
+    conf = config_dir / ".claude.json"
     try:
         data: Any = json.loads(conf.read_text()) if conf.exists() else {}
         projects = data.setdefault("projects", {})
@@ -248,7 +248,7 @@ def trust_dir(home: Path, cwd: Path) -> None:
     except (OSError, ValueError, AttributeError, TypeError) as e:
         raise CcError(f"can't mark {cwd} trusted in {conf}: {e}") from e
     # Replaced in one step, so a claude reading it never sees half a file.
-    fd, tmp = tempfile.mkstemp(dir=home, prefix=".claude.json.")
+    fd, tmp = tempfile.mkstemp(dir=config_dir, prefix=".claude.json.")
     with os.fdopen(fd, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
@@ -271,6 +271,11 @@ class Cc:
     def home(self) -> Path:
         return Path(self.environ.get("HOME") or Path.home())
 
+    @property
+    def claude_config_dir(self) -> Path:
+        """Where Claude Code keeps .claude.json: CLAUDE_CONFIG_DIR, else HOME."""
+        return Path(self.environ.get("CLAUDE_CONFIG_DIR") or self.home)
+
     def record(self, session: str) -> Path:
         return self.jobs / f"{session}.json"
 
@@ -286,7 +291,7 @@ class Cc:
         cwd = Path(job.dir)
         if not cwd.is_dir():
             raise CcError(f"{job.dir} isn't a directory")
-        trust_dir(self.home, cwd)
+        trust_dir(self.claude_config_dir, cwd)
         self.tmux.new_session(session, cwd, job.env, ["claude", *claude_args])
 
     def start(self, name: str, dir: str, task_file: str) -> int:

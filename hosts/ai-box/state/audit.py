@@ -5,7 +5,8 @@ aiBox.state.paths (hosts/ai-box/state/paths.nix) are kept. This walks the root
 and reports everything not covered by a declaration: state a reboot deletes.
 
 Other filesystems and subvolumes (/nix, /home, /proc, ...) are skipped; they
-aren't part of the root and aren't wiped.
+aren't part of the root and aren't wiped. That includes /persist and the kept
+paths bind-mounted from it, which are on the @persist subvolume.
 
 It also lists two kinds of low-key notes, which never block a reboot:
 - files inside `git` paths that aren't committed. Disposable by design (the
