@@ -35,10 +35,26 @@ lint:
         mypy "$dir" || exit 1; \
       done'
 
-# Python unit tests, with pytest from this flake's nixpkgs (nothing to install).
-# tmux is for cc's test against a real tmux server.
-test:
-    nix shell --inputs-from . nixpkgs#python3Packages.pytest nixpkgs#tmux -c pytest hosts
+# Tests: each module declares its own as a Nix check under aiBox.checks
+# (hosts/ai-box/checks.nix). They are built with their logs printed; a check
+# that passed and hasn't changed since isn't run again.
+checks := ".#checks.aarch64-linux"
+
+# Picks the checks that don't boot a VM: all but NixOS tests needing kvm.
+no_vm := 'cs: builtins.filter (n: !(cs.${n}.config.requiredFeatures.kvm or false)) (builtins.attrNames cs)'
+
+# Every check that runs without a VM, or just the one named (`just test cc`).
+test name="":
+    nix build -L --no-link --keep-going {{ if name == "" { "$(just _checks " + quote(no_vm) + ")" } else { checks + "." + name } }}
+
+# Every check, VM tests included.
+test-all:
+    nix build -L --no-link --keep-going $(just _checks builtins.attrNames)
+
+# The flake attributes of the checks that `select` (a Nix function from the
+# checks to a list of their names) picks.
+_checks select:
+    @nix eval --raw {{ checks }} --apply 'cs: toString (map (n: "{{ checks }}.${n}") (({{ select }}) cs))'
 
 install-pipx-deps:
     pipx install tdirstat termite-ai
