@@ -77,6 +77,7 @@ in
     ./paths.nix
     ./users.nix
     ./persist.nix
+    ./migrate-persist.nix
   ];
 
   options.aiBox.state = {
