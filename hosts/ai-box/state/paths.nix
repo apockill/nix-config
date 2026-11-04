@@ -228,6 +228,10 @@ in
       backup = "cache";
       why = "Claude Code session history and its claude.ai login (Remote Control; hermes/cc); handy across reboots, not needed on a new box (sign in again).";
     };
+    "${hermes}/.claude.json" = {
+      backup = "cache";
+      why = "Claude Code's account, onboarding and trust state, rewritten constantly. Kept because cc restores jobs at boot as interactive sessions: without it they stop at the first-run prompts with nobody there to answer.";
+    };
     "${hermes}/.hermes/cache" = {
       backup = "cache";
       why = "Scratch and web caches.";
@@ -249,10 +253,6 @@ in
       why = "Go module cache (Wire-Pod build).";
     };
     # ephemeral
-    "${hermes}/.claude.json" = {
-      backup = "ephemeral";
-      why = "Claude Code's onboarding and trust flags, rewritten constantly; losing it means one first-run prompt.";
-    };
     "${hermes}/.claude/CLAUDE.md" = {
       backup = "ephemeral";
       why = "Installed from hermes/CLAUDE.md.";
