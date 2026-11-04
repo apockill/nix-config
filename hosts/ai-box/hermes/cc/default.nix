@@ -13,7 +13,14 @@
 # A boot still ends every job, so `cc start` records each one (name, dir, Claude
 # session id, environment) and cc-restore resumes the recorded conversations
 # whenever the tmux server starts. `cc stop` deletes the record.
-{ config, lib, pkgs, ... }:
+#
+# ./cc.py is the CLI (stdlib Python; tests in ./test_cc.py, run by `just test`).
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.services.hermes-agent;
   sock = "/run/cc-tmux/sock";
@@ -21,21 +28,22 @@ let
   jobs = "${cfg.stateDir}/.claude/cc-jobs";
   tmuxCmd = "${pkgs.tmux}/bin/tmux -S ${sock}";
 
-  cc = pkgs.writeShellApplication {
-    name = "cc";
-    runtimeInputs = with pkgs; [
-      tmux
-      jq
-      coreutils
-      gnugrep
-      gnused
+  # cc.py reads all three from the environment; a caller's own values win
+  # (the tests point them at a scratch server).
+  cc = pkgs.writers.writePython3Bin "cc" {
+    flakeIgnore = [ "E501" ];
+    makeWrapperArgs = [
+      "--set-default"
+      "CC_TMUX"
+      "${pkgs.tmux}/bin/tmux"
+      "--set-default"
+      "CC_TMUX_SOCK"
+      sock
+      "--set-default"
+      "CC_JOBS"
+      jobs
     ];
-    runtimeEnv = {
-      CC_TMUX_SOCK = sock;
-      CC_JOBS = jobs;
-    };
-    text = builtins.readFile ./cc.sh;
-  };
+  } (builtins.readFile ./cc.py);
 in
 {
   services.hermes-agent.extraPackages = [ cc ];
