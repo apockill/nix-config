@@ -4,11 +4,14 @@
 #
 # Change alex's password:
 #   mkpasswd -m yescrypt | sudo tee /var/lib/user-passwords/alex >/dev/null
-#   then ai-box-switch (or reboot).
+#   then apply it: sudo nixos-rebuild switch --flake github:apockill/nix-config#ai-box
+#   (or ask the agent to run ai-box-switch, or reboot). `passwd` has no lasting
+#   effect: /etc/shadow is rebuilt from this config.
+# On a new box, write the file the same way (as root, e.g. from nixos-enter)
+# before the first boot; without it alex has no password.
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 let
@@ -23,25 +26,6 @@ in
     initialPassword = lib.mkForce null;
     hashedPasswordFile = "${passwordDir}/alex";
   };
-
-  # One-time migration: seed the hash file from the password alex set with
-  # `passwd` while users were mutable. Runs before NixOS rewrites /etc/shadow
-  # from the config, and never overwrites an existing hash file. Activation
-  # runs with a minimal PATH, so tools are referenced by store path.
-  system.activationScripts.seedUserPasswords.text = ''
-    ${pkgs.coreutils}/bin/install -d -m 0700 ${passwordDir}
-    if [ ! -s ${passwordDir}/alex ]; then
-      hash=$(${pkgs.gawk}/bin/awk -F: '$1 == "alex" { print $2 }' /etc/shadow)
-      case "$hash" in
-        '$'*)
-          (umask 077; printf '%s\n' "$hash" > ${passwordDir}/alex)
-          echo "seeded ${passwordDir}/alex from /etc/shadow"
-          ;;
-        *) echo "warning: no password hash for alex in /etc/shadow; not seeding" >&2 ;;
-      esac
-    fi
-  '';
-  system.activationScripts.users.deps = [ "seedUserPasswords" ];
 
   assertions = [
     {
