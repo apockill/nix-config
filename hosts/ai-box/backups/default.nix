@@ -7,9 +7,12 @@
 # - "Backups (ai-box)": restic password, rclone's Drive token, folder id.
 # - "Google Cloud": the OAuth client rclone signs in with.
 #
-# Backups read from a read-only btrfs snapshot of /, so databases are copied
-# at one frozen moment. In the repository, paths therefore start with
-# /.snapshots/restic-source (e.g. /.snapshots/restic-source/var/lib/hermes/...).
+# Backups read from a read-only btrfs snapshot of /persist, so databases are
+# copied at one frozen moment. /persist holds every kept path at its real path
+# (/persist/var/lib/hermes/... is /var/lib/hermes/...; see ../state), so in
+# the repository paths start with /persist/.snapshots/restic-source (e.g.
+# /persist/.snapshots/restic-source/var/lib/hermes/...). Backups made before
+# the root wipe start with /.snapshots/restic-source instead.
 #
 # Restore (any machine with restic + rclone and the two 1Password items):
 #   restic -r rclone:gdrive:backups/restic snapshots
@@ -25,7 +28,7 @@ let
   repository = "rclone:gdrive:backups/restic";
   secretsDir = "/run/backup-secrets";
   statusDir = "/var/lib/backup-status";
-  snapshot = "/.snapshots/restic-source"; # on snapper's subvolume, not the root
+  snapshot = "/persist/.snapshots/restic-source"; # on snapper's subvolume
   btrfs = "${pkgs.btrfs-progs}/bin/btrfs";
   # The 1Password service-account token (see hosts/ai-box/hermes).
   serviceAccountEnv = "/etc/hermes/op-service-account.env";
@@ -132,7 +135,7 @@ in
     exclude = map inSnapshot excluded;
     backupPrepareCommand = ''
       ${btrfs} subvolume delete ${snapshot} 2>/dev/null || true
-      ${btrfs} subvolume snapshot -r / ${snapshot}
+      ${btrfs} subvolume snapshot -r /persist ${snapshot}
     '';
     backupCleanupCommand = ''
       ${btrfs} subvolume delete ${snapshot}

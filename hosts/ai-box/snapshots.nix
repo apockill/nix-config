@@ -1,6 +1,8 @@
-# Hourly btrfs snapshots of / and /home, so a misbehaving agent's changes can be
-# rolled back. Browse with `snapper -c home list`; restore single files from
-# /home/.snapshots/<n>/snapshot/, or undo a range with `snapper -c home undochange`.
+# Hourly btrfs snapshots of /persist (all state that survives a boot; the root
+# itself is wiped, see state/) and /home, so a misbehaving agent's changes can
+# be rolled back. Browse with `snapper -c persist list`; restore single files
+# from /persist/.snapshots/<n>/snapshot/, or undo a range with
+# `snapper -c persist undochange`.
 { ... }:
 let
   timeline = {
@@ -15,8 +17,8 @@ let
 in
 {
   services.snapper.configs = {
-    root = timeline // {
-      SUBVOLUME = "/";
+    persist = timeline // {
+      SUBVOLUME = "/persist";
     };
     home = timeline // {
       SUBVOLUME = "/home";
