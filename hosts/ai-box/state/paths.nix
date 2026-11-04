@@ -275,6 +275,10 @@ in
       watch = true;
       why = "Tool configs: home-manager's (hermes/home.nix) plus runtime clutter. Runtime-written files are noted by the audit.";
     };
+    "${hermes}/.pki" = {
+      backup = "ephemeral";
+      why = "Chromium's NSS certificate database; recreated empty when missing, nothing is imported into it.";
+    };
     "${hermes}/.local" = {
       backup = "ephemeral";
       why = "Runtime state of tools (locks, ids); tools come from nix-config, not ~/.local/bin.";
