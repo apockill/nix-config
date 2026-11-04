@@ -13,8 +13,10 @@ ssh ai-box.local
 
 ### Snapshots (undoing an agent's mess)
 
-The NVMe is btrfs. snapper snapshots `/` and `/home` hourly (24 hourly, 7 daily,
-4 weekly kept). `/nix`, `/var/log`, and `/var/lib/docker` are separate subvolumes
+The NVMe is btrfs. The root is wiped on every boot and only declared state
+survives, in `/persist` (see `state/default.nix`, which also says how to get a
+file back from an old root). snapper snapshots `/persist` and `/home` hourly
+(24 hourly, 7 daily, 4 weekly kept). `/nix`, `/var/log`, and `/var/lib/docker` are separate subvolumes
 that are never snapshotted, so a rollback can't erase logs of what happened.
 
 ```shell

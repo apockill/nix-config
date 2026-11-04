@@ -2,6 +2,21 @@
 # aiBox.state.paths (./paths.nix) are the only state that survives, each with
 # an answer to "how is it backed up?".
 #
+# How the wipe works (./persist.nix): kept paths live on the @persist subvolume,
+# mounted at /persist, and impermanence bind-mounts each one to its real path.
+# Early in every boot the initrd moves the old root, @root, to
+# old_roots/<timestamp> on the btrfs top level and creates an empty @root.
+# Only the outermost kept paths get a bind mount; anything declared inside one
+# (a cache in a restic folder, an ephemeral config.yaml in ~/.hermes) lives on
+# @persist with it. So ephemeral paths inside kept ones are NOT wiped; they are
+# all files that activation regenerates anyway.
+#
+# Each boot prunes old roots retired more than 30 days ago, then retires the
+# current one, so the previous boot's root is always there. To get a file back:
+#   sudo mount -o subvolid=5 /dev/disk/by-partlabel/disk-nvme-root /mnt
+#   ls /mnt/old_roots/   # one per boot, named by when its / last changed
+#   sudo cp -a /mnt/old_roots/<timestamp>/etc/foo /etc/foo; sudo umount /mnt
+#
 # Undeclared state is caught three ways: the build fails on incomplete
 # declarations, an hourly audit (./audit.py) reports undeclared paths to Alex
 # through the local cron model, and ai-box-reboot refuses to run while any
@@ -25,7 +40,11 @@
 #
 # A path segment may be `*`, matching any one directory name, so a feature can
 # declare one path for many directories: "/var/lib/hermes/sites/*/state" is
-# every web app's state. No other glob syntax is allowed.
+# every web app's state. No other glob syntax is allowed. A `*` path must sit
+# inside a kept path, which carries it to /persist.
+#
+# Kept files (not directories) need `file = true`: impermanence bind-mounts
+# files and directories differently.
 {
   config,
   lib,
@@ -57,6 +76,7 @@ in
   imports = [
     ./paths.nix
     ./users.nix
+    ./persist.nix
   ];
 
   options.aiBox.state = {
@@ -76,6 +96,11 @@ in
               type = lib.types.bool;
               default = false;
               description = "List files written here at runtime (non-blocking), to spot config worth declaring.";
+            };
+            file = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "The path is a file, not a directory (needed for kept paths; see ./persist.nix).";
             };
           };
         }
@@ -116,6 +141,10 @@ in
         {
           assertion = (p.backup == "git") == (p.repo != null);
           message = "aiBox.state.paths.\"${path}\": `repo` is required for backup = \"git\" and only allowed there.";
+        }
+        {
+          assertion = !p.file || !(lib.any (other: lib.hasPrefix "${path}/" other) (lib.attrNames cfg.paths));
+          message = "aiBox.state.paths.\"${path}\": has `file = true` but other paths are declared inside it.";
         }
       ]) cfg.paths
     );

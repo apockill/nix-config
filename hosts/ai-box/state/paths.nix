@@ -14,6 +14,7 @@ in
     };
     # host
     "/etc/machine-id" = {
+      file = true;
       backup = "host";
       why = "Machine identity: keeps the journal in one place across boots. A fresh one on a new box is fine.";
     };
@@ -22,18 +23,22 @@ in
       why = "Network connection profiles (may include Wi-Fi credentials); how the box gets online.";
     };
     "/etc/ssh/ssh_host_ed25519_key" = {
+      file = true;
       backup = "host";
       why = "SSH host key; a new box gets its own (one known_hosts prompt).";
     };
     "/etc/ssh/ssh_host_ed25519_key.pub" = {
+      file = true;
       backup = "host";
       why = "SSH host key (public half).";
     };
     "/etc/ssh/ssh_host_rsa_key" = {
+      file = true;
       backup = "host";
       why = "SSH host key; a new box gets its own (one known_hosts prompt).";
     };
     "/etc/ssh/ssh_host_rsa_key.pub" = {
+      file = true;
       backup = "host";
       why = "SSH host key (public half).";
     };
@@ -94,6 +99,7 @@ in
       why = "llama-cpp service state (StateDirectory of a DynamicUser service; /var/lib/llama-cpp is systemd's symlink to it).";
     };
     "/var/lib/logrotate.status" = {
+      file = true;
       backup = "cache";
       why = "logrotate's last-rotation bookkeeping.";
     };
@@ -217,6 +223,7 @@ in
     };
     # cache
     "${hermes}/.bash_history" = {
+      file = true;
       backup = "cache";
       why = "Shell history (VS Code terminal, ssh); handy, not needed on a new box.";
     };
