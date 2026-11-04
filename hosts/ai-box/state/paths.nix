@@ -290,6 +290,10 @@ in
       backup = "ephemeral";
       why = "home-manager's profile link, recreated on activation.";
     };
+    "${hermes}/.pki" = {
+      backup = "ephemeral";
+      why = "Chromium's NSS certificate database (~70 KB), unchanged since Chromium created it: no certificates were added. Chromium recreates it on start.";
+    };
     "${hermes}/Downloads" = {
       backup = "ephemeral";
       why = "Browser downloads; scratch.";

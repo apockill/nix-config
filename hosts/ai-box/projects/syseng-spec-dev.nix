@@ -31,10 +31,16 @@ let
   '';
 in
 {
-  aiBox.state.paths.${dir} = {
-    backup = "git";
-    inherit repo;
-    why = "The agent's clone of the syseng spec toolkit; spec runs it (projects/syseng-spec-dev.nix).";
+  aiBox.state.paths = {
+    ${dir} = {
+      backup = "git";
+      inherit repo;
+      why = "The agent's clone of the syseng spec toolkit; spec runs it (projects/syseng-spec-dev.nix).";
+    };
+    "${cfg.stateDir}/.promptfoo" = {
+      backup = "cache";
+      why = "promptfoo's eval history database, written by the toolkit's tests; handy for comparing runs, not worth backing up.";
+    };
   };
 
   home-manager.users.${cfg.user} =
