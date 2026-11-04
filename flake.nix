@@ -60,6 +60,10 @@
         ai-box = mkHost ./hosts/ai-box;
       };
 
+      # Each ai-box module's tests, declared next to its code under aiBox.checks
+      # (hosts/ai-box/checks.nix). Run them with `just test`.
+      checks.aarch64-linux = self.nixosConfigurations.ai-box.config.aiBox.checks;
+
       # Firmware flash script for ai-box, run from an x86_64 machine (NVIDIA's
       # flashing tools are x86_64-only). The firmware and kernel it flashes still
       # run on the Jetson, so this variant of ai-box is cross-compiled from

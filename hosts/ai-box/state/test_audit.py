@@ -1,4 +1,4 @@
-"""Tests for audit.py. Run with `just test`."""
+"""Tests for audit.py: the `state` check (`just test state`)."""
 
 from __future__ import annotations
 

@@ -7,6 +7,7 @@
 {
   imports = [
     inputs.disko.nixosModules.disko
+    ./checks.nix # aiBox.checks: each module's tests
     ./disko.nix
     ./snapshots.nix
     ./llama-cpp.nix
