@@ -2,6 +2,10 @@
 #
 # btrfs subvolumes are split by whether rolling them back makes sense (see
 # snapshots.nix): / and /home get snapshotted; /nix, /var/log, and docker don't.
+#
+# @root is replaced on every boot by a fresh one holding only the declared
+# state (state/default.nix). The old ones are kept next to it in the top
+# level as @root-old/<N>, outside anything disko declares.
 { ... }:
 let
   opts = [

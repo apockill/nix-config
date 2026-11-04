@@ -13,7 +13,7 @@
     ./browser.nix
     ./cloudflared.nix
     ./sites
-    ./state # declared state + audit (impermanence prep)
+    ./state # declared state: the root wipe and its audit
     ./backups # restic to Google Drive
     ./vector.nix
     ./matter.nix

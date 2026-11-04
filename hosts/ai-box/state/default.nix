@@ -1,6 +1,28 @@
 # Explicit state. The root filesystem is wiped on every boot; the paths in
-# aiBox.state.paths (./paths.nix) are the only state that survives, each with
-# an answer to "how is it backed up?".
+# aiBox.state.paths (./paths.nix, plus feature modules) are the only state
+# that survives, each with an answer to "how is it backed up?".
+#
+# The wipe (./root-reset.nix): / is the btrfs subvolume @root. On every boot,
+# before the root is mounted, an initrd service builds a fresh @root holding
+# only the declared paths, copied from the old one with reflinks (no extra
+# space), and keeps the old root as @root-old/<N> in the btrfs top level,
+# with @root-old/<N>.info saying when (N counts up; the clock can read 1970
+# after a power cut). The newest 5 old roots are kept. If anything fails, the
+# old root boots unchanged. State stays at its real paths; there are no bind
+# mounts, so backups, snapper and the audit just read /.
+#
+# After boot, /var/lib/root-reset holds the initrd's log (initrd.log) and a
+# report (report.txt, report.json): what the wipe deleted against what the
+# audit predicted, and as ERROR any declared path that didn't survive.
+#
+# Recovering a file from an old root (as root):
+#   mount --mkdir -o subvolid=5 /dev/disk/by-partlabel/disk-nvme-root /mnt/top
+#   ls /mnt/top/@root-old/; cat /mnt/top/@root-old/<N>.info
+#   cp -a /mnt/top/@root-old/<N>/path/to/file /path/to/file; umount /mnt/top
+# Snapper's hourly snapshots of / (/.snapshots) also hold recent states.
+#
+# Escape hatch: booting with `ai-box.keep-root` on the kernel command line
+# (press e on the boot menu entry) skips the reset for that boot.
 #
 # Undeclared state is caught three ways: the build fails on incomplete
 # declarations, an hourly audit (./audit.py) reports undeclared paths to Alex
@@ -12,16 +34,18 @@
 #              inside are disposable (rebuilding from the repo is the intended
 #              recovery); declare any that matter separately. The audit lists
 #              them as a non-blocking note, so we can keep an eye on them.
+#              The wipe keeps the whole checkout.
 #   restic     backed up off-box with restic
 #   cache      kept to avoid rebuilding or re-downloading; never backed up
 #   host       belongs to this machine (identity, its own history). Kept, never
 #              backed up: a new box starts with its own. Treated like cache for
 #              now; may be handled differently later.
 #   manual     re-provisioned by a human on a new box (e.g. the vault token)
-#   ephemeral  NOT kept: fine to lose on every boot
+#   ephemeral  NOT kept: deleted on every boot
 #
 # A nested path with a different class overrides its parent (e.g. a cache
-# folder inside a restic folder is excluded from backups).
+# folder inside a restic folder is excluded from backups, and an ephemeral
+# file inside a kept folder is deleted on boot).
 #
 # A path segment may be `*`, matching any one directory name, so a feature can
 # declare one path for many directories: "/var/lib/hermes/sites/*/state" is
@@ -57,6 +81,7 @@ in
   imports = [
     ./paths.nix
     ./users.nix
+    ./root-reset.nix
   ];
 
   options.aiBox.state = {
@@ -80,6 +105,13 @@ in
           };
         }
       );
+    };
+
+    declaredFile = lib.mkOption {
+      type = lib.types.path;
+      readOnly = true;
+      default = declaredJson;
+      description = "aiBox.state.paths as JSON, as audit.py reads it.";
     };
 
     checkCommand = lib.mkOption {
