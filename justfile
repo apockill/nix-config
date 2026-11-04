@@ -36,8 +36,9 @@ lint:
       done'
 
 # Python unit tests, with pytest from this flake's nixpkgs (nothing to install).
+# tmux is for cc's test against a real tmux server.
 test:
-    nix shell --inputs-from . nixpkgs#python3Packages.pytest -c pytest hosts
+    nix shell --inputs-from . nixpkgs#python3Packages.pytest nixpkgs#tmux -c pytest hosts
 
 install-pipx-deps:
     pipx install tdirstat termite-ai
