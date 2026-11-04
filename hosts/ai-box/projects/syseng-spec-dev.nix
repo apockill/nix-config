@@ -36,6 +36,10 @@ in
     inherit repo;
     why = "The agent's clone of the syseng spec toolkit; spec runs it (projects/syseng-spec-dev.nix).";
   };
+  aiBox.state.paths."${cfg.stateDir}/.promptfoo" = {
+    backup = "cache";
+    why = "promptfoo's eval history database, written by the toolkit's prompt tests; handy to compare runs, rebuilt by running them again.";
+  };
 
   home-manager.users.${cfg.user} =
     { lib, ... }:
