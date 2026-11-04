@@ -7,9 +7,10 @@
 # Early in every boot the initrd moves the old root, @root, to
 # old_roots/<timestamp> on the btrfs top level and creates an empty @root.
 # Only the outermost kept paths get a bind mount; anything declared inside one
-# (a cache in a restic folder, an ephemeral config.yaml in ~/.hermes) lives on
-# @persist with it. So ephemeral paths inside kept ones are NOT wiped; they are
-# all files that activation regenerates anyway.
+# (a cache folder in a restic folder) lives on @persist with it. For the same
+# reason an ephemeral path can't sit inside a kept one (the build fails): it
+# would be kept, not wiped. Declare such files `cache` to keep them out of
+# backups.
 #
 # Each boot prunes old roots retired more than 30 days ago, then retires the
 # current one, so the previous boot's root is always there. To get a file back:

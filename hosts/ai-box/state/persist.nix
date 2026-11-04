@@ -1,6 +1,21 @@
-# The root wipe (see ./default.nix): the kept paths in aiBox.state.paths live
-# on @persist and impermanence bind-mounts them into place, while the initrd
-# swaps in an empty @root on every boot (impermanence's README recipe).
+# The root wipe (see ./default.nix for what is kept and why). How it works:
+#
+# 1. Every boot, before / is mounted, the initrd service `wipe-root` moves the
+#    old root subvolume (@root) to old_roots/<timestamp> on the btrfs top level
+#    and creates an empty @root in its place. Old roots are deleted 30 days
+#    after they were retired.
+# 2. Everything that must survive lives on the @persist subvolume, mounted at
+#    /persist, at the same path it has on / (e.g. /persist/etc/machine-id).
+#    The nix-community impermanence module bind-mounts each of those paths
+#    from /persist to its real place, so programs never see /persist.
+# 3. This file tells impermanence which paths those are. It derives the list
+#    from aiBox.state.paths: every path whose backup class isn't `ephemeral`,
+#    minus those inside another kept path (they come along with their parent).
+#    Paths in a user's home are given to impermanence per user, so the
+#    directories it creates there belong to that user.
+# 4. NixOS activation runs in the initrd and already reads kept paths there
+#    (alex's password file, hermes's config), so the kept directories are
+#    bind-mounted in the initrd too, not only after it.
 {
   config,
   lib,
@@ -16,17 +31,14 @@ let
   deviceUnit = "${utils.escapeSystemdPath device}.device";
   # How long an old root is kept after it is retired (the README's choice).
   keepOldRootsDays = 30;
-  # Users whose home holds kept paths. impermanence gives their entries, and
-  # the directories it creates inside the home, the user's ownership.
-  homeOwners = [
-    "root"
-    config.services.hermes-agent.user
-  ];
-
   declared = config.aiBox.state.paths;
+  ephemeral = lib.attrNames (lib.filterAttrs (_: p: p.backup == "ephemeral") declared);
   kept = lib.attrNames (lib.filterAttrs (_: p: p.backup != "ephemeral") declared);
-  # Is `path` strictly inside `ancestor`? A `*` segment in `ancestor` matches
-  # any name.
+  # Is `path` strictly inside `ancestor`? Compares the two paths segment by
+  # segment: `path` must be longer, and each of `ancestor`'s segments must
+  # equal `path`'s segment at the same position, or be `*`, which matches any
+  # name (as in "${sites}/*/state"). So "/a/b" is inside "/a" and "/*", but
+  # not inside "/a/b" itself or "/ab".
   isInside =
     ancestor: path:
     let
@@ -39,6 +51,9 @@ let
 
   homeOf = user: config.users.users.${user}.home;
   inHome = user: lib.hasPrefix "${homeOf user}/";
+  # Users with a kept path inside their home (root and hermes).
+  homeOwners = lib.filter (user: lib.any (inHome user) outermost) (lib.attrNames config.users.users);
+  # Splits paths into impermanence's two lists, by the `file` flag.
   entries = paths: {
     directories = lib.filter (p: !declared.${p}.file) paths;
     files = lib.filter (p: declared.${p}.file) paths;
@@ -66,6 +81,12 @@ in
     };
 
   assertions = [
+    {
+      assertion = lib.all (p: !lib.any (k: isInside k p) kept) ephemeral;
+      message = "aiBox.state.paths: an ephemeral path can't sit inside a kept path (it would be kept with its parent, not wiped). Declare it `cache` to keep it out of backups: ${
+        toString (lib.filter (p: lib.any (k: isInside k p) kept) ephemeral)
+      }";
+    }
     {
       assertion = lib.all (p: !lib.hasInfix "*" p) outermost;
       message = "aiBox.state.paths: a path with a `*` segment must sit inside a kept path (impermanence needs real paths): ${toString (lib.filter (lib.hasInfix "*") outermost)}";
@@ -102,12 +123,18 @@ in
     "d ${persist}${d} 0700 root root -"
   ]) privateParents;
 
-  # The README's rollback, with four changes: it prunes before retiring the
-  # current root, so that one always survives a boot; it counts age from
-  # retirement (touch), unless the clock is behind the root's own last change
-  # (no RTC battery: after a power cut the initrd's clock starts at systemd's
-  # build date); it never reuses a name; and it never prunes old_roots/ itself
-  # (-mindepth 1).
+  # wipe-root: retire the old root and create an empty one (step 1 above).
+  # This is the rollback script from impermanence's README ("BTRFS
+  # subvolumes" section), with four changes:
+  # - it deletes expired old roots *before* retiring the current one, so the
+  #   root of the previous boot always survives at least one boot;
+  # - an old root's age counts from when it was retired (the `touch`). The
+  #   touch is skipped when the clock is behind the root's own last change:
+  #   this box has no RTC battery, so after a power cut the initrd's clock
+  #   starts at systemd's build date, and a touch would make the root look old;
+  # - it adds a .1, .2, ... suffix rather than reuse a taken name;
+  # - `find -mindepth 1` never lists old_roots/ itself (the README's version
+  #   would try to delete it once it's 30 days old, failing the whole wipe).
   boot.initrd.systemd.extraBin.find = "${pkgs.findutils}/bin/find"; # for wipe-root
   boot.initrd.systemd.services.wipe-root = {
     description = "Retire the old root and create an empty one";

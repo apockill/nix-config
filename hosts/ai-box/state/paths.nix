@@ -255,35 +255,25 @@ in
       backup = "cache";
       why = "Go module cache (Wire-Pod build).";
     };
+    # Generated or transient files inside ~/.hermes (restic): kept with it,
+    # but not backed up.
+    "${hermes}/.hermes/.env" = {
+      backup = "cache";
+      why = "Generated from the 1Password templates in hermes/default.nix on every activation; holds secrets, so never backed up.";
+    };
+    "${hermes}/.hermes/browser_screenshots" = {
+      backup = "cache";
+      why = "Screenshots on their way to Discord; Hermes empties it itself.";
+    };
+    "${hermes}/.hermes/config.yaml" = {
+      backup = "cache";
+      why = "Regenerated from services.hermes-agent.settings on every activation; nix-config is its source, so not backed up.";
+    };
     # ephemeral
-    "${hermes}/.claude.json" = {
-      backup = "ephemeral";
-      why = "Claude Code's onboarding and trust flags, rewritten constantly; losing it means one first-run prompt.";
-    };
-    "${hermes}/.claude/CLAUDE.md" = {
-      backup = "ephemeral";
-      why = "Installed from hermes/CLAUDE.md.";
-    };
-    "${hermes}/.claude/settings.json" = {
-      backup = "ephemeral";
-      why = "home-manager activation (hermes/home.nix).";
-    };
     "${hermes}/.config" = {
       backup = "ephemeral";
       watch = true;
       why = "Tool configs: home-manager's (hermes/home.nix) plus runtime clutter. Runtime-written files are noted by the audit.";
-    };
-    "${hermes}/.hermes/.env" = {
-      backup = "ephemeral";
-      why = "Generated from the 1Password templates in hermes/default.nix.";
-    };
-    "${hermes}/.hermes/browser_screenshots" = {
-      backup = "ephemeral";
-      why = "Screenshots sent to Discord.";
-    };
-    "${hermes}/.hermes/config.yaml" = {
-      backup = "ephemeral";
-      why = "Regenerated from services.hermes-agent.settings on every activation.";
     };
     "${hermes}/.local" = {
       backup = "ephemeral";
