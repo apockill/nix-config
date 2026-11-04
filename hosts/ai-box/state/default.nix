@@ -46,10 +46,13 @@
 #
 # Kept files (not directories) need `file = true`: impermanence bind-mounts
 # files and directories differently.
+#
+# Tests: ./test_audit.py (the `state` check).
 {
   config,
   lib,
   pkgs,
+  pytestCheck,
   ...
 }:
 let
@@ -72,6 +75,8 @@ let
   );
   auditDir = "/var/lib/state-audit";
   python = "${pkgs.python3}/bin/python3";
+  # The audit lists uncommitted files in `git` paths with it.
+  git = pkgs.git;
 in
 {
   imports = [
@@ -111,12 +116,17 @@ in
     checkCommand = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
-      default = "env PATH=${pkgs.git}/bin:$PATH ${python} ${./audit.py} check ${declaredJson}";
+      default = "env PATH=${git}/bin:$PATH ${python} ${./audit.py} check ${declaredJson}";
       description = "Exits 1 and lists paths if undeclared state exists (used by ai-box-reboot).";
     };
   };
 
   config = {
+    aiBox.checks.state = pytestCheck "state" {
+      dir = ./.;
+      inputs = [ git ];
+    };
+
     assertions = lib.flatten (
       lib.mapAttrsToList (path: p: [
         {
@@ -162,7 +172,7 @@ in
     # collector (apps-health's collector is a long-running supervisor).
     systemd.services.state-audit = {
       description = "Audit root filesystem for undeclared state";
-      path = [ pkgs.git ]; # lists uncommitted files in `git` paths
+      path = [ git ]; # lists uncommitted files in `git` paths
       serviceConfig = {
         Type = "oneshot";
         StateDirectory = "state-audit";
