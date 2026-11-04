@@ -1,10 +1,9 @@
-"""Tests for cc.py. Run with `just test`."""
+"""Tests for cc.py: the `cc` check (`just test cc`)."""
 
 from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -524,7 +523,6 @@ def wait_for_calls(path: Path, count: int) -> list[dict[str, object]]:
     raise AssertionError(f"fake claude ran {len(lines)} times, not {count}")
 
 
-@pytest.mark.skipif(shutil.which("tmux") is None, reason="needs tmux")
 def test_a_job_survives_a_tmux_server_restart(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
