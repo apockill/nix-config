@@ -266,6 +266,8 @@ in
   systemd.services.hermes-agent = {
     wants = [ "hermes-secrets.service" ];
     after = [ "hermes-secrets.service" ];
+    # Same as cc-tmux (cc/default.nix): Claude Code's .claude.json in ~/.claude.
+    environment.CLAUDE_CONFIG_DIR = "${cfg.stateDir}/.claude";
     serviceConfig = {
       EnvironmentFile = [ "${secretsDir}/env" ];
       NoNewPrivileges = lib.mkForce false;

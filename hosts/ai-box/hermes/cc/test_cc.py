@@ -220,6 +220,18 @@ def test_start_records_the_job_launches_claude_and_prints_both_lines(
     assert trust["projects"][str(env / "work")]["hasTrustDialogAccepted"] is True
 
 
+def test_start_trusts_in_claude_config_dir(
+    env: Path, tmux: FakeTmux, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = env / "home" / ".claude"
+    config_dir.mkdir()
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config_dir))
+    assert start(tmux, env) == 0
+    trust = json.loads((config_dir / ".claude.json").read_text())
+    assert trust["projects"][str(env / "work")]["hasTrustDialogAccepted"] is True
+    assert not (env / "home" / ".claude.json").exists()
+
+
 def test_start_keeps_the_rest_of_claude_json(env: Path, tmux: FakeTmux) -> None:
     conf = env / "home" / ".claude.json"
     conf.write_text('{"theme": "dark", "projects": {"/other": {"x": 1}}}')
