@@ -205,6 +205,10 @@ in
         - If paths disappeared from the list (now declared or deleted), one line
           saying so.
         - If the report is stale or missing, say the audit isn't running.
+        - Lines starting "ROOT RESET ERROR" come from this boot's root reset
+          (/var/lib/root-reset/report.txt): pass them on, with their paths,
+          as the first thing in the message. Missing declared paths can be
+          recovered from the old root the line names.
         - If the output is OK and was OK before, respond with [SILENT].
         End with: "Reply here and I'll sort it out."
       '';
