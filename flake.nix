@@ -29,6 +29,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Wipes ai-box's root on boot; declared state lives in /persist
+    # (hosts/ai-box/state).
+    # Its nixpkgs and home-manager inputs are only for its own tests.
+    impermanence = {
+      url = "github:nix-community/impermanence";
+      inputs.nixpkgs.follows = "";
+      inputs.home-manager.follows = "";
+    };
+
     # Alex's agent on ai-box. Pinned to a release: upstream treats Nix as a
     # best-effort platform and main can break. Its Python/Node build follows
     # its own nixpkgs, which is what upstream tests.
