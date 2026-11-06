@@ -117,6 +117,13 @@ in
   };
 
   config = {
+    # logrotate's status file lives in a kept directory (paths.nix): it is
+    # replaced by renaming, which fails on a bind-mounted file.
+    services.logrotate.extraArgs = [
+      "--state"
+      "/var/lib/logrotate/status"
+    ];
+
     assertions = lib.flatten (
       lib.mapAttrsToList (path: p: [
         {
