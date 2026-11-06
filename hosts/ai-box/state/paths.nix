@@ -98,10 +98,9 @@ in
       backup = "cache";
       why = "llama-cpp service state (StateDirectory of a DynamicUser service; /var/lib/llama-cpp is systemd's symlink to it).";
     };
-    "/var/lib/logrotate.status" = {
-      file = true;
+    "/var/lib/logrotate" = {
       backup = "cache";
-      why = "logrotate's last-rotation bookkeeping.";
+      why = "logrotate's last-rotation bookkeeping (its --state file, set in ./default.nix). A directory, because logrotate replaces the file by renaming, which a bind-mounted file can't take.";
     };
     "/var/lib/NetworkManager" = {
       backup = "cache";
