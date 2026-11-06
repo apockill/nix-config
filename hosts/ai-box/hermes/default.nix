@@ -27,6 +27,19 @@ let
   };
   stampDir = "/var/lib/hermes-instructions";
 
+  # Claude Code keeps .claude.json in CLAUDE_CONFIG_DIR, else in ~. The root
+  # wipe only keeps ~/.claude (state/paths.nix), and a file of its own in ~
+  # can't be bind-mounted because Claude Code replaces it by renaming. So the
+  # claude on hermes's PATH defaults it to ~/.claude for every launcher (the
+  # agent, cc, code-server's Claude extension).
+  claudeConfigDir = "${cfg.stateDir}/.claude";
+  claudeCode = pkgs.symlinkJoin {
+    name = "claude-code";
+    paths = [ pkgs.claude-code ]; # current release, via the overlay below
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = "wrapProgram $out/bin/claude --set-default CLAUDE_CONFIG_DIR ${claudeConfigDir}";
+  };
+
   serviceAccountEnv = "/etc/hermes/op-service-account.env";
   secretsDir = "/run/hermes-secrets";
 
@@ -185,7 +198,7 @@ in
 
     extraPackages = with pkgs; [
       opVaultWrapper
-      claude-code # current release, via the overlay below
+      claudeCode
       ghWrapper
       git
       jq
@@ -266,8 +279,8 @@ in
   systemd.services.hermes-agent = {
     wants = [ "hermes-secrets.service" ];
     after = [ "hermes-secrets.service" ];
-    # Same as cc-tmux (cc/default.nix): Claude Code's .claude.json in ~/.claude.
-    environment.CLAUDE_CONFIG_DIR = "${cfg.stateDir}/.claude";
+    # cc (run from the agent's shell) reads it to find .claude.json.
+    environment.CLAUDE_CONFIG_DIR = claudeConfigDir;
     serviceConfig = {
       EnvironmentFile = [ "${secretsDir}/env" ];
       NoNewPrivileges = lib.mkForce false;
