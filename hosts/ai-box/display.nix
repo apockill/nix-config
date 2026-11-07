@@ -10,7 +10,7 @@
 # Linux (simpledrm grabs it as fb0), and nvidia-drm then never gets flip
 # completions: "Flip event timeout on head 0", nvidia-modeset hangs in D
 # state, and the projector stays dark. NVIDIA: the display driver doesn't
-# support hand-off. Check and set it in hosts/ai-box/README.md.
+# support hand-off. Check and set it: hosts/ai-box/README.md, Troubleshooting.
 { ... }:
 {
   hardware.nvidia-jetpack.modesetting.enable = true;
