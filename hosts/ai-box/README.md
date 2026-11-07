@@ -29,6 +29,26 @@ cp /home/.snapshots/41/snapshot/alex/file .   # or grab one file back
 Firmware capsule updates are applied automatically on switch
 (`hardware.nvidia-jetpack.firmware.autoUpdate`). Check with `ota-check-firmware`.
 
+### UEFI display hand-off must be Never
+
+The projector ([`display.nix`](display.nix)) only works if UEFI does **not**
+hand its boot screen over to Linux. With hand-off on (the firmware default
+here was Auto), simpledrm takes the UEFI framebuffer, nvidia-drm's flips time
+out (`Flip event timeout on head 0`), nvidia-modeset hangs, and DP stays dark.
+The setting is firmware state, so it has to be set again after a reflash:
+
+```shell
+v=/sys/firmware/efi/efivars/SocDisplayHandoffMode-781e084c-a330-417c-b678-38e696380cb9
+od -An -tx1 $v                     # want: 07 00 00 00 00  (02 = Auto, 01 = Always)
+sudo chattr -i $v
+printf '\x07\x00\x00\x00\x00' | sudo tee $v >/dev/null
+```
+
+Then reboot. Check: `dmesg | grep simpledrm` is empty and `fb0` is
+`nvidia-drmdrmfb`. In UEFI setup the setting is Device Manager > NVIDIA
+Configuration > Boot Configuration > SOC Display Hand-Off Mode, but on this
+firmware (36.5.2) the menu item may be hidden.
+
 ## Installing from scratch (no monitor needed)
 
 Tested 2026-10-11. This installs onto the NVMe from NVIDIA's stock L4T Ubuntu
@@ -70,6 +90,9 @@ The Jetson reboots into NixOS within about a minute: `ssh alex@ai-box.local`.
 
 Then **immediately run `passwd`**. alex's initial password is `password` (it's in
 this public repo), and it's also what sudo asks for.
+
+Also set [UEFI display hand-off to Never](#uefi-display-hand-off-must-be-never),
+or the projector won't work.
 
 ### Gotchas this hit
 
