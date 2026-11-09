@@ -71,35 +71,6 @@ let
     fi
   '';
 
-  # GitHub access is the "ailex-bot" GitHub App that Alex owns and installed on
-  # his repos (vault item "GitHub App"). gh-app-token signs a JWT with the app's
-  # private key, read from 1Password through a pipe (never on disk, argv or the
-  # environment), and swaps it for a 1-hour installation token.
-  ghAppToken = pkgs.writeShellApplication {
-    name = "gh-app-token";
-    runtimeInputs = [
-      opVaultWrapper
-      pkgs.openssl
-      pkgs.jq
-      pkgs.curl
-      pkgs.gnused
-      pkgs.coreutils
-    ];
-    text = builtins.readFile ./gh-app-token.sh;
-  };
-
-  # Hermes won't pass GH_TOKEN into the agent's terminal: it treats it as a
-  # provider credential (GHSA-rhgp-j443-p4rf) and refuses it in
-  # terminal.env_passthrough. So gh mints its own token per call, and only gh
-  # (and git, through gh's credential helper) ever sees it.
-  ghWrapper = pkgs.writeShellScriptBin "gh" ''
-    if [ -z "''${GH_TOKEN:-}" ]; then
-      GH_TOKEN=$(${ghAppToken}/bin/gh-app-token)
-      export GH_TOKEN
-    fi
-    exec ${pkgs.gh}/bin/gh "$@"
-  '';
-
 in
 {
   imports = [
@@ -109,6 +80,7 @@ in
     ./cc # cc: Claude Code jobs as Remote Control sessions
     ./home.nix # home-manager: git, gh, Claude Code settings
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
+    ./github # GitHub as the ailex-bot App: gh, git identity, gh-app-token
     {
       # More `op inject` lines for the secrets file from feature modules (e.g.
       # ./email.nix): vault references only, never secrets.
@@ -189,7 +161,7 @@ in
         "CF_ACCESS_CLIENT_SECRET"
         "CLAUDE_CODE_OAUTH_TOKEN"
         # Not GH_TOKEN or ANTHROPIC_TOKEN: Hermes refuses provider credentials
-        # here. gh gets its token through ghWrapper.
+        # here. gh mints its own token (./github).
       ];
     };
 
@@ -200,8 +172,6 @@ in
     extraPackages = with pkgs; [
       opVaultWrapper
       claude-code # current release, via the overlay below
-      ghWrapper
-      ghAppToken
       git
       jq
       just
@@ -209,9 +179,6 @@ in
       ripgrep
     ];
   };
-
-  # git's GitHub credential helper (home-manager) must use the wrapper too.
-  home-manager.users.${cfg.user}.programs.gh.package = ghWrapper;
 
   # Stable nixpkgs' claude-code lags behind what current models require
   # (Opus 5.5 needs 2.1.280+); this flake tracks Claude Code releases.
