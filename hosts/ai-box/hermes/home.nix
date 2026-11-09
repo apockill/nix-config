@@ -20,8 +20,8 @@ in
       programs.git = {
         enable = true;
         settings.user = {
-          name = "ailex-agent";
-          email = "341263899+ailex-agent@users.noreply.github.com";
+          name = "ailex-bot[bot]";
+          email = "354606656+ailex-bot[bot]@users.noreply.github.com";
         };
       };
 

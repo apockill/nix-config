@@ -46,9 +46,6 @@ let
     DISCORD_ALLOWED_USERS={{ op://ai-assistant/4mwy5sy5dcie5fnlf5jwzxemuy/user_id }}
     DISCORD_HOME_CHANNEL={{ op://ai-assistant/4mwy5sy5dcie5fnlf5jwzxemuy/channel_id }}
 
-    # "GitHub": the ailex-agent account's token, used by gh and git
-    GH_TOKEN={{ op://ai-assistant/kb6xnh67wvh2hu7gtl3cgzxu4u/token }}
-
     # "Cloudflare Tunnel"
     CLOUDFLARE_TUNNEL_TOKEN={{ op://ai-assistant/pb7y4zmd5omz4jq5crf7h3fqsa/token }}
 
@@ -74,13 +71,30 @@ let
     fi
   '';
 
+  # GitHub access is the "ailex-bot" GitHub App that Alex owns and installed on
+  # his repos (vault item "GitHub App"). gh-app-token signs a JWT with the app's
+  # private key, read from 1Password through a pipe (never on disk, argv or the
+  # environment), and swaps it for a 1-hour installation token.
+  ghAppToken = pkgs.writeShellApplication {
+    name = "gh-app-token";
+    runtimeInputs = [
+      opVaultWrapper
+      pkgs.openssl
+      pkgs.jq
+      pkgs.curl
+      pkgs.gnused
+      pkgs.coreutils
+    ];
+    text = builtins.readFile ./gh-app-token.sh;
+  };
+
   # Hermes won't pass GH_TOKEN into the agent's terminal: it treats it as a
   # provider credential (GHSA-rhgp-j443-p4rf) and refuses it in
-  # terminal.env_passthrough. So gh reads it from the secrets file itself, and
-  # only gh (and git, through gh's credential helper) ever sees it.
+  # terminal.env_passthrough. So gh mints its own token per call, and only gh
+  # (and git, through gh's credential helper) ever sees it.
   ghWrapper = pkgs.writeShellScriptBin "gh" ''
-    if [ -z "''${GH_TOKEN:-}" ] && [ -r ${secretsDir}/env ]; then
-      GH_TOKEN=$(${pkgs.gnused}/bin/sed -n 's/^GH_TOKEN=//p' ${secretsDir}/env)
+    if [ -z "''${GH_TOKEN:-}" ]; then
+      GH_TOKEN=$(${ghAppToken}/bin/gh-app-token)
       export GH_TOKEN
     fi
     exec ${pkgs.gh}/bin/gh "$@"
@@ -187,6 +201,7 @@ in
       opVaultWrapper
       claude-code # current release, via the overlay below
       ghWrapper
+      ghAppToken
       git
       jq
       just
