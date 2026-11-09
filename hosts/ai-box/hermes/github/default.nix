@@ -32,8 +32,9 @@ let
   };
 
   ghWrapper = pkgs.writeShellScriptBin "gh" ''
-    if [ -z "''${GH_TOKEN:-}" ]; then
-      GH_TOKEN=$(${ghAppToken}/bin/gh-app-token)
+    # No token where 1Password isn't reachable (gh-app-token fails at once): gh then runs
+    # unauthenticated rather than hanging.
+    if [ -z "''${GH_TOKEN:-}" ] && GH_TOKEN=$(${ghAppToken}/bin/gh-app-token); then
       export GH_TOKEN
     fi
     exec ${pkgs.gh}/bin/gh "$@"
