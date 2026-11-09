@@ -22,7 +22,7 @@ let
   # `hermes send` needs the Discord bot token, which only the gateway's
   # environment has ("Platform 'discord' is not configured" from an email
   # session). Read it and the home channel from the secrets file for the one
-  # call, like ghWrapper does for GH_TOKEN.
+  # call.
   notifyAlex = pkgs.writeShellScriptBin "notify-alex" ''
     set -a
     eval "$(${pkgs.gnugrep}/bin/grep -E '^DISCORD_(BOT_TOKEN|HOME_CHANNEL)=' ${secretsEnv})"

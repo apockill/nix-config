@@ -17,17 +17,8 @@ in
     {
       home.stateVersion = "26.05";
 
-      programs.git = {
-        enable = true;
-        settings.user = {
-          name = "ailex-agent";
-          email = "341263899+ailex-agent@users.noreply.github.com";
-        };
-      };
-
-      # Also configures git to use gh for GitHub credentials. The package is
-      # ghWrapper (hermes/default.nix), which supplies the token.
-      programs.gh.enable = true;
+      # The identity and gh (git's GitHub credential helper) come from ./github.
+      programs.git.enable = true;
 
       # No programs.bash: Hermes builds the agent's terminal environment from a
       # login-shell snapshot and strips credentials (GH_TOKEN, ...) it finds

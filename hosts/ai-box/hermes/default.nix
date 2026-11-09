@@ -46,9 +46,6 @@ let
     DISCORD_ALLOWED_USERS={{ op://ai-assistant/4mwy5sy5dcie5fnlf5jwzxemuy/user_id }}
     DISCORD_HOME_CHANNEL={{ op://ai-assistant/4mwy5sy5dcie5fnlf5jwzxemuy/channel_id }}
 
-    # "GitHub": the ailex-agent account's token, used by gh and git
-    GH_TOKEN={{ op://ai-assistant/kb6xnh67wvh2hu7gtl3cgzxu4u/token }}
-
     # "Cloudflare Tunnel"
     CLOUDFLARE_TUNNEL_TOKEN={{ op://ai-assistant/pb7y4zmd5omz4jq5crf7h3fqsa/token }}
 
@@ -74,18 +71,6 @@ let
     fi
   '';
 
-  # Hermes won't pass GH_TOKEN into the agent's terminal: it treats it as a
-  # provider credential (GHSA-rhgp-j443-p4rf) and refuses it in
-  # terminal.env_passthrough. So gh reads it from the secrets file itself, and
-  # only gh (and git, through gh's credential helper) ever sees it.
-  ghWrapper = pkgs.writeShellScriptBin "gh" ''
-    if [ -z "''${GH_TOKEN:-}" ] && [ -r ${secretsDir}/env ]; then
-      GH_TOKEN=$(${pkgs.gnused}/bin/sed -n 's/^GH_TOKEN=//p' ${secretsDir}/env)
-      export GH_TOKEN
-    fi
-    exec ${pkgs.gh}/bin/gh "$@"
-  '';
-
 in
 {
   imports = [
@@ -95,6 +80,7 @@ in
     ./cc # cc: Claude Code jobs as Remote Control sessions
     ./home.nix # home-manager: git, gh, Claude Code settings
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
+    ./github # GitHub as the ailex-bot App: gh, git identity, gh-app-token
     {
       # More `op inject` lines for the secrets file from feature modules (e.g.
       # ./email.nix): vault references only, never secrets.
@@ -175,7 +161,7 @@ in
         "CF_ACCESS_CLIENT_SECRET"
         "CLAUDE_CODE_OAUTH_TOKEN"
         # Not GH_TOKEN or ANTHROPIC_TOKEN: Hermes refuses provider credentials
-        # here. gh gets its token through ghWrapper.
+        # here. gh mints its own token (./github).
       ];
     };
 
@@ -186,7 +172,6 @@ in
     extraPackages = with pkgs; [
       opVaultWrapper
       claude-code # current release, via the overlay below
-      ghWrapper
       git
       jq
       just
@@ -194,9 +179,6 @@ in
       ripgrep
     ];
   };
-
-  # git's GitHub credential helper (home-manager) must use the wrapper too.
-  home-manager.users.${cfg.user}.programs.gh.package = ghWrapper;
 
   # Stable nixpkgs' claude-code lags behind what current models require
   # (Opus 5.5 needs 2.1.280+); this flake tracks Claude Code releases.
