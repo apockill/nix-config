@@ -29,7 +29,14 @@ in
       # than a home-manager link. Local changes last until the next activation.
       home.activation.claudeSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         run install -D -m 0640 ${
-          pkgs.writeText "claude-settings.json" (builtins.toJSON { theme = "dark"; })
+          pkgs.writeText "claude-settings.json" (
+            builtins.toJSON {
+              theme = "dark";
+              # Alex: Opus always at high effort (medium is the Claude Code default).
+              effortLevel = "high";
+              env.CLAUDE_CODE_EFFORT_LEVEL = "high";
+            }
+          )
         } "$HOME/.claude/settings.json"
       '';
     };
