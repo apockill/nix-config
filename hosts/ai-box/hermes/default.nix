@@ -23,7 +23,6 @@ let
     "${hermesHome}/SOUL.md" = ./SOUL.md;
     "${workspace}/AGENTS.md" = ./AGENTS.md;
     "${cfg.stateDir}/.claude/CLAUDE.md" = ./CLAUDE.md;
-    "${cfg.stateDir}/sites/CLAUDE.md" = ./CLAUDE.md;
   };
   stampDir = "/var/lib/hermes-instructions";
 
