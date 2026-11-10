@@ -1,46 +1,8 @@
-# Claude Code Instructions
+# Claude Code on ai-box
 
-You are the primary coding agent on **ai-box** (NVIDIA Jetson AGX Orin 64GB, NixOS). You build, modify, test, and polish web applications, hardware bridges, and services.
+Every Claude Code session on ai-box reads this file, so it holds only what is true machine-wide. For everything else follow the instructions of the repository you work in (its `AGENTS.md`); each rule here names where to read more.
 
-## Machine Environment
-
-- **NixOS System:** The host system is NixOS. System configuration lives in `nix-config`.
-- **Application Directory:** Web applications live under `/var/lib/hermes/sites/apps/<name>/`. See [`/var/lib/hermes/sites/README.md`](/var/lib/hermes/sites/README.md) for full architecture and lifecycle rules.
-- **Instances:** an app's code runs as instances declared in `/var/lib/hermes/sites/namespaces/<namespace>.yaml` (today's web apps in `default.yaml`); `box ns list|check|up|down|switch|restart` drives the apps runner.
-- **Portless Sockets:** each backend instance binds to `$SITES_RUNTIME_DIR/app.sock` (`/run/sites/<address>/app.sock`), which the apps runner gives it. Caddy proxies `<address>.alexthiele.io` to this socket.
-- **Package Management:** You are authorized to install any dependencies needed:
-  - Node packages via `npm install` and `package.json`.
-  - Python and system packages via the app's local `flake.nix`.
-- **Templates:** Always scaffold from `/var/lib/hermes/sites/templates/`. For full-stack applications with React 19, Tailwind, Lucide, and FastAPI, follow [`templates/backend/README.md`](/var/lib/hermes/sites/templates/backend/README.md).
-
-## `box`: Every App's API Is Its CLI
-
-`box` (`/var/lib/hermes/sites/tools/box/box.py`) generates a command for every `/api` route of every backend app (`box vector --help`, `box vector state`). Use it to operate apps instead of the browser. When building or changing a backend:
-
-- **Docstrings:** every route handler gets one short sentence saying what it does; it becomes the command's `--help`.
-- **Health:** serve `GET /api/health` returning `{"status": "ok", ...}`.
-- **UI-only routes:** hide them with a reason, `openapi_extra={"x-box": {"hidden": "<reason>"}}`. Need a convenience command? Add an endpoint.
-- **Lint:** run `box lint <app>` against the running app and fix every error. Design: `/var/lib/hermes/workspace/designs/box.md`.
-- **Restart:** `box restart <app>` restarts it through the apps runner and waits until it is up (prints the app's status and log tail if not).
-- **Refactors:** `box snapshot <app> -o before.json` first, `box diff <app> before.json` after: lists GET endpoints whose status, content type or JSON keys changed (GET only, safe on hardware apps).
-
-## Persistent Data
-
-Keep every file an app must not lose (databases, settings, credentials) in its instance's state directory, `$SITES_STATE_DIR` (`/var/lib/hermes/instances/<address>/`), which the apps runner creates outside the repository. It is backed up nightly; nothing in an app folder is state, and anything uncommitted there is disposable.
-
-## Design Standards
-
-Every dashboard and web application must be visually dense, polished, and purposeful:
-
-- **Surfaces:** Dark theme default. Deep void backgrounds (`#090d16`), elevated glassmorphic cards with subtle borders (`1px solid rgba(255, 255, 255, 0.08)`), and soft drop shadows.
-- **Typography:** Geometric sans-serif (`Inter`, `system-ui`) for UI labels. Monospace (`JetBrains Mono`) with tabular numbers (`tabular-nums`) for coordinates, telemetry, timestamps, and sensor values.
-- **Icons and Graphics:** Use crisp vector icons (such as `lucide-react`) rather than raw unicode emojis or text symbols for interactive controls.
-- **Data Visualizers:** For spatial, robotic, map, or telemetry feeds, implement dynamic Canvas 2D or Three.js visualizers with grid lines and glowing indicators.
-- **Mobile and Foldable Displays:** Every interface must adapt cleanly down to 280px–340px width (e.g. Pixel 11 Pro Fold outer display). Ensure primary controls remain accessible alongside video streams or maps without requiring vertical scrolling.
-
-## Verification Workflow
-
-Before completing any task:
-1. Compile the build: for frontend projects, run `npm run build` to confirm zero JSX, CSS, or bundle errors.
-2. Verify live execution: confirm the instance runs (`box ns list`) and its socket responds (`curl -s --unix-socket /run/sites/<address>/app.sock http://localhost/` returns HTTP 200).
-3. Visual confirmation: verify that rendered elements appear correctly in the browser without blank states or layout overflows.
+- **The machine:** an NVIDIA Jetson AGX Orin 64GB running NixOS, declared in nix-config (github.com/apockill/nix-config, host config in `hosts/ai-box/`). What survives a reboot, how it is backed up, and how to change the system: nix-config's `hosts/ai-box/hermes/AGENTS.md` (installed as `/var/lib/hermes/workspace/AGENTS.md`).
+- **Installing tools:** for a one-off tool, `nix shell nixpkgs#<pkg> -c <cmd>`; never `apt`, `pip install`, `npm -g` or curl-pipe installers, which fail on NixOS or are wiped on the next switch. A project's packages go in the project's own files (that AGENTS.md, "Installing tools").
+- **One hardware, one operator:** only the agent Alex has named as a device's operator (Hermes) runs code against real hardware; every other session works on simulated stand-ins and claims no device.
+- **Where projects live:** web apps and their framework in `/var/lib/hermes/sites` (start from its `AGENTS.md`); long-term projects in `/var/lib/hermes/projects/<name>` (each declared in nix-config's `hosts/ai-box/projects/`); working trees for changes in `/var/lib/hermes/worktrees/`.
