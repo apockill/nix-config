@@ -198,6 +198,11 @@ in
     };
 
     # --- Hermes (the agent) --------------------------------------------------
+    # ephemeral
+    "${hermes}/instances-scratch" = {
+      backup = "ephemeral";
+      why = "Scratch state of apps run from working trees other than the live checkout (ai-box-apps STATE-6); fine to lose.";
+    };
     # git
     "${hermes}/workspace/nix-config" = {
       backup = "git";
@@ -205,6 +210,10 @@ in
       why = "Agent's clone of this repo.";
     };
     # restic
+    "${hermes}/instances" = {
+      backup = "restic";
+      why = "The web apps' state root (ai-box-apps DR-42): one directory per app instance (databases, settings, credentials), outside the apps repo so no git clean or worktree reaches it; .trash/ holds destroyed instances' state, .runner/ which namespaces are up.";
+    };
     "${hermes}/.anki_vector" = {
       backup = "restic";
       why = "Vector SDK config (robot serial, cert path).";

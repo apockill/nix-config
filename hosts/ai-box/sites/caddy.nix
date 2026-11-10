@@ -1,16 +1,16 @@
-# Dynamic reverse proxy and static site server for ai-box.
-# Automatically serves /var/lib/hermes/sites/apps/<subdomain> at <subdomain>.alexthiele.io
-# with zero rebuilds or service reloads.
-{
-  config,
-  lib,
-  pkgs,
-  ...
-}:
+# Dynamic reverse proxy and static site server for ai-box, with zero rebuilds or reloads.
+#
+#   <address>.alexthiele.io   a running instance: /run/sites/<address>/app.sock, the socket the
+#                             apps runner gives it (ai-box-apps DR-41)
+#   <address>.../_bus/        the bus gateway, same-origin on every instance's address (D13)
+#   <app>.alexthiele.io       a static app: the files of /var/lib/hermes/sites/apps/<app>
+#   alexthiele.io             the portal instance
+#
+# A backend app whose instance isn't running answers 502, never its files.
+{ ... }:
 let
-  # Top-level directories of sites/ that aren't apps, so they get no subdomain:
-  # spec/ holds the repo's spec-driven development files.
-  notApps = [ "spec" ];
+  sites = "/var/lib/hermes/sites";
+  run = "/run/sites";
 in
 {
   services.caddy = {
@@ -19,39 +19,36 @@ in
       http:// {
         @subhost host *.alexthiele.io
         handle @subhost {
-          @notApp host ${lib.concatMapStringsSep " " (d: "${d}.alexthiele.io") notApps}
-          handle @notApp {
-            respond 404
+          @bus path /_bus/*
+          handle @bus {
+            reverse_proxy unix/${run}/.bus/app.sock
           }
-          @hasBackend {
+          @instance {
             file {
-              root /var/lib/hermes/sites/apps/{labels.2}
+              root ${run}
+              try_files {labels.2}/
+            }
+          }
+          handle @instance {
+            reverse_proxy unix/${run}/{labels.2}/app.sock
+          }
+          @backendDown {
+            file {
+              root ${sites}/apps/{labels.2}
               try_files start.sh
             }
           }
-          handle @hasBackend {
-            reverse_proxy unix//var/lib/hermes/sites/apps/{labels.2}/app.sock
+          handle @backendDown {
+            respond "{labels.2} isn't running" 502
           }
           handle {
-            root * /var/lib/hermes/sites/apps/{labels.2}
+            root * ${sites}/apps/{labels.2}
             file_server
           }
         }
 
         handle {
-          @portalBackend {
-            file {
-              root /var/lib/hermes/sites/apps/portal
-              try_files start.sh
-            }
-          }
-          handle @portalBackend {
-            reverse_proxy unix//var/lib/hermes/sites/apps/portal/app.sock
-          }
-          handle {
-            root * /var/lib/hermes/sites/apps/portal
-            file_server
-          }
+          reverse_proxy unix/${run}/portal/app.sock
         }
       }
     '';
@@ -60,7 +57,6 @@ in
   users.users.caddy.extraGroups = [ "hermes" ];
 
   systemd.tmpfiles.rules = [
-    "d /var/lib/hermes/sites 0755 hermes hermes -"
-    "d /var/lib/hermes/sites/default 0755 hermes hermes -"
+    "d ${sites} 0755 hermes hermes -"
   ];
 }

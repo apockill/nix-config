@@ -6,7 +6,8 @@ You are the primary coding agent on **ai-box** (NVIDIA Jetson AGX Orin 64GB, Nix
 
 - **NixOS System:** The host system is NixOS. System configuration lives in `nix-config`.
 - **Application Directory:** Web applications live under `/var/lib/hermes/sites/apps/<name>/`. See [`/var/lib/hermes/sites/README.md`](/var/lib/hermes/sites/README.md) for full architecture and lifecycle rules.
-- **Portless Sockets:** Server backends bind to `./app.sock`. Caddy automatically proxies `<name>.alexthiele.io` to this socket when `start.sh` is present.
+- **Instances:** an app's code runs as instances declared in `/var/lib/hermes/sites/namespaces/<namespace>.yaml` (today's web apps in `default.yaml`); `box ns list|check|up|down|switch|restart` drives the apps runner.
+- **Portless Sockets:** each backend instance binds to `$SITES_RUNTIME_DIR/app.sock` (`/run/sites/<address>/app.sock`), which the apps runner gives it. Caddy proxies `<address>.alexthiele.io` to this socket.
 - **Package Management:** You are authorized to install any dependencies needed:
   - Node packages via `npm install` and `package.json`.
   - Python and system packages via the app's local `flake.nix`.
@@ -25,7 +26,7 @@ You are the primary coding agent on **ai-box** (NVIDIA Jetson AGX Orin 64GB, Nix
 
 ## Persistent Data
 
-Keep every file an app must not lose (databases, settings, credentials) in `<app>/state/`, created at startup. It is gitignored and backed up nightly; anything else uncommitted in an app folder is disposable.
+Keep every file an app must not lose (databases, settings, credentials) in its instance's state directory, `$SITES_STATE_DIR` (`/var/lib/hermes/instances/<address>/`), which the apps runner creates outside the repository. It is backed up nightly; nothing in an app folder is state, and anything uncommitted there is disposable.
 
 ## Design Standards
 
@@ -41,5 +42,5 @@ Every dashboard and web application must be visually dense, polished, and purpos
 
 Before completing any task:
 1. Compile the build: for frontend projects, run `npm run build` to confirm zero JSX, CSS, or bundle errors.
-2. Verify live execution: confirm `./start.sh` runs and the socket responds (`curl -s --unix-socket ./app.sock http://localhost/` returns HTTP 200).
+2. Verify live execution: confirm the instance runs (`box ns list`) and its socket responds (`curl -s --unix-socket /run/sites/<address>/app.sock http://localhost/` returns HTTP 200).
 3. Visual confirmation: verify that rendered elements appear correctly in the browser without blank states or layout overflows.

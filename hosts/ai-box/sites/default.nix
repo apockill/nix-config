@@ -1,13 +1,14 @@
 # Everything the web apps in /var/lib/hermes/sites (the ai-box-apps repo)
-# need from the host. Each app is a subdirectory served at
-# <name>.alexthiele.io; the apps' own code and dependencies live in that repo.
+# need from the host. Each app is a directory under apps/; its instances,
+# declared in the repo's namespaces/, are each served at <address>.alexthiele.io.
 #
-#   caddy.nix   serves each app: its app.sock if it has a start.sh, else its
-#               files.
-#   runner.nix  launches, health-checks and heals the apps (runner.py), and
-#               alerts Alex when one fails (monitor.py).
-#   below       the `box` CLI for the agent, and the apps' declared state: each
-#               app keeps its persistent data in its own state/ directory.
+#   caddy.nix   serves each running instance on its socket in /run/sites, the
+#               bus gateway, and static apps' files.
+#   runner.nix  runs the repo's apps runner (tools/runner, over process-compose)
+#               as the one service for the apps, and alerts Alex when an
+#               instance fails (monitor.py).
+#   below       the `box` CLI for the agent. The instances' state root,
+#               /var/lib/hermes/instances, is declared in ../state/paths.nix.
 #
 # Removing this directory (and its import) removes the whole feature.
 { config, pkgs, ... }:
@@ -35,11 +36,6 @@ in
       backup = "git";
       repo = "github.com/ailex-agent/ai-box-apps";
       why = "All web apps; code is committed. Runtime data inside is declared below.";
-    };
-    # restic
-    "${sites}/apps/*/state" = {
-      backup = "restic";
-      why = "Each app's persistent data (databases, settings, credentials), kept in <app>/state/ (gitignored in ai-box-apps).";
     };
     # host
     "/var/lib/apps-health" = {
