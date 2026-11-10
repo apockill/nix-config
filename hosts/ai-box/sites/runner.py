@@ -1,4 +1,4 @@
-"""Supervisor, healer and uptime recorder for the apps in /var/lib/hermes/sites.
+"""Supervisor, healer and uptime recorder for the apps in /var/lib/hermes/sites/apps.
 
 Every app directory with an executable start.sh is launched and kept running.
 Each app is health-checked by an HTTP request over its app.sock. The process
@@ -27,6 +27,7 @@ import time
 from collections import deque
 
 SITES = os.environ.get("SITES_DIR", "/var/lib/hermes/sites")
+APPS = os.path.join(SITES, "apps")  # every app is a directory here
 STATE = os.environ.get("STATE_DIRECTORY", "/var/lib/apps-health")
 EVENTS = os.path.join(STATE, "events.jsonl")
 STATUS = os.path.join(STATE, "status.json")
@@ -93,7 +94,7 @@ def http_check(sock_path: str) -> tuple[bool, str]:
 def git_rev(app: str) -> str:
     try:
         out = subprocess.run(
-            ["git", "-C", SITES, "log", "-1", "--format=%H", "--", app],
+            ["git", "-C", SITES, "log", "-1", "--format=%H", "--", f"apps/{app}"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -106,7 +107,7 @@ def git_rev(app: str) -> str:
 class App:
     def __init__(self, name: str):
         self.name = name
-        self.dir = os.path.join(SITES, name)
+        self.dir = os.path.join(APPS, name)
         self.proc: subprocess.Popen[bytes] | None = None
         self.started = 0.0
         self.status = "starting"
@@ -238,10 +239,10 @@ class App:
 
 def discover() -> list[str]:
     names = []
-    for name in sorted(os.listdir(SITES)):
+    for name in sorted(os.listdir(APPS)):
         if name.startswith((".", "_")) or name == "default":
             continue
-        if os.access(os.path.join(SITES, name, "start.sh"), os.X_OK):
+        if os.access(os.path.join(APPS, name, "start.sh"), os.X_OK):
             names.append(name)
     return names
 

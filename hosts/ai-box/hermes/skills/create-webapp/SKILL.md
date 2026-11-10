@@ -13,9 +13,9 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 ## Architecture
 
 - **Repository:** All apps live in the private repository [`ailex-agent/ai-box-apps`](https://github.com/ailex-agent/ai-box-apps), cloned locally to `/var/lib/hermes/sites/`.
-- **Dynamic Routing:** Caddy serves `/var/lib/hermes/sites/<name>` at `https://<name>.alexthiele.io` dynamically. When an executable `start.sh` is present, traffic routes to `./app.sock`. No custom Caddy configuration or Nix rebuilds are required.
+- **Dynamic Routing:** Caddy serves `/var/lib/hermes/sites/apps/<name>` at `https://<name>.alexthiele.io` dynamically. When an executable `start.sh` is present, traffic routes to `./app.sock`. No custom Caddy configuration or Nix rebuilds are required.
 - **Root Portal:** `https://alexthiele.io` / `https://portal.alexthiele.io` dynamically scans all app directories and renders the catalog.
-- **Single-Directory Isolation:** Every project is self-contained. Deleting an app is strictly `rm -rf /var/lib/hermes/sites/<name>`.
+- **Single-Directory Isolation:** Every project is self-contained. Deleting an app is strictly `rm -rf /var/lib/hermes/sites/apps/<name>`.
 - **Automatic Sync:** A git post-commit hook automatically pushes commits to `origin/main`.
 
 ## Verification and Quality Standard
@@ -30,11 +30,11 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
    Hermes is an orchestrator. Delegate coding and UI creation to Claude Code CLI (`claude -p "..."`) using **`--model claude-opus-5-5`** with max turns (`--max-turns 30`). Claude Code's agentic coding loop does a better job than Hermes's for real code changes, so prefer it for any non-trivial edit.
    Claude Code runs on the agent's own Claude subscription (flat rate, no per-token API billing). `CLAUDE_CODE_OAUTH_TOKEN` is already in the environment; never set `ANTHROPIC_API_KEY`, which would switch it to metered API billing.
 2. **Start from Templates:**
-   Scaffold from existing templates in `/var/lib/hermes/sites/_templates/` rather than starting from scratch:
-   - Full-stack modern apps (React 19 + Vite + Tailwind + Lucide + FastAPI): see [`_templates/backend/README.md`](/var/lib/hermes/sites/_templates/backend/README.md).
-   - Static viewer / dashboard: see [`_templates/static/README.md`](/var/lib/hermes/sites/_templates/static/README.md).
+   Scaffold from existing templates in `/var/lib/hermes/sites/templates/` rather than starting from scratch:
+   - Full-stack modern apps (React 19 + Vite + Tailwind + Lucide + FastAPI): see [`templates/backend/README.md`](/var/lib/hermes/sites/templates/backend/README.md).
+   - Static viewer / dashboard: see [`templates/static/README.md`](/var/lib/hermes/sites/templates/static/README.md).
 3. **App Metadata:** Every app must have a valid `meta.json` (`title`, `description`, `icon`, `type`) in its root. An app that wraps a third-party server we don't write (code-server, noVNC, the Hermes dashboard) also sets `"upstream": "<what it wraps>"`.
-3a. **An app's API is its CLI (`box`).** `sites/box.py` generates a command for every `/api` route of every FastAPI backend from its `/openapi.json` over `app.sock` (`box <app> --help`, `box <app> <cmd> --flag`, `box <app> api METHOD PATH`). Alex wants every useful UI action usable by an LLM this way, without a browser. So for every backend:
+3a. **An app's API is its CLI (`box`).** `sites/tools/box/box.py` generates a command for every `/api` route of every FastAPI backend from its `/openapi.json` over `app.sock` (`box <app> --help`, `box <app> <cmd> --flag`, `box <app> api METHOD PATH`). Alex wants every useful UI action usable by an LLM this way, without a browser. So for every backend:
    - FastAPI only; every `/api` route has a one-sentence imperative docstring (it becomes `--help`); `GET /api/health` exists.
    - Need a convenience or composite command? Add an API endpoint; the UI can use it too. Never write CLI-side code per app.
    - UI-only routes: pages outside `/api` get `include_in_schema=False`; UI-only `/api` routes (video streams) get `openapi_extra={"x-box": {"hidden": "<reason>"}}`. Override an awkward command name with `{"x-box": {"command": "..."}}`.
@@ -54,12 +54,12 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 
 1. Scaffold from the chosen template:
    ```bash
-   cp -r /var/lib/hermes/sites/_templates/<template> /var/lib/hermes/sites/<app-name>
+   cp -r /var/lib/hermes/sites/templates/<template> /var/lib/hermes/sites/apps/<app-name>
    ```
 2. Delegate implementation to Claude Code CLI:
    ```bash
    # Auth: CLAUDE_CODE_OAUTH_TOKEN (Claude subscription) is already set; no API key.
-   cd /var/lib/hermes/sites/<app-name>
+   cd /var/lib/hermes/sites/apps/<app-name>
 
    claude -p "Your detailed prompt describing requirements..." \
      --model claude-opus-5-5 \
@@ -74,7 +74,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 
 ### Modifying an Existing App
 
-1. Inspect existing files in `/var/lib/hermes/sites/<app-name>/`.
+1. Inspect existing files in `/var/lib/hermes/sites/apps/<app-name>/`.
 2. Dispatch Claude Code CLI with targeted instructions.
 3. If the backend process was modified, restart the process to clear in-memory caches.
 4. Verify endpoints over the Unix domain socket and inspect the rendered visual state in Chromium before committing.

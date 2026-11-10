@@ -18,7 +18,7 @@ let
   # /openapi.json over app.sock. The code lives in the apps repo (stdlib
   # only), so it updates with the apps rather than with a switch.
   boxWrapper = pkgs.writeShellScriptBin "box" ''
-    exec ${pkgs.python3}/bin/python3 ${sites}/box.py "$@"
+    exec ${pkgs.python3}/bin/python3 ${sites}/tools/box/box.py "$@"
   '';
 in
 {
@@ -37,7 +37,7 @@ in
       why = "All web apps; code is committed. Runtime data inside is declared below.";
     };
     # restic
-    "${sites}/*/state" = {
+    "${sites}/apps/*/state" = {
       backup = "restic";
       why = "Each app's persistent data (databases, settings, credentials), kept in <app>/state/ (gitignored in ai-box-apps).";
     };

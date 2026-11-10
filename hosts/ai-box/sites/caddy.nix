@@ -1,5 +1,5 @@
 # Dynamic reverse proxy and static site server for ai-box.
-# Automatically serves /var/lib/hermes/sites/<subdomain> at <subdomain>.alexthiele.io
+# Automatically serves /var/lib/hermes/sites/apps/<subdomain> at <subdomain>.alexthiele.io
 # with zero rebuilds or service reloads.
 {
   config,
@@ -25,15 +25,15 @@ in
           }
           @hasBackend {
             file {
-              root /var/lib/hermes/sites/{labels.2}
+              root /var/lib/hermes/sites/apps/{labels.2}
               try_files start.sh
             }
           }
           handle @hasBackend {
-            reverse_proxy unix//var/lib/hermes/sites/{labels.2}/app.sock
+            reverse_proxy unix//var/lib/hermes/sites/apps/{labels.2}/app.sock
           }
           handle {
-            root * /var/lib/hermes/sites/{labels.2}
+            root * /var/lib/hermes/sites/apps/{labels.2}
             file_server
           }
         }
@@ -41,15 +41,15 @@ in
         handle {
           @portalBackend {
             file {
-              root /var/lib/hermes/sites/portal
+              root /var/lib/hermes/sites/apps/portal
               try_files start.sh
             }
           }
           handle @portalBackend {
-            reverse_proxy unix//var/lib/hermes/sites/portal/app.sock
+            reverse_proxy unix//var/lib/hermes/sites/apps/portal/app.sock
           }
           handle {
-            root * /var/lib/hermes/sites/portal
+            root * /var/lib/hermes/sites/apps/portal
             file_server
           }
         }
