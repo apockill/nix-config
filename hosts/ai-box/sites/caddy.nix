@@ -19,6 +19,8 @@ in
       http:// {
         @subhost host *.alexthiele.io
         handle @subhost {
+          # /_bus/ on every label, running instance or not: the gateway serves only the bus
+          # (subscribe-only, NODE-26) and the whole domain is behind Cloudflare Access.
           @bus path /_bus/*
           handle @bus {
             reverse_proxy unix/${run}/.bus/app.sock

@@ -16,7 +16,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 - **Dynamic Routing:** Caddy serves each running instance at `https://<address>.alexthiele.io` from its socket, `/run/sites/<address>/app.sock`, and a static app's files from `/var/lib/hermes/sites/apps/<name>`. An instance is declared in `/var/lib/hermes/sites/namespaces/<namespace>.yaml` (today's apps in `default.yaml`, named after their app); the apps runner (`box ns ...`) runs it under process-compose. No custom Caddy configuration or Nix rebuilds are required.
 - **Root Portal:** `https://alexthiele.io` / `https://portal.alexthiele.io` dynamically scans all app directories and renders the catalog.
 - **Single-Directory Isolation:** An app's code is self-contained in `apps/<name>`; its instances' state lives in `/var/lib/hermes/instances/<address>/` (`$SITES_STATE_DIR`). Deleting an app: drop its namespace entries, `rm -rf apps/<name>`, `box ns destroy <address>` for its state.
-- **Automatic Sync:** A git post-commit hook automatically pushes commits to `origin/main`.
+- **Pushing:** nothing pushes on its own; after committing to `main`, `git pull --ff-only` then `git push origin main` (the pre-push hook refuses commits that touch the spec's parts: those go through `box change`).
 
 ## Verification and Quality Standard
 
