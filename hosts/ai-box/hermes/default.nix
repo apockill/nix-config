@@ -120,7 +120,10 @@ in
       # explicitly rather than deleting the key, for the same deep-merge reason.
       agent = {
         image_input_mode = "auto";
+        # Alex: always high effort for Opus (Hermes defaults to medium).
+        reasoning_effort = "high";
       };
+      delegation.reasoning_effort = "high";
 
       # Scheduled jobs only read, check, summarize, and report back: no
       # terminal, files, browser (which carries the vault), or delegation.
