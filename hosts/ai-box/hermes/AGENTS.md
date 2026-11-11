@@ -138,10 +138,11 @@ on: ask him to add a repo. (The old ailex-agent account was suspended on
 - **Tunnel:** `openclaw` tunnel (`cloudflared.service`), token in vault item
   `Cloudflare Tunnel`. It routes `browser.alexthiele.io` to noVNC (port 6080)
   and `*.alexthiele.io` to Caddy (port 80).
-- **Web hosting:** Caddy serves `<address>.alexthiele.io` from a running
-  instance's socket, `/run/sites/<address>/app.sock`, and a static app's files
-  from `/var/lib/hermes/sites/apps/<app>/`, with zero rebuilds (the sites
-  repository's `AGENTS.md` and `box ns` say how instances are declared).
+- **Web hosting,** with zero rebuilds; each app is served at `<address>.alexthiele.io`:
+  - **Backend apps:** Caddy proxies to the running instance's socket,
+    `/run/sites/<address>/app.sock`. Instances are declared in the sites repo's
+    `namespaces/` (its `AGENTS.md` and `box ns --help` say how).
+  - **Static apps:** Caddy serves the files in `/var/lib/hermes/sites/apps/<app>/`.
 - **Service Token:** Vault item `Cloudflare Access` holds `CF_ACCESS_CLIENT_ID`
   and `CF_ACCESS_CLIENT_SECRET`. When making automated HTTP requests or checks
   against `*.alexthiele.io`, include these headers:

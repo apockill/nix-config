@@ -15,7 +15,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 - **Repository:** All apps live in the private repository [`ailex-agent/ai-box-apps`](https://github.com/ailex-agent/ai-box-apps), cloned locally to `/var/lib/hermes/sites/`.
 - **Dynamic Routing:** Caddy serves each running instance at `https://<address>.alexthiele.io` from its socket, `/run/sites/<address>/app.sock`, and a static app's files from `/var/lib/hermes/sites/apps/<name>`. An instance is declared in `/var/lib/hermes/sites/namespaces/<namespace>.yaml` (today's apps in `default.yaml`, named after their app); the apps runner (`box ns ...`) runs it under process-compose. No custom Caddy configuration or Nix rebuilds are required.
 - **Root Portal:** `https://alexthiele.io` / `https://portal.alexthiele.io` dynamically scans all app directories and renders the catalog.
-- **Single-Directory Isolation:** An app's code is self-contained in `apps/<name>`; its instances' state lives in `/var/lib/hermes/instances/<address>/` (`$SITES_STATE_DIR`). Deleting an app: drop its namespace entries, `rm -rf apps/<name>`, `box ns destroy <address>` for its state.
+- **Single-Directory Isolation:** An app's code is self-contained in `apps/<name>`; its instances' state lives in `/var/lib/hermes/sites-instances/<address>/` (`$SITES_STATE_DIR`). Deleting an app: drop its namespace entries, `rm -rf apps/<name>`, `box ns destroy <address>` for its state.
 - **Pushing:** nothing pushes on its own; after committing to `main`, `git pull --ff-only` then `git push origin main` (the pre-push hook refuses commits that touch the spec's parts: those go through `box change`).
 
 ## Verification and Quality Standard
@@ -34,7 +34,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
    - Full-stack modern apps (React 19 + Vite + Tailwind + Lucide + FastAPI): see [`templates/backend/README.md`](/var/lib/hermes/sites/templates/backend/README.md).
    - Static viewer / dashboard: see [`templates/static/README.md`](/var/lib/hermes/sites/templates/static/README.md).
 3. **App Metadata:** Every app must have a valid `meta.json` (`title`, `description`, `icon`, `type`) in its root. An app that wraps a third-party server we don't write (code-server, noVNC, the Hermes dashboard) also sets `"upstream": "<what it wraps>"`.
-3a. **An app's API is its CLI (`box`).** `sites/tools/box/box.py` generates a command for every `/api` route of every FastAPI backend from its `/openapi.json` over `app.sock` (`box <app> --help`, `box <app> <cmd> --flag`, `box <app> api METHOD PATH`). Alex wants every useful UI action usable by an LLM this way, without a browser. So for every backend:
+3a. **An app's API is its CLI (`box`, already on PATH: `box <app> --help`).** It generates a command for every `/api` route of every FastAPI backend from its `/openapi.json` over `app.sock` (`box <app> --help`, `box <app> <cmd> --flag`, `box <app> api METHOD PATH`). Alex wants every useful UI action usable by an LLM this way, without a browser. So for every backend:
    - FastAPI only; every `/api` route has a one-sentence imperative docstring (it becomes `--help`); `GET /api/health` exists.
    - Need a convenience or composite command? Add an API endpoint; the UI can use it too. Never write CLI-side code per app.
    - UI-only routes: pages outside `/api` get `include_in_schema=False`; UI-only `/api` routes (video streams) get `openapi_extra={"x-box": {"hidden": "<reason>"}}`. Override an awkward command name with `{"x-box": {"command": "..."}}`.
@@ -86,7 +86,6 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 2. Before merging, `box snapshot <app> -o <dir>/<app>.json` for each app (status, content type and JSON keys of every GET endpoint; GET only, so it's safe on hardware apps). Run `box diff <app> <file>` against the still-old apps once, to prove the comparison itself is clean before restarting anything.
 3. `git merge --ff-only <branch>` into the live checkout (a merge doesn't trigger the push hook), then `box restart <app>` one app at a time (it waits for a new PID and `up`). Check `hermes kanban list --status running` first for apps a worker is using. After each: `box diff <app> <file>`, `box lint <app>`, and one or two read-only `box <app> ...` commands.
 4. Only when every app passes: `git push origin main`, then remove the worktree and branch.
-- **Moving an app's data:** move it by hand and write the repo as if it had always been that way. No migration code in `start.sh` or the app (Alex doesn't want vestigial code). Stop the instance first (`box ns down <namespace>`, or drop it from its namespace file), move the files within `/var/lib/hermes/instances/<address>/`, then bring it back up. Never move files under a running instance: it reopens paths and recreates empty files at the old location.
 
 ## Troubleshooting
 

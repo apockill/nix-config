@@ -77,7 +77,7 @@ let
   # Files whose restore the weekly drill checks.
   drillFiles = [
     "/var/lib/hermes/.hermes/state.db"
-    "/var/lib/hermes/instances/markets/markets.db"
+    "/var/lib/hermes/sites-instances/markets/markets.db"
   ];
   drillDir = "/var/tmp/restic-drill";
   restic = "${pkgs.restic}/bin/restic";

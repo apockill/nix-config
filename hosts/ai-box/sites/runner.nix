@@ -7,7 +7,7 @@
 #               the old runner did and recording status.json and events.jsonl in
 #               /var/lib/apps-health (the portal status page reads them).
 #               Sockets: /run/sites/<address>/app.sock; state:
-#               /var/lib/hermes/instances/<address>/ (../state/paths.nix).
+#               /var/lib/hermes/sites-instances/<address>/ (declared in ./default.nix).
 #   monitor.py  cheap Hermes cron "monitor" source: the local cron model only
 #               runs when its output changes, i.e. when an app needs Alex.
 { pkgs, ... }:
@@ -35,7 +35,7 @@ in
     # Never start on a state root that isn't the persistent one (../state/paths.nix): on a
     # boot where the mount fails, the runner would make empty state directories on the wiped
     # root and start every instance on them (ai-box-apps STATE-3).
-    unitConfig.RequiresMountsFor = [ "/var/lib/hermes/instances" ];
+    unitConfig.RequiresMountsFor = [ "/var/lib/hermes/sites-instances" ];
     path = [
       pkgs.bash
       pkgs.nix
@@ -46,7 +46,7 @@ in
     environment = {
       PYTHONUNBUFFERED = "1";
       SITES_LIVE_CHECKOUT = "/var/lib/hermes/sites";
-      SITES_STATE_ROOT = "/var/lib/hermes/instances";
+      SITES_STATE_ROOT = "/var/lib/hermes/sites-instances";
       SITES_RUNTIME_ROOT = "/run/sites";
       SITES_HEALTH_DIR = "/var/lib/apps-health";
       # Where LAUNCH-8 reads a secret a parameter references (ai-box-apps D5, open): nothing
