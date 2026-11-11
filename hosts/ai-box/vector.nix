@@ -42,7 +42,7 @@ in
   # Reverse proxy escapepod.local:443 to Wire-Pod Chipper on port 8443
   services.caddy.extraConfig = lib.mkAfter ''
     https://escapepod.local:443 {
-      tls /var/lib/hermes/sites/vector/wirepod/epod/ep.crt /var/lib/hermes/sites/vector/wirepod/epod/ep.key
+      tls /var/lib/hermes/sites/apps/vector/wirepod/epod/ep.crt /var/lib/hermes/sites/apps/vector/wirepod/epod/ep.key
       reverse_proxy https://127.0.0.1:8443 {
         transport http {
           tls_insecure_skip_verify

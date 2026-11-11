@@ -1,9 +1,13 @@
 # Apps supervisor + health alerts for the web apps in /var/lib/hermes/sites.
 #
-#   runner.py   launches every app with an executable start.sh, health-checks
-#               it over app.sock, restarts it with backoff, gives up after a
-#               cap, and records everything in /var/lib/apps-health (the
-#               portal status page reads it).
+#   ai-box-apps-runner  the one service for the apps: it runs the repo's apps
+#               runner (tools/runner/run serve), which reads namespaces/,
+#               checks every instance before launch and runs them under
+#               process-compose 1.124 from the repo's own flake, healing them as
+#               the old runner did and recording status.json and events.jsonl in
+#               /var/lib/apps-health (the portal status page reads them).
+#               Sockets: /run/sites/<address>/app.sock; state:
+#               /var/lib/hermes/sites-instances/<address>/ (declared in ./default.nix).
 #   monitor.py  cheap Hermes cron "monitor" source: the local cron model only
 #               runs when its output changes, i.e. when an app needs Alex.
 { pkgs, ... }:
@@ -28,6 +32,10 @@ in
     description = "Supervisor and health recorder for ai-box web apps";
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
+    # Never start on a state root that isn't the persistent one (../state/paths.nix): on a
+    # boot where the mount fails, the runner would make empty state directories on the wiped
+    # root and start every instance on them (ai-box-apps STATE-3).
+    unitConfig.RequiresMountsFor = [ "/var/lib/hermes/sites-instances" ];
     path = [
       pkgs.bash
       pkgs.nix
@@ -35,14 +43,38 @@ in
       pkgs.coreutils
       pkgs.procps
     ];
-    environment.PYTHONUNBUFFERED = "1";
+    environment = {
+      PYTHONUNBUFFERED = "1";
+      SITES_LIVE_CHECKOUT = "/var/lib/hermes/sites";
+      SITES_STATE_ROOT = "/var/lib/hermes/sites-instances";
+      SITES_RUNTIME_ROOT = "/run/sites";
+      SITES_HEALTH_DIR = "/var/lib/apps-health";
+      # Where LAUNCH-8 reads a secret a parameter references (ai-box-apps D5, open): nothing
+      # renders this directory yet, and no app declares a secret; hermes-secrets renders one
+      # root-owned env file. Rendering sites/<name> for group hermes comes with D5's answer.
+      SITES_SECRETS_DIR = "/run/hermes-secrets/sites";
+    };
     serviceConfig = {
       User = "hermes";
       Group = "hermes";
       WorkingDirectory = "/var/lib/hermes/sites";
-      ExecStart = "${pkgs.python3}/bin/python3 ${./runner.py}";
+      ExecStart = "/var/lib/hermes/sites/tools/runner/run serve";
       StateDirectory = "apps-health";
       StateDirectoryMode = "0755";
+      # /run/sites: each instance's runtime directory and socket; Caddy reads it. Preserved
+      # across restarts of the unit (a crash, a switch): it holds each instance's .runner.failed
+      # marker, which keeps a failed instance failed until re-armed (LAUNCH-15), and its app.log.
+      RuntimeDirectory = "sites";
+      RuntimeDirectoryMode = "0755";
+      RuntimeDirectoryPreserve = "yes";
+      # Zenoh's shared memory for camera frames is mlocked; 8 MiB is too little.
+      LimitMEMLOCK = "infinity";
+      # On stop, systemd signals the runner alone (KillMode mixed: SIGTERM to the main process,
+      # SIGKILL to the rest only at the timeout), so the runner's orderly stop runs: it asks
+      # process-compose to stop the project, which stops the instances with their 10 s grace
+      # (sequentially at worst: 11 instances), then waits up to 60 s for process-compose.
+      KillMode = "mixed";
+      TimeoutStopSec = "200s";
       Restart = "always";
       RestartSec = "5s";
     };
