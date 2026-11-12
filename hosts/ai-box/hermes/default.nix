@@ -76,6 +76,7 @@ in
     inputs.hermes-agent.nixosModules.default
     ./system-commands.nix # ai-box-switch / ai-box-test / ai-box-reboot
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
+    ./claude-code.nix # Claude Code: current release, config in ~/.claude
     ./cc # cc: Claude Code jobs as Remote Control sessions
     ./home.nix # home-manager: git, gh, Claude Code settings
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
@@ -173,7 +174,6 @@ in
 
     extraPackages = with pkgs; [
       opVaultWrapper
-      claude-code # current release, via the overlay below
       git
       jq
       just
@@ -181,10 +181,6 @@ in
       ripgrep
     ];
   };
-
-  # Stable nixpkgs' claude-code lags behind what current models require
-  # (Opus 5.5 needs 2.1.280+); this flake tracks Claude Code releases.
-  nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ];
 
   # Pull secrets from 1Password into RAM before the agent starts. Rotating a
   # secret = change it in 1Password, then `systemctl restart hermes-secrets

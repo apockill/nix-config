@@ -98,11 +98,6 @@ in
       backup = "cache";
       why = "llama-cpp service state (StateDirectory of a DynamicUser service; /var/lib/llama-cpp is systemd's symlink to it).";
     };
-    "/var/lib/logrotate.status" = {
-      file = true;
-      backup = "cache";
-      why = "logrotate's last-rotation bookkeeping.";
-    };
     "/var/lib/NetworkManager" = {
       backup = "cache";
       why = "DHCP leases and seen networks; regenerates.";
@@ -187,6 +182,10 @@ in
     "/var/lib/lastlog" = {
       backup = "ephemeral";
       why = "Last-login records.";
+    };
+    "/var/lib/logrotate.status" = {
+      backup = "ephemeral";
+      why = "logrotate's last-rotation bookkeeping. Not kept: logrotate replaces it by renaming, which fails on a bind-mounted file (impermanence#270), and losing it only restarts its rotation clocks.";
     };
     "/var/lib/state-audit" = {
       backup = "ephemeral";
