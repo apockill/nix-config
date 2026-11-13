@@ -76,6 +76,7 @@ in
     inputs.hermes-agent.nixosModules.default
     ./system-commands.nix # ai-box-switch / ai-box-test / ai-box-reboot
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
+    ./desk-idle # the desk's hourly sleep check (aiBox.hermesCron.desk-idle)
     ./claude-code.nix # Claude Code: current release, config in ~/.claude
     ./cc # cc: Claude Code jobs as Remote Control sessions
     ./home.nix # home-manager: git, gh, Claude Code settings

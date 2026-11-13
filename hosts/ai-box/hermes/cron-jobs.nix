@@ -35,6 +35,16 @@ in
             type = lib.types.str;
             default = "discord";
           };
+          model = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = "Pin the job to this model; empty follows cron.model (the local model).";
+          };
+          provider = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = "The provider paired with `model`.";
+          };
         };
       }
     );
@@ -66,7 +76,8 @@ in
         script = ''
           id=$(jq -r '.jobs[]? | select(.name == "${name}") | .id' \
             "$HERMES_HOME/cron/jobs.json" 2>/dev/null || true)
-          args=(--monitor-script ${scriptName name} --deliver ${job.deliver})
+          args=(--monitor-script ${scriptName name} --deliver ${job.deliver}
+            --model ${lib.escapeShellArg job.model} --provider ${lib.escapeShellArg job.provider})
           if [ -n "$id" ]; then
             ${hermesBin} cron edit "$id" --schedule ${lib.escapeShellArg job.schedule} \
               --prompt ${lib.escapeShellArg job.prompt} "''${args[@]}"
