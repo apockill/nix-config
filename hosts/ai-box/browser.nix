@@ -68,6 +68,9 @@ in
           --disable-blink-features=AutomationControlled \
           --window-size=1280,800 \
           --window-position=0,0 \
+          --use-angle=swiftshader \
+          --enable-unsafe-swiftshader \
+          --ignore-gpu-blocklist \
           about:blank
       '';
     };
