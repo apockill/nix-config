@@ -26,7 +26,7 @@ in
   systemd.services.sculpt-launcher = {
     description = "Sculpt Studio's builder sessions (Claude Code, one per project)";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" ];
+    after = [ "network-online.target" "ai-box-apps-runner.service" ];
     wants = [ "network-online.target" ];
     restartIfChanged = false;
     environment = {
@@ -47,7 +47,7 @@ in
       # The studio may be down or restarting (a namespace switch); the script retries, and a crash
       # or a missing script (the checkout on another branch) is retried here.
       Restart = "always";
-      RestartSec = 30;
+      RestartSec = 10;
     };
   };
 }
