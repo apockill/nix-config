@@ -254,6 +254,10 @@ in
       backup = "cache";
       why = "Go module cache (Wire-Pod build).";
     };
+    "${hermes}/worktrees" = {
+      backup = "cache";
+      why = "Git worktrees of in-flight changes (sites, nix-config) that cc jobs run in. Commits live in each repo's own .git; kept so jobs and their .brief/ files survive a reboot.";
+    };
     # Generated or transient files inside ~/.hermes (restic): kept with it,
     # but not backed up.
     "${hermes}/.hermes/.env" = {
@@ -293,6 +297,15 @@ in
     "${hermes}/Downloads" = {
       backup = "ephemeral";
       why = "Browser downloads; scratch.";
+    };
+    "${hermes}/.claude.json" = {
+      file = true;
+      backup = "ephemeral";
+      why = "Stale Claude Code config from before CLAUDE_CONFIG_DIR moved it into ~/.claude (hermes/cc/default.nix).";
+    };
+    "${hermes}/sites-ops-scratch" = {
+      backup = "ephemeral";
+      why = "Leftover watcher script of a finished ops job; scratch.";
     };
   };
 }
