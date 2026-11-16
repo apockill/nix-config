@@ -17,6 +17,7 @@
     ./backups # restic to Google Drive
     ./vector.nix
     ./matter.nix
+    ./printer # the Bambu X2D: Bambuddy, its slicer, the printer itself
     ./display.nix
     ./robotics
     ./projects
