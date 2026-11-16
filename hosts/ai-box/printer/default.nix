@@ -45,6 +45,25 @@ in
   };
 
   config.nixpkgs.overlays = [
-    (_: _: { inherit (unstable) bambuddy bambu-studio; })
+    (_: _: {
+      inherit (unstable) bambu-studio;
+      # 1.3.1 puts every filament of a multi-colour slice on one nozzle of a dual-nozzle
+      # printer, so the X2D's second nozzle never prints. maziggy/bambuddy#3270 sends the
+      # slicer a filament map: the caller's, or one planned from the spools the printer has
+      # loaded (falling back to the old grouping when unclear). Backend only, so the
+      # frontend stays the cached 1.3.1 one. The PR's diff, pinned to its head 6a42125c,
+      # applies to 1.3.1 as is. It needs the slicer side in ./orca-slicer-api.nix.
+      # https://github.com/maziggy/bambuddy/pull/3270
+      # Remove once #3270 merges and nixpkgs' bambuddy includes it.
+      bambuddy = unstable.bambuddy.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [
+          (pkgs.fetchpatch {
+            name = "bambuddy-3270-dual-nozzle-filament-map.patch";
+            url = "https://github.com/maziggy/bambuddy/compare/f3ae6fdd5755abd4e81dfa6cefcd9fbc0d7a2167...6a42125c3fcc995faead661066d88c9350cad852.diff";
+            hash = "sha256-QiImiX0oiopZMpo1DvHvFD4I/i0gkdsPKD432jYBPoQ=";
+          })
+        ];
+      });
+    })
   ];
 }
