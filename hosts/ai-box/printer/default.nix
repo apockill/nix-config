@@ -1,10 +1,11 @@
 # The Bambu X2D's services on ai-box (the lab-printer node in ai-box-apps wraps them):
+#   bambuddy.nix      Bambuddy on 127.0.0.1:8070, and bambuddy.alexthiele.io for lab-printer's frame
 #   slicer.nix        the native Bambu Studio CLI behind orca-slicer-api on 127.0.0.1:3001
 #
-# Bambu Studio comes from nixpkgs-unstable (a flake input used only here): the box's
-# release has a Bambu Studio that predates the X2D's profiles. It is built from its own
-# nixpkgs instance with its default config, as cache.nixos.org's packages are, instead of
-# against the system's.
+# Bambuddy and Bambu Studio come from nixpkgs-unstable (a flake input used only here): the
+# box's release has no Bambuddy, and its Bambu Studio predates the X2D's profiles. They are
+# built from their own nixpkgs instance with its default config, so they match
+# cache.nixos.org instead of being rebuilt against the system's.
 {
   inputs,
   lib,
@@ -21,10 +22,17 @@ let
 in
 {
   imports = [
+    ./bambuddy.nix
     ./slicer.nix
   ];
 
   options.aiBox.printer = {
+    bambuddyPort = lib.mkOption {
+      type = lib.types.port;
+      default = 8070;
+      internal = true;
+      description = "Bambuddy's loopback port.";
+    };
     slicerPort = lib.mkOption {
       type = lib.types.port;
       # Bambuddy's default Bambu Studio API URL is http://localhost:3001.
@@ -35,6 +43,6 @@ in
   };
 
   config.nixpkgs.overlays = [
-    (_: _: { inherit (unstable) bambu-studio; })
+    (_: _: { inherit (unstable) bambuddy bambu-studio; })
   ];
 }
