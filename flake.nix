@@ -6,6 +6,9 @@
     };
 
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
+    # Newer packages for single services only, never the whole system: ai-box's
+    # printer (hosts/ai-box/printer) takes bambuddy and bambu-studio from it.
+    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     nix-vscode-extensions.url = "github:jcszymansk/nix-vscode-extensions";
 
     antigravity-nix = {
