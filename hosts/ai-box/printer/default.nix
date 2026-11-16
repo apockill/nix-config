@@ -1,6 +1,7 @@
 # The Bambu X2D's services on ai-box (the lab-printer node in ai-box-apps wraps them):
 #   bambuddy.nix      Bambuddy on 127.0.0.1:8070, and bambuddy.alexthiele.io for lab-printer's frame
 #   slicer.nix        the native Bambu Studio CLI behind orca-slicer-api on 127.0.0.1:3001
+#   printer-add/      adds the X2D to Bambuddy, with its access code from 1Password
 #
 # Bambuddy and Bambu Studio come from nixpkgs-unstable (a flake input used only here): the
 # box's release has no Bambuddy, and its Bambu Studio predates the X2D's profiles. They are
@@ -24,6 +25,7 @@ in
   imports = [
     ./bambuddy.nix
     ./slicer.nix
+    ./printer-add
   ];
 
   options.aiBox.printer = {
