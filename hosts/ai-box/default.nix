@@ -53,6 +53,20 @@
     allowReboot = false;
   };
 
+  # Builds share the box with services that must stay responsive: llama-server
+  # keeps about 22 GB of the 61 GB resident. Nix's defaults (max-jobs = auto,
+  # cores = 0) mean 12 jobs that may each use all 12 cores; one from-source C++
+  # build (ninja -j12, 1-3.5 GB per compiler) filled RAM and swap. One job on
+  # 4 cores caps a build at about 14 GB. The idle scheduling classes let any
+  # other process take the CPU and disk first; a nice on the `nix build`
+  # client doesn't reach the daemon's builders.
+  nix.settings = {
+    max-jobs = 1;
+    cores = 4;
+  };
+  nix.daemonCPUSchedPolicy = "idle";
+  nix.daemonIOSchedClass = "idle";
+
   nix.gc = {
     automatic = true;
     dates = "weekly";
