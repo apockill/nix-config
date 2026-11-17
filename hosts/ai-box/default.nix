@@ -19,6 +19,7 @@
     ./matter.nix
     ./printer # the Bambu X2D: Bambuddy, its slicer, the printer itself
     ./display.nix
+    ./watchdog.nix # a hung restart resets itself (Tegra WDT); system logs for the agent
     ./robotics
     ./projects
     ./hermes
