@@ -95,7 +95,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 - **502 Bad Gateway:**
   The backend is down or its socket is gone. The runner heals this on its own within ~2–5 min. Check `/var/lib/apps-health/status.json`, the portal's Status tab, and `/run/sites/<address>/app.log`.
 - **Never commit ignored artifacts** (`node_modules`, `__pycache__`): `nix develop` copies the tracked tree into the store whenever the checkout changed, and with ~24k `node_modules` files tracked plus `.pyc` churn, every first restart sat in `starting` for ~4 min (nix-daemon at 100% CPU). `git ls-files -ci --exclude-standard` lists offenders; untrack with `git rm --cached`.
-- **App marked `failed`:** auto-healing gave up after 3 restarts in an hour, and the `apps-health` cron job (local Gemma) pinged Alex. Fix the cause, then re-arm: delete `/run/sites/<address>/.runner.failed` or commit a change to the app.
+- **App marked `failed`:** auto-healing gave up after 3 restarts in an hour, and the `apps-health` cron job pinged Alex. Fix the cause, then re-arm: delete `/run/sites/<address>/.runner.failed` or commit a change to the app.
 - **Cloudflare Access Verification:**
   Include `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers when making automated curl checks against `*.alexthiele.io`.
 - **Git Tracking for Flakes:**
