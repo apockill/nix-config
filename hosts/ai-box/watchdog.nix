@@ -9,16 +9,16 @@
 # default reboot watchdog is 10 min, but this WDT's max_timeout is 255 s, so systemd can't arm it
 # with that value. With no runtime watchdog, PID 1 never opens the device while the box runs.
 # Both are set here within the hardware's range:
-# - runtimeTime: PID 1 pings the watchdog all the time, so a kernel or PID 1 freeze resets the
+# - RuntimeWatchdogSec: PID 1 pings the watchdog all the time, so a kernel or PID 1 freeze resets the
 #   box after 90 s;
-# - rebootTime: from the start of the final shutdown stage, a hang resets the box after 2 min.
+# - RebootWatchdogSec: from the start of the final shutdown stage, a hang resets the box after 2 min.
 #
 # hermes joins systemd-journal (read-only system logs) so the agent can read where a shutdown
 # hung (`journalctl -b -1`) and find the GPU's root cause. Until now it could only guess.
 {
-  systemd.watchdog = {
-    runtimeTime = "90s";
-    rebootTime = "2min";
+  systemd.settings.Manager = {
+    RuntimeWatchdogSec = "90s";
+    RebootWatchdogSec = "2min";
   };
 
   users.users.hermes.extraGroups = [ "systemd-journal" ];
