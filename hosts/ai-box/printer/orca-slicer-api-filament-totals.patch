@@ -1,0 +1,116 @@
+From fd4f428822852c6125be541a292a245b581c04cf Mon Sep 17 00:00:00 2001
+From: "ailex-bot[bot]" <ailex-bot[bot]@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 18:12:37 -0800
+Subject: [PATCH 2/2] fix(slicing): report every filament's usage, not the
+ first one's
+
+On a multi-filament plate both slicers write one value per filament
+(`; total filament weight [g] : 1.89,0.10`), and the parser kept the
+first, so X-Filament-Used-G/-Mm were filament 1's usage only. Sum them.
+---
+ src/routes/slicing/slicing.service.ts | 29 ++++++++++++++++-------
+ tests/unit/gcode-metadata.spec.ts     | 33 +++++++++++++++++++++++++++
+ 2 files changed, 54 insertions(+), 8 deletions(-)
+
+diff --git a/src/routes/slicing/slicing.service.ts b/src/routes/slicing/slicing.service.ts
+index 036277b..0947e42 100644
+--- a/src/routes/slicing/slicing.service.ts
++++ b/src/routes/slicing/slicing.service.ts
+@@ -642,20 +642,33 @@ const PRINT_TIME_PATTERNS = [
+   /; estimated printing time \(normal mode\) =\s*((?:(\d+)d\s*)?(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:(\d+)s)?)/i,
+ ];
+ 
++// Both slicers write one value per filament, comma-separated, on a
++// multi-filament plate (BambuStudio `; total filament weight [g] : 1.89,0.10`,
++// OrcaSlicer `; filament used [g] = 1.89, 0.10`), and the usage reported is
++// the plate's: their sum. Reading only the first value reported filament 1's
++// weight as the whole print's.
++const NUMBER_LIST = String.raw`(\d+(?:\.\d+)?(?:\s*,\s*\d+(?:\.\d+)?)*)`;
++
+ const FILAMENT_MM_PATTERNS = [
+-  /; filament used \[mm\] =\s*(\d+(?:\.\d+)?)/,
+-  /; total filament length \[mm\]\s*:\s*(\d+(?:\.\d+)?)/,
++  new RegExp(String.raw`; filament used \[mm\] =\s*` + NUMBER_LIST),
++  new RegExp(String.raw`; total filament length \[mm\]\s*:\s*` + NUMBER_LIST),
+ ];
+ 
+ const FILAMENT_G_PATTERNS = [
+-  /; filament used \[g\] =\s*(\d+(?:\.\d+)?)/,
+-  /; total filament weight \[g\]\s*:\s*(\d+(?:\.\d+)?)/,
++  new RegExp(String.raw`; filament used \[g\] =\s*` + NUMBER_LIST),
++  new RegExp(String.raw`; total filament weight \[g\]\s*:\s*` + NUMBER_LIST),
+ ];
+ 
+-function firstNumber(content: string, patterns: RegExp[]): number {
++function summedNumbers(content: string, patterns: RegExp[]): number {
+   for (const pattern of patterns) {
+     const match = content.match(pattern);
+-    if (match) return parseFloat(match[1]);
++    if (!match) continue;
++    const total = match[1]
++      .split(",")
++      .reduce((sum, value) => sum + parseFloat(value), 0);
++    // Sums of two-decimal values pick up float noise (1.89 + 0.1 =
++    // 1.9899999999999998); the slicer's own precision is two decimals.
++    return Math.round(total * 100) / 100;
+   }
+   return 0;
+ }
+@@ -677,8 +690,8 @@ function parseMetaDataFromString(content: string): SliceMetaData {
+   try {
+     return {
+       printTime: parseDuration(content, PRINT_TIME_PATTERNS),
+-      filamentUsedG: firstNumber(content, FILAMENT_G_PATTERNS),
+-      filamentUsedMm: firstNumber(content, FILAMENT_MM_PATTERNS),
++      filamentUsedG: summedNumbers(content, FILAMENT_G_PATTERNS),
++      filamentUsedMm: summedNumbers(content, FILAMENT_MM_PATTERNS),
+     };
+   } catch (err) {
+     console.error("Failed to parse metadata from string:", err);
+diff --git a/tests/unit/gcode-metadata.spec.ts b/tests/unit/gcode-metadata.spec.ts
+index 339d416..ad33300 100644
+--- a/tests/unit/gcode-metadata.spec.ts
++++ b/tests/unit/gcode-metadata.spec.ts
+@@ -113,6 +113,39 @@ describe("G-code metadata extraction", () => {
+     expect(data.printTime).toBe(2 * 3600 + 5 * 60 + 1);
+   });
+ 
++  it("sums every filament of a multi-filament plate", async () => {
++    // BambuStudio 02.08.00.50 on the X2D, two filaments (orange on the left
++    // nozzle, white on the right): the plate weighs 1.99 g, not filament 1's
++    // 1.89 g.
++    const data = await getMetaDataFromFile(
++      await gcodeFile(
++        `; HEADER_BLOCK_START
++; BambuStudio 02.08.00.50
++; model printing time: 8m 2s; total estimated time: 10m 43s
++; total filament length [mm] : 634.29,32.53
++; total filament volume [cm^3] : 1525.67,78.24
++; total filament weight [g] : 1.89,0.10
++; HEADER_BLOCK_END
++` + CONFIG_BLOCK_NOISE,
++      ),
++    );
++
++    expect(data.filamentUsedG).toBe(1.99);
++    expect(data.filamentUsedMm).toBe(666.82);
++    expect(data.printTime).toBe(10 * 60 + 43);
++  });
++
++  it("sums OrcaSlicer's per-filament list too", async () => {
++    const data = await getMetaDataFromFile(
++      await gcodeFile(
++        "; filament used [mm] = 634.29, 32.53\n; filament used [g] = 1.89, 0.10\n",
++      ),
++    );
++
++    expect(data.filamentUsedG).toBe(1.99);
++    expect(data.filamentUsedMm).toBe(666.82);
++  });
++
+   it("returns zeroes for a file that is not G-code", async () => {
+     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "gcode-meta-"));
+     created.push(dir);
+-- 
+2.54.0
+

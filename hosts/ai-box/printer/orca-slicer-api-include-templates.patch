@@ -1,0 +1,368 @@
+From 78502e1ce102286030f8ec8702f04824972dd4e8 Mon Sep 17 00:00:00 2001
+From: "ailex-bot[bot]" <ailex-bot[bot]@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 18:12:37 -0800
+Subject: [PATCH 1/2] fix(profiles): apply a preset's include templates
+
+Bambu Studio applies a bundled preset's `include` list between its parent
+and its own keys (PresetBundle::load_vendor_configs_from_json). The CLI
+does not do that for a file passed with --load-filaments, and the resolver
+only walked `inherits`, so 1336 BBL filament presets lost
+fdm_filament_template_direct_{dual,bowden} and with it their
+filament_extruder_variant list. A filament on the X2D/H2D's Bowden nozzle
+then sliced with the Direct Drive variant (Bambu PLA Basic: 0.4 mm
+retraction instead of 3 mm).
+---
+ src/routes/slicing/profile-resolver.ts | 127 ++++++++++++++++++
+ tests/unit/profile-includes.spec.ts    | 170 +++++++++++++++++++++++++
+ 2 files changed, 297 insertions(+)
+ create mode 100644 tests/unit/profile-includes.spec.ts
+
+diff --git a/src/routes/slicing/profile-resolver.ts b/src/routes/slicing/profile-resolver.ts
+index f013b03..3160047 100644
+--- a/src/routes/slicing/profile-resolver.ts
++++ b/src/routes/slicing/profile-resolver.ts
+@@ -4,6 +4,7 @@ import { AppError } from "../../middleware/error";
+ import {
+   loadProfileIndex,
+   lookupProfile,
++  type ProfileIndex,
+   type ProfileScope,
+ } from "./profile-index";
+ 
+@@ -60,6 +61,39 @@ const TEMPLATE_IDENTITY_KEYS = new Set([
+ 
+ type TemplateIndex = Map<string, string[]>;
+ 
++// A bundled preset may also name templates outright: `"include": [<preset
++// name>, ...]`. Bambu Studio applies them between the preset's parent and the
++// preset's own keys (PresetBundle::load_vendor_configs_from_json: the parent's
++// config, then each include in order, then the preset's own file), so an
++// include beats every ancestor and loses to the preset itself and to anything
++// below it. The CLI does not do this for a file given to it with
++// --load-settings/--load-filaments, so the resolver has to.
++//
++// The case that matters: 1336 BBL filament presets include
++// `fdm_filament_template_direct_dual` or `fdm_filament_template_direct_bowden`,
++// whose `filament_extruder_variant` lists the extruder variants the preset's
++// per-variant settings are written for -- four on the X2D/H2D ("Direct Drive
++// Standard", "Direct Drive High Flow", "Bowden Standard", "Bowden High
++// Flow"). Without the include the only list left is fdm_filament_common's
++// one-entry ["Direct Drive Standard"], so a filament on the X2D's right
++// (Bowden) nozzle sliced with the Direct Drive settings: e.g. Bambu PLA
++// Basic's 0.4 mm retraction instead of its Bowden 3 mm.
++//
++// The machine presets' includes name their companion templates, which
++// applyCompanionTemplates already finds by name; applying them here as well
++// is harmless, as both bring the same values.
++const INCLUDE_KEY = "include";
++
++// Bookkeeping of an included preset that is not a setting it contributes:
++// the identity fields companions skip, plus the preset's own ids.
++const INCLUDE_IDENTITY_KEYS = new Set([
++  ...TEMPLATE_IDENTITY_KEYS,
++  INCLUDE_KEY,
++  "setting_id",
++  "filament_id",
++  "description",
++]);
++
+ // `--load-settings` does not run the GUI's preset-registry resolver.
+ // Required fields like layer_change_gcode live on parent templates
+ // (fdm_machine_common etc.) that the CLI will NOT pull in implicitly.
+@@ -98,6 +132,12 @@ export async function resolveProfile(
+     typeof profile.name === "string" &&
+     lookupProfile(index, category, profile.name.replace(/^# /, ""), "vendor") !== null;
+ 
++  // The preset's own includes sit below its own keys, above its parent.
++  current = {
++    ...(await includedSettings(profile, category, "vendor", index, options, maxDepth)),
++    ...current,
++  };
++
+   while (
+     typeof current.inherits === "string" &&
+     current.inherits.length > 0
+@@ -157,10 +197,19 @@ export async function resolveProfile(
+     }
+ 
+     current = mergeProfiles(parent, current);
++    // The ancestor's includes: below the ancestor's own keys and everything
++    // merged so far, above the ancestor's own parents.
++    current = {
++      ...(await includedSettings(parent, category, found.scope, index, options, maxDepth - depth - 1)),
++      ...current,
++    };
+     scope = found.scope;
+     depth += 1;
+   }
+ 
++  // Every include is applied now; the CLI gets a flat profile.
++  delete current[INCLUDE_KEY];
++
+   // After full flattening the output is functionally a system preset, so
+   // mark it as one (see normalizeFromField for the casing rationale).
+   // materializeProfile also calls this unconditionally so System-tier
+@@ -318,6 +367,84 @@ async function readTemplateIndex(dir: string): Promise<TemplateIndex> {
+   return index;
+ }
+ 
++/**
++ * The settings `owner`'s `include` list contributes, later entries winning.
++ *
++ * Each included preset is found by name like a parent (vendor first, then
++ * the library), flattened through its own chain, and stripped of its
++ * bookkeeping. Bambu Studio accepts one name as a plain string too. A name
++ * that is not bundled is skipped, as the slicer does (it logs "can not find
++ * include") and as the walk treats a dangling `inherits`.
++ */
++async function includedSettings(
++  owner: ProfileJson,
++  category: ProfileCategory,
++  scope: ProfileScope,
++  index: ProfileIndex,
++  options: ResolveOptions,
++  remainingDepth: number,
++): Promise<ProfileJson> {
++  const raw = owner[INCLUDE_KEY];
++  const names = typeof raw === "string" ? [raw] : Array.isArray(raw) ? raw : [];
++  const settings: ProfileJson = {};
++
++  for (const name of names) {
++    if (typeof name !== "string" || name.length === 0) {
++      continue;
++    }
++    if (remainingDepth <= 0) {
++      throw new AppError(
++        500,
++        "Profile inheritance chain exceeded maximum depth",
++        `category=${category} stopped at include=${name}`,
++      );
++    }
++    const found = lookupProfile(index, category, name, scope);
++    if (!found) {
++      continue;
++    }
++
++    let includedRaw: string;
++    try {
++      includedRaw = await fs.readFile(found.file, "utf-8");
++    } catch {
++      continue;
++    }
++
++    let included: ProfileJson;
++    try {
++      included = JSON.parse(includedRaw) as ProfileJson;
++    } catch (err) {
++      throw new AppError(
++        500,
++        `Bundled profile is not valid JSON: "${name}"`,
++        `category=${category} path=${found.file} ${err instanceof Error ? err.message : String(err)}`,
++      );
++    }
++
++    // No bundled template inherits or includes today; flatten one that does
++    // all the same rather than drop what its own parents provide.
++    if (
++      (typeof included.inherits === "string" && included.inherits.length > 0) ||
++      included[INCLUDE_KEY] !== undefined
++    ) {
++      included = await resolveProfile(included, category, {
++        ...options,
++        keepSystemParent: false,
++        maxDepth: remainingDepth - 1,
++      });
++    }
++
++    for (const [key, value] of Object.entries(included)) {
++      if (!INCLUDE_IDENTITY_KEYS.has(key)) {
++        settings[key] = value;
++      }
++    }
++  }
++
++  return settings;
++}
++
+ /**
+  * Merge `name`'s companion files into `profile`, in place.
+  *
+diff --git a/tests/unit/profile-includes.spec.ts b/tests/unit/profile-includes.spec.ts
+new file mode 100644
+index 0000000..e8fdea5
+--- /dev/null
++++ b/tests/unit/profile-includes.spec.ts
+@@ -0,0 +1,170 @@
++import { afterAll, beforeAll, describe, expect, it } from "vitest";
++import { promises as fs } from "fs";
++import * as os from "os";
++import * as path from "path";
++import { resolveProfile, type ProfileJson } from "../../src/routes/slicing/profile-resolver";
++
++/**
++ * `include` templates, as Bambu Studio applies them: after the parent's
++ * settings, before the preset's own.
++ *
++ * The fixtures mirror Bambu Studio 02.08.00.50's X2D filament layout:
++ * "Bambu PLA Basic @BBL X2D 0.4 nozzle" inherits "Bambu PLA Basic @base" and
++ * includes `fdm_filament_template_direct_bowden`, which alone lists the four
++ * extruder variants its per-variant values are written for. Without it a
++ * filament on the X2D's Bowden (right) nozzle sliced with the Direct Drive
++ * retraction.
++ */
++
++const VARIANTS = [
++  "Direct Drive Standard",
++  "Direct Drive High Flow",
++  "Bowden Standard",
++  "Bowden High Flow",
++];
++
++describe("resolveProfile with include templates", () => {
++  let bundledProfilesPath: string;
++
++  const write = async (name: string, body: Record<string, unknown>) =>
++    fs.writeFile(
++      path.join(bundledProfilesPath, "filament", `${name}.json`),
++      JSON.stringify(body),
++    );
++
++  beforeAll(async () => {
++    bundledProfilesPath = await fs.mkdtemp(path.join(os.tmpdir(), "test-include-"));
++    await fs.mkdir(path.join(bundledProfilesPath, "filament"), { recursive: true });
++
++    await write("fdm_filament_common", {
++      type: "filament",
++      name: "fdm_filament_common",
++      from: "system",
++      instantiation: "false",
++      filament_extruder_variant: ["Direct Drive Standard"],
++      filament_retraction_length: ["nil"],
++      filament_z_hop: ["nil"],
++      filament_diameter: ["1.75"],
++    });
++    await write("Bambu PLA Basic @base", {
++      type: "filament",
++      name: "Bambu PLA Basic @base",
++      inherits: "fdm_filament_common",
++      from: "system",
++      instantiation: "false",
++      filament_id: "GFA00",
++      filament_z_hop: ["0.4"],
++    });
++    await write("fdm_filament_template_direct_bowden", {
++      type: "filament",
++      name: "fdm_filament_template_direct_bowden",
++      from: "system",
++      instantiation: "false",
++      filament_extruder_variant: VARIANTS,
++      filament_retraction_length: ["nil", "nil", "nil", "nil"],
++      filament_z_hop: ["nil", "nil", "nil", "nil"],
++      filament_flush_temp: ["0", "0", "0", "0"],
++    });
++    await write("Bambu PLA Basic @BBL X2D 0.4 nozzle", {
++      type: "filament",
++      name: "Bambu PLA Basic @BBL X2D 0.4 nozzle",
++      inherits: "Bambu PLA Basic @base",
++      from: "system",
++      setting_id: "GFSA00_08",
++      instantiation: "true",
++      filament_retraction_length: ["0.4", "0.4", "3", "3"],
++      include: ["fdm_filament_template_direct_bowden"],
++    });
++    // A preset whose include is gone from the bundle, and one naming its
++    // include as a plain string (both forms the slicer accepts).
++    await write("Dangling Include", {
++      type: "filament",
++      name: "Dangling Include",
++      inherits: "Bambu PLA Basic @base",
++      instantiation: "true",
++      include: ["no_such_template"],
++    });
++    await write("String Include", {
++      type: "filament",
++      name: "String Include",
++      inherits: "Bambu PLA Basic @base",
++      instantiation: "true",
++      include: "fdm_filament_template_direct_bowden",
++    });
++    await write("Self Include", {
++      type: "filament",
++      name: "Self Include",
++      instantiation: "false",
++      include: ["Self Include"],
++    });
++  });
++
++  afterAll(async () => {
++    await fs.rm(bundledProfilesPath, { recursive: true, force: true });
++  });
++
++  const resolve = (profile: ProfileJson) =>
++    resolveProfile(profile, "filament", { bundledProfilesPath });
++
++  it("applies an ancestor's include (a stub naming the bundled preset)", async () => {
++    const out = await resolve({ inherits: "Bambu PLA Basic @BBL X2D 0.4 nozzle" });
++    expect(out.filament_extruder_variant).toEqual(VARIANTS);
++    expect(out.filament_retraction_length).toEqual(["0.4", "0.4", "3", "3"]);
++    expect(out.filament_flush_temp).toEqual(["0", "0", "0", "0"]);
++  });
++
++  it("applies the preset's own include (the bundled preset written out in full)", async () => {
++    const raw = JSON.parse(
++      await fs.readFile(
++        path.join(bundledProfilesPath, "filament", "Bambu PLA Basic @BBL X2D 0.4 nozzle.json"),
++        "utf-8",
++      ),
++    ) as ProfileJson;
++    const out = await resolve(raw);
++    expect(out.filament_extruder_variant).toEqual(VARIANTS);
++    expect(out.filament_retraction_length).toEqual(["0.4", "0.4", "3", "3"]);
++  });
++
++  it("puts the include above the ancestors and below the preset itself", async () => {
++    const out = await resolve({ inherits: "Bambu PLA Basic @BBL X2D 0.4 nozzle" });
++    // The template's nil list beats @base's single value ...
++    expect(out.filament_z_hop).toEqual(["nil", "nil", "nil", "nil"]);
++    // ... and loses to the preset's own retraction.
++    expect(out.filament_retraction_length).not.toContain("nil");
++  });
++
++  it("lets the caller's own value win over the include", async () => {
++    const out = await resolve({
++      inherits: "Bambu PLA Basic @BBL X2D 0.4 nozzle",
++      filament_flush_temp: ["240", "240", "240", "240"],
++    });
++    expect(out.filament_flush_temp).toEqual(["240", "240", "240", "240"]);
++  });
++
++  it("keeps the template's bookkeeping out and leaves a flat profile", async () => {
++    const out = await resolve({
++      name: "My PLA",
++      inherits: "Bambu PLA Basic @BBL X2D 0.4 nozzle",
++    });
++    expect(out.name).toBe("My PLA");
++    expect(out.include).toBeUndefined();
++    expect(out.inherits).toBeUndefined();
++    expect(out.instantiation).toBe("true");
++    expect(out.filament_id).toBe("GFA00");
++  });
++
++  it("accepts a single include name as a string", async () => {
++    const out = await resolve({ inherits: "String Include" });
++    expect(out.filament_extruder_variant).toEqual(VARIANTS);
++  });
++
++  it("skips an include that is not bundled", async () => {
++    const out = await resolve({ inherits: "Dangling Include" });
++    expect(out.filament_extruder_variant).toEqual(["Direct Drive Standard"]);
++    expect(out.include).toBeUndefined();
++  });
++
++  it("stops at a template that includes itself", async () => {
++    await expect(resolve({ inherits: "Self Include" })).rejects.toThrow(/maximum depth/);
++  });
++});
+-- 
+2.54.0
+
