@@ -25,6 +25,15 @@
       "999"
       "-fa"
       "on"
+      # A small host-RAM prompt cache. The default (8192 MiB) fills within an hour of every
+      # start and then holds ~8 GB of RAM for good (RSS ~23 -> ~31.5 GB), which the box's test
+      # runs need. The prompts here are short (p50 ~380, max ~7k tokens), so a cache hit saves
+      # a second or two at most. Not 0: without a cache, a slot that takes a new prompt keeps
+      # the old one and restores a context checkpoint to reuse the ~13 tokens of chat template,
+      # on nearly every request, which was slower and is the path that aborts in b9190 once
+      # prompts outgrow the 1024-token SWA window.
+      "--cache-ram"
+      "1024"
       "--alias"
       "gemma-4-26b-a4b"
     ];
