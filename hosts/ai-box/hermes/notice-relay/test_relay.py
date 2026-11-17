@@ -227,10 +227,14 @@ def test_agent_persons_are_acknowledged_without_a_message(fakes: Fakes) -> None:
     ]
     assert fakes.run() == relay.EXIT_OK
     assert fakes.sent() == []
-    assert fakes.delivered() == [{"app": "lab-sculpt", "ids": ["n-1", "n-2"]}]
-    assert [entry["outcome"] for entry in fakes.logged()] == [
-        "acknowledged (the agent's own)"
-    ] * 2
+    assert fakes.delivered() == [
+        {"app": "lab-sculpt", "ids": ["n-1"]},
+        {"app": "lab-sculpt", "ids": ["n-2"]},
+    ]
+    assert [(entry["person"], entry["outcome"]) for entry in fakes.logged()] == [
+        ("hermes", "acknowledged (the agent's own)"),
+        ("hermes-test", "acknowledged (the agent's own)"),
+    ]
 
 
 def test_unknown_person_is_kept_and_reported(
@@ -260,6 +264,8 @@ def test_failed_send_keeps_the_notices(
     }
     assert fakes.run() == relay.EXIT_UNDELIVERED
     assert fakes.delivered() == [{"app": "lab-sculpt", "ids": ["n-2"]}]
+    # The log keeps what was done; the failure is in the run's output, not logged every retry.
+    assert [entry["id"] for entry in fakes.logged()] == ["n-2"]
     out = capsys.readouterr().out
     assert out.strip() == (
         "lab-sculpt: 1 notice(s) for discord:222 not delivered: "

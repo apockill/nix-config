@@ -14,7 +14,8 @@ in no-agent mode. Each run:
 3. lab-printer (`box <printer> notices`, the relay's route; the studio follows its own): sends
    each notice to --printer-to as its own message, with its photo when it has one.
 4. Marks delivered (`notices-delivered`) only what `hermes send` reported sent, so a failed send
-   is tried again on the next run, and appends one JSON line per notice to --log.
+   is tried again on the next run, and appends a JSON line to --log for each notice it sent or
+   acknowledged.
 
 An app that can't be read (restarting, down, or a printer that is off) is skipped until a later
 run: the apps-health cron job reports apps that stay down. A notice that couldn't be delivered (an
@@ -236,16 +237,16 @@ def sculpt_messages(
     people: dict[str, str],
     agent_persons: set[str],
     run: Run,
-) -> tuple[list[Message], list[str]]:
-    """One message per person for Sculpt Studio's notices, and the ids of the agent's own notices.
-    A person with no Discord target is reported; their notices stay."""
+) -> tuple[list[Message], dict[str, list[str]]]:
+    """One message per person for Sculpt Studio's notices, and the ids of the agent's own notices
+    by person. A person with no Discord target is reported; their notices stay."""
     lines: dict[str, list[str]] = {}
     ids: dict[str, list[str]] = {}
-    acknowledged: list[str] = []
+    acknowledged: dict[str, list[str]] = {}
     for notice in notices:
         person = str(notice.get("person", ""))
         if person in agent_persons:
-            acknowledged.append(str(notice["id"]))
+            acknowledged.setdefault(person, []).append(str(notice["id"]))
             continue
         title = one_line(notice.get("title", "")) or "A project"
         link = str(notice.get("link", ""))
@@ -282,14 +283,12 @@ def printer_message(
 
 
 def deliver(box: Box, discord: Discord, message: Message, run: Run) -> None:
-    """Send one message, then mark its notices delivered."""
+    """Send one message, then mark its notices delivered. A failed send is only reported: it is
+    tried again every run, and the log keeps what was done, not each retry."""
     error = discord.send(message.to, message.text)
     if error is not None:
         run.problems.append(
             f"{message.app}: {len(message.ids)} notice(s) for {message.to} not delivered: {error}"
-        )
-        run.record(
-            message.app, message.ids, f"not sent: {error}", message.to, message.person
         )
         return
     mark(box, message.app, list(message.ids), run, "sent", message.to, message.person)
@@ -341,7 +340,16 @@ def relay_sculpt(
     messages, acknowledged = sculpt_messages(
         args.sculpt, pending(box, args.sculpt), people, set(args.agent_person), run
     )
-    mark(box, args.sculpt, acknowledged, run, "acknowledged (the agent's own)")
+    for person, person_ids in acknowledged.items():
+        mark(
+            box,
+            args.sculpt,
+            person_ids,
+            run,
+            "acknowledged (the agent's own)",
+            "",
+            person,
+        )
     for message in messages:
         deliver(box, discord, message, run)
 
