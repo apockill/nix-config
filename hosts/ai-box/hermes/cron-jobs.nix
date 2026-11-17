@@ -35,14 +35,18 @@ in
             type = lib.types.str;
             default = "discord";
           };
+          # Pinned explicitly (not left empty to follow cron.model at run time), so jobs.json
+          # and `hermes cron list` show the model each job runs.
           model = lib.mkOption {
             type = lib.types.str;
-            default = "";
-            description = "Pin the job to this model; empty follows cron.model (the local model).";
+            default = hermes.settings.cron.model;
+            defaultText = lib.literalExpression "config.services.hermes-agent.settings.cron.model";
+            description = "The model the job runs; empty follows cron.model at run time.";
           };
           provider = lib.mkOption {
             type = lib.types.str;
-            default = "";
+            default = hermes.settings.cron.model_provider;
+            defaultText = lib.literalExpression "config.services.hermes-agent.settings.cron.model_provider";
             description = "The provider paired with `model`.";
           };
         };

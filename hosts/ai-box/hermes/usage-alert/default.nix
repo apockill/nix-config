@@ -12,8 +12,6 @@
     # as fast as the 11-14 recorder (about 6 GB an hour) would take hours to get from 95% to 100%.
     schedule = "every 5m";
     monitorScript = ./monitor.py;
-    model = "claude-opus-5-5";
-    provider = "anthropic";
     prompt = ''
       The monitor block above is usage-alert's gate for ai-box (Alex's Jetson AGX Orin home
       server). `OK` means every disk and the memory are at most 95% used. `OVER ...` names what

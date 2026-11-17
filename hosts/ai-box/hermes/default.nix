@@ -137,8 +137,13 @@ in
       ];
       cron = {
         allow_agent_scheduling = false;
-        model = "gemma-4-26b-a4b";
-        model_provider = "local";
+        # A cheaper Claude model is the default for every cron job (Alex, 11-16). Sonnet,
+        # not Haiku: desk-idle decides from the photo, the arm's events and the Claude Code
+        # jobs' transcripts whether someone is at the desk, which takes judgment, and the
+        # local Gemma twice switched the projector off mid-session. aiBox.hermesCron jobs pin
+        # this same model, so `hermes cron list` shows what each one runs.
+        model = "claude-sonnet-5-5";
+        model_provider = "anthropic";
       };
 
       providers.local = {
