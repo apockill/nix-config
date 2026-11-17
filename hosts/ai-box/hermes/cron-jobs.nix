@@ -1,9 +1,14 @@
-# Declarative Hermes cron jobs in "monitor" mode.
+# Declarative Hermes cron jobs, in one of two modes:
 #
-#   aiBox.hermesCron.<name> = {
+#   aiBox.hermesCron.<name> = {        # monitor mode
 #     schedule = "every 5m";
 #     monitorScript = ./monitor.py;  # cheap source; its output must be stable
 #     prompt = "...";                # run by the cron model only when output changes
+#   };
+#
+#   aiBox.hermesCron.<name> = {        # no-agent mode: the script is the whole job
+#     schedule = "every 1m";
+#     script = ./job.sh;             # run with bash; stdout is delivered, empty is silent
 #   };
 #
 # The script is installed into HERMES_HOME/scripts (cron requires that), and a
@@ -19,18 +24,62 @@ let
   hermes = config.services.hermes-agent;
   hermesBin = "${hermes.package}/bin/hermes";
   jobs = config.aiBox.hermesCron;
-  scriptName = name: "${name}-monitor.py";
+  noAgent = job: job.script != null;
+  # The file a job's script is installed as. Hermes picks the interpreter by
+  # extension: .sh runs with bash, anything else with Hermes's own Python.
+  scriptName = name: job: if noAgent job then "${name}.sh" else "${name}-monitor.py";
+  # The `hermes cron create/edit` flags of the job's mode, prompt aside, e.g.
+  # [ "--no-agent" "--script" "notice-relay.sh" ].
+  modeArgs =
+    name: job:
+    if noAgent job then
+      [
+        "--no-agent"
+        "--script"
+        (scriptName name job)
+      ]
+    else
+      [
+        "--monitor-script"
+        (scriptName name job)
+        "--model"
+        job.model
+        "--provider"
+        job.provider
+      ];
+  # The prompt as `cron edit` takes it (a flag) and as `cron create` does (positional, after the
+  # schedule); a no-agent job has none.
+  promptFlag =
+    job:
+    lib.optionals (job.prompt != null) [
+      "--prompt"
+      job.prompt
+    ];
+  promptArg = job: lib.optional (job.prompt != null) job.prompt;
 in
 {
   options.aiBox.hermesCron = lib.mkOption {
     default = { };
-    description = "Hermes cron jobs in monitor mode, declared in nix-config.";
+    description = "Hermes cron jobs in monitor or no-agent mode, declared in nix-config.";
     type = lib.types.attrsOf (
       lib.types.submodule {
         options = {
           schedule = lib.mkOption { type = lib.types.str; };
-          monitorScript = lib.mkOption { type = lib.types.path; };
-          prompt = lib.mkOption { type = lib.types.str; };
+          monitorScript = lib.mkOption {
+            type = lib.types.nullOr lib.types.path;
+            default = null;
+            description = "Monitor mode: the cheap source script (Python), set together with `prompt`.";
+          };
+          prompt = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "Monitor mode: what the cron model does when the monitor's output changes.";
+          };
+          script = lib.mkOption {
+            type = lib.types.nullOr lib.types.path;
+            default = null;
+            description = "No-agent mode: a shell script that is the whole job, run with bash and no model. Its stdout is delivered verbatim (empty: nothing), and a non-zero exit is reported as the job's failure.";
+          };
           deliver = lib.mkOption {
             type = lib.types.str;
             default = "discord";
@@ -51,8 +100,20 @@ in
   };
 
   config = lib.mkIf (jobs != { }) {
+    assertions = lib.mapAttrsToList (name: job: {
+      assertion =
+        if noAgent job then
+          job.monitorScript == null && job.prompt == null
+        else
+          job.monitorScript != null && job.prompt != null;
+      message = "aiBox.hermesCron.${name}: set either `script` (no-agent mode) or both `monitorScript` and `prompt` (monitor mode).";
+    }) jobs;
+
     services.hermes-agent.hermesHomeFiles = lib.mapAttrs' (
-      name: job: lib.nameValuePair "scripts/${scriptName name}" job.monitorScript
+      name: job:
+      lib.nameValuePair "scripts/${scriptName name job}" (
+        if noAgent job then job.script else job.monitorScript
+      )
     ) jobs;
 
     systemd.services = lib.mapAttrs' (
@@ -76,14 +137,13 @@ in
         script = ''
           id=$(jq -r '.jobs[]? | select(.name == "${name}") | .id' \
             "$HERMES_HOME/cron/jobs.json" 2>/dev/null || true)
-          args=(--monitor-script ${scriptName name} --deliver ${job.deliver}
-            --model ${lib.escapeShellArg job.model} --provider ${lib.escapeShellArg job.provider})
+          args=(${lib.escapeShellArgs (modeArgs name job)} --deliver ${job.deliver})
           if [ -n "$id" ]; then
             ${hermesBin} cron edit "$id" --schedule ${lib.escapeShellArg job.schedule} \
-              --prompt ${lib.escapeShellArg job.prompt} "''${args[@]}"
+              ${lib.escapeShellArgs (promptFlag job)} "''${args[@]}"
           else
             ${hermesBin} cron create --name ${name} "''${args[@]}" \
-              ${lib.escapeShellArg job.schedule} ${lib.escapeShellArg job.prompt}
+              ${lib.escapeShellArgs ([ job.schedule ] ++ promptArg job)}
           fi
         '';
       }
