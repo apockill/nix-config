@@ -137,8 +137,13 @@ in
       ];
       cron = {
         allow_agent_scheduling = false;
-        model = "gemma-4-26b-a4b";
-        model_provider = "local";
+        # Alex, 11-16: "a cheaper model as the default for any cron jobs". Sonnet, not
+        # Haiku: desk-idle's call (is someone at the desk? from the photo, the arm's events and
+        # the Claude Code jobs' transcripts) is judgment, and the local Gemma twice switched
+        # the projector off mid-session. Sonnet costs half of Opus per token. aiBox.hermesCron
+        # jobs pin this same model, so `hermes cron list` shows what each one runs.
+        model = "claude-sonnet-5-5";
+        model_provider = "anthropic";
       };
 
       providers.local = {

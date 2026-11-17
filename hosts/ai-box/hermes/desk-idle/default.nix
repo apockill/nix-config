@@ -7,8 +7,6 @@
   aiBox.hermesCron.desk-idle = {
     schedule = "30 * * * *";
     monitorScript = ./monitor.py;
-    model = "claude-opus-5-5";
-    provider = "anthropic";
     prompt = ''
       The line above is desk-idle's gate. ASLEEP: answer exactly [SILENT]. AWAKE ... lists
       what is on (arm-motors, Desk-light, Projector). Decide whether Alex's desk is in use and,
