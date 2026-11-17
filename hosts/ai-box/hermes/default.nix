@@ -137,11 +137,11 @@ in
       ];
       cron = {
         allow_agent_scheduling = false;
-        # Alex, 11-16: "a cheaper model as the default for any cron jobs". Sonnet, not
-        # Haiku: desk-idle's call (is someone at the desk? from the photo, the arm's events and
-        # the Claude Code jobs' transcripts) is judgment, and the local Gemma twice switched
-        # the projector off mid-session. Sonnet costs half of Opus per token. aiBox.hermesCron
-        # jobs pin this same model, so `hermes cron list` shows what each one runs.
+        # A cheaper Claude model is the default for every cron job (Alex, 11-16). Sonnet,
+        # not Haiku: desk-idle decides from the photo, the arm's events and the Claude Code
+        # jobs' transcripts whether someone is at the desk, which takes judgment, and the
+        # local Gemma twice switched the projector off mid-session. aiBox.hermesCron jobs pin
+        # this same model, so `hermes cron list` shows what each one runs.
         model = "claude-sonnet-5-5";
         model_provider = "anthropic";
       };
