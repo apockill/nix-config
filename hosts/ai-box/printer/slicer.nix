@@ -3,6 +3,8 @@
 # CLI as its slicer. Bambuddy (./bambuddy.nix) posts the model and the preset JSONs to
 # POST /slice; the wrapper flattens each preset's `inherits` chain from Bambu Studio's
 # stock profiles (BUNDLED_PROFILES_PATH) and runs the CLI in a temporary directory.
+# Those profiles are ./profiles: the stock ones with each filament preset's `include`
+# templates merged in as the Bambu Studio app does, since the wrapper walks `inherits` only.
 #
 # Loopback only, and the sandbox allows no other network traffic: slicing needs none.
 {
@@ -14,6 +16,7 @@
 let
   cfg = config.aiBox.printer;
   orca-slicer-api = pkgs.callPackage ./orca-slicer-api.nix { };
+  profiles = pkgs.callPackage ./profiles { };
 in
 {
   systemd.services.bambu-studio-api = {
@@ -27,7 +30,7 @@ in
       HOST = "127.0.0.1";
       PORT = toString cfg.slicerPort;
       ORCASLICER_PATH = lib.getExe pkgs.bambu-studio;
-      BUNDLED_PROFILES_PATH = "${pkgs.bambu-studio}/share/BambuStudio/profiles/BBL";
+      BUNDLED_PROFILES_PATH = "${profiles}/BBL";
       # Profiles stored through the wrapper's own /profiles API; Bambuddy sends its
       # presets with each slice instead, so this stays empty.
       DATA_PATH = "/var/lib/bambu-studio-api";

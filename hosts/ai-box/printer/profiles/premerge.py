@@ -1,0 +1,272 @@
+"""Bambu Studio's BBL profiles with each filament preset's `include` templates merged in.
+
+Bambu Studio's app loads a vendor preset as: its parent's resolved config, then each template
+its `include` list names, then the preset's own keys (PresetBundle::load_vendor_configs_from_json,
+src/libslic3r/PresetBundle.cpp). orca-slicer-api's resolver walks `inherits` only, so a preset
+handed to the CLI lost its template: on the X2D, `filament_extruder_variant` and every per-variant
+value written for it, and a right (Bowden) nozzle filament sliced with Direct Drive retraction.
+
+This writes a copy of the BBL tree in which every filament preset with an `include` carries the
+template's settings in its own file, below its own keys. The resolver's unchanged `inherits` walk
+then puts the parent below that, which is the app's order. Every file in the chain is merged, so
+a parent's include also lands at the parent's level.
+
+The app applies only the template keys that differ from the filament collection's default preset:
+`include_config.diff(*include_default_config)`, then `config.apply_only(include_config, keys)`.
+A template key equal to the default leaves the parent's value. That default preset is
+(PresetBundle::PresetBundle, Preset.cpp's PresetCollection constructor):
+  - FullPrintConfig's defaults, restricted to Preset::filament_options() (s_Preset_filament_options
+    in Preset.cpp); a template key outside that list is never applied;
+  - every filament extruder override key (filament_extruder_override_keys in PrintConfig.cpp, plus
+    filament_retract_length_nc; all nullable) set to "nil";
+  - filament_settings_id set to [""].
+The FullPrintConfig defaults come from the shipped binary itself (`bambu-studio --export-settings`
+with no inputs), not from parsing C++ initialisers; the two key lists are plain string lists in the
+same version's source. Comparison follows ConfigOption::operator==: a vector differs from one of
+another length, nil equals nil, and numbers compare by value.
+
+Machine presets also use `include`, for their G-code companions (`<preset> template
+machine_start_gcode` and so on); the resolver already applies those by name, so they're copied as
+they are. Process presets have no includes.
+
+Fails, rather than slicing on a guess, on: a template that isn't in the manifest, a template that
+itself inherits or includes, a template key whose default isn't known, and a value whose shape
+(list or scalar) differs from its default's.
+
+usage: premerge.py --profiles DIR --defaults defaults.json --preset-cpp Preset.cpp
+                   --print-config-cpp PrintConfig.cpp --out DIR
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import re
+import shutil
+from pathlib import Path
+from typing import Any
+
+VENDOR = "BBL"
+# A preset's own bookkeeping, not settings an include contributes (key_values, not config_src, in
+# load_vendor_configs_from_json).
+BOOKKEEPING = {
+    "name",
+    "inherits",
+    "include",
+    "instantiation",
+    "type",
+    "from",
+    "setting_id",
+    "filament_id",
+    "description",
+}
+STRING_TYPES = {"coString", "coStrings"}
+
+
+class PremergeError(Exception):
+    pass
+
+
+def cpp_string_list(source: str, name: str) -> list[str]:
+    """The string literals of the braced initialiser `name ... { ... };` in C++ `source`."""
+    m = re.search(rf"\b{re.escape(name)}\s*(?:=\s*)?\{{(.*?)\}};", source, re.S)
+    if m is None:
+        raise PremergeError(f"no initialiser for {name} in the source")
+    body = re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S)
+    body = re.sub(r"//[^\n]*", "", body)
+    items = re.findall(r'"([^"\\]*)"', body)
+    if not items:
+        raise PremergeError(f"{name} has no entries")
+    return items
+
+
+def string_typed_keys(print_config_cpp: str) -> set[str]:
+    """Options PrintConfig.cpp declares as strings, compared as text rather than as numbers."""
+    return {
+        k
+        for k, t in re.findall(
+            r'this->add(?:_nullable)?\("([A-Za-z0-9_]+)",\s*(co[A-Za-z]+)\)',
+            print_config_cpp,
+        )
+        if t in STRING_TYPES
+    }
+
+
+def filament_defaults(
+    exported: dict[str, Any],
+    options: list[str],
+    override_keys: set[str],
+) -> dict[str, Any]:
+    """The filament collection's default preset, as PresetBundle builds it."""
+    out: dict[str, Any] = {}
+    for k in options:
+        if k in override_keys:
+            out[k] = ["nil"]
+        elif k in exported:
+            out[k] = exported[k]
+    out["filament_settings_id"] = [""]
+    return out
+
+
+def _token(v: str, text: bool) -> tuple[str, Any]:
+    if not isinstance(v, str):
+        raise PremergeError(f"not a serialized value: {v!r}")
+    s = v.strip()
+    if text:
+        return ("s", v)
+    if s == "nil":
+        return ("nil", None)
+    pct = s.endswith("%")
+    try:
+        f = float(s[:-1] if pct else s)
+    except ValueError:
+        return ("s", v)  # an enum name
+    if math.isnan(f):
+        return ("nil", None)
+    return ("%" if pct else "n", f)
+
+
+def same(a: Any, b: Any, text: bool) -> bool:
+    """ConfigOption::operator== on two serialized values (same option)."""
+    if isinstance(a, list) != isinstance(b, list):
+        raise PremergeError(f"{a!r} and {b!r} differ in shape")
+    if not isinstance(a, list):
+        return _token(a, text) == _token(b, text)
+    return len(a) == len(b) and all(
+        _token(x, text) == _token(y, text) for x, y in zip(a, b, strict=True)
+    )
+
+
+def template_keys(
+    name: str,
+    template: dict[str, Any],
+    defaults: dict[str, Any],
+    options: set[str],
+    text_keys: set[str],
+) -> tuple[dict[str, Any], dict[str, list[str]]]:
+    """The settings `template` contributes as an include, and what it leaves out and why."""
+    if template.get("inherits") or template.get("include"):
+        raise PremergeError(
+            f"template {name!r} itself inherits or includes; premerge.py can't flatten that"
+        )
+    applied: dict[str, Any] = {}
+    skipped: dict[str, list[str]] = {
+        "equal_to_default": [],
+        "not_a_filament_option": [],
+    }
+    for k, v in template.items():
+        if k in BOOKKEEPING:
+            continue
+        if k not in defaults:
+            if k in options:
+                raise PremergeError(f"template {name!r}: no default known for {k!r}")
+            skipped["not_a_filament_option"].append(k)
+            continue
+        if same(v, defaults[k], k in text_keys):
+            skipped["equal_to_default"].append(k)
+            continue
+        applied[k] = v
+    return applied, skipped
+
+
+def premerge(
+    profiles: Path,
+    defaults: dict[str, Any],
+    options: set[str],
+    text_keys: set[str],
+    out: Path,
+) -> dict[str, Any]:
+    """Write the merged tree to `out`; return the report."""
+    src = profiles / VENDOR
+    manifest_file = profiles / f"{VENDOR}.json"
+    if out.exists():
+        shutil.rmtree(out)
+    shutil.copytree(src, out / VENDOR, copy_function=shutil.copyfile)
+    shutil.copyfile(manifest_file, out / f"{VENDOR}.json")
+    for d in [out / VENDOR, *(p for p in (out / VENDOR).rglob("*") if p.is_dir())]:
+        d.chmod(
+            0o755
+        )  # the store copy is read-only; copyfile already leaves files writable
+
+    manifest = json.loads(manifest_file.read_text())
+    files = {e["name"]: e["sub_path"] for e in manifest["filament_list"]}
+    cache: dict[str, tuple[dict[str, Any], dict[str, list[str]]]] = {}
+    merged_presets = 0
+    for name, sub in files.items():
+        preset = json.loads((src / sub).read_text())
+        inc = preset.get("include")
+        if not inc:
+            continue
+        names = [inc] if isinstance(inc, str) else inc
+        merged: dict[str, Any] = {}
+        for t in names:
+            if t not in files:
+                raise PremergeError(
+                    f"{name!r} includes {t!r}, which isn't in {VENDOR}.json's filament_list"
+                )
+            if t not in cache:
+                template = json.loads((src / files[t]).read_text())
+                cache[t] = template_keys(t, template, defaults, options, text_keys)
+            merged.update(cache[t][0])
+        merged.update({k: v for k, v in preset.items() if k != "include"})
+        (out / VENDOR / sub).write_text(json.dumps(merged, indent=4) + "\n")
+        merged_presets += 1
+    return {
+        "version": manifest.get("version"),
+        "filament_presets_merged": merged_presets,
+        "templates": {
+            t: {"applied": sorted(a), **{why: sorted(ks) for why, ks in s.items()}}
+            for t, (a, s) in sorted(cache.items())
+        },
+    }
+
+
+def main(argv: list[str] | None = None) -> None:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument(
+        "--profiles",
+        type=Path,
+        required=True,
+        help="Bambu Studio's profiles dir (holding BBL.json)",
+    )
+    ap.add_argument(
+        "--defaults",
+        type=Path,
+        required=True,
+        help="`bambu-studio --export-settings` with no inputs",
+    )
+    ap.add_argument(
+        "--preset-cpp",
+        type=Path,
+        required=True,
+        help="src/libslic3r/Preset.cpp of the same version",
+    )
+    ap.add_argument(
+        "--print-config-cpp",
+        type=Path,
+        required=True,
+        help="src/libslic3r/PrintConfig.cpp, same version",
+    )
+    ap.add_argument("--out", type=Path, required=True)
+    a = ap.parse_args(argv)
+
+    print_config = a.print_config_cpp.read_text()
+    options = cpp_string_list(a.preset_cpp.read_text(), "s_Preset_filament_options")
+    overrides = set(cpp_string_list(print_config, "filament_extruder_override_keys"))
+    # is_filament_extruder_override_key() adds this one by hand.
+    if 'opt_key == "filament_retract_length_nc"' not in print_config:
+        raise PremergeError(
+            "is_filament_extruder_override_key changed; check which keys it adds"
+        )
+    overrides.add("filament_retract_length_nc")
+    defaults = filament_defaults(json.loads(a.defaults.read_text()), options, overrides)
+    report = premerge(
+        a.profiles, defaults, set(options), string_typed_keys(print_config), a.out
+    )
+    (a.out / "premerge-report.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps(report, indent=2))
+
+
+if __name__ == "__main__":
+    main()
