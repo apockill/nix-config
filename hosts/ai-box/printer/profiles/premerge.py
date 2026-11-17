@@ -44,8 +44,10 @@ import json
 import math
 import re
 import shutil
+from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Literal, TypedDict
 
 VENDOR = "BBL"
 # A preset's own bookkeeping, not settings an include contributes (key_values, not config_src, in
@@ -62,6 +64,46 @@ BOOKKEEPING = {
     "description",
 }
 STRING_TYPES = {"coString", "coStrings"}
+
+# A setting's value as the profile JSON and `--export-settings` serialise it: one string, or one
+# string per entry for a vector option.
+type Value = str | list[str]
+# A preset file, or the default preset: setting name to serialised value. Bookkeeping keys
+# (BOOKKEEPING) are strings too.
+type Preset = dict[str, Value]
+# One serialised entry, parsed the way ConfigOption::operator== compares it.
+type Token = (
+    tuple[Literal["s"], str]
+    | tuple[Literal["nil"], None]
+    | tuple[Literal["n", "%"], float]
+)
+
+
+class Skip(StrEnum):
+    """Why a template key isn't applied, as premerge-report.json records it."""
+
+    EQUAL_TO_DEFAULT = "equal_to_default"
+    NOT_A_FILAMENT_OPTION = "not_a_filament_option"
+
+
+@dataclass(frozen=True)
+class Contribution:
+    """What one template adds to a preset that includes it, and the keys it leaves out."""
+
+    applied: Preset
+    skipped: dict[Skip, list[str]]
+
+
+class TemplateReport(TypedDict):
+    applied: list[str]
+    equal_to_default: list[str]
+    not_a_filament_option: list[str]
+
+
+class Report(TypedDict):
+    version: str | None
+    filament_presets_merged: int
+    templates: dict[str, TemplateReport]
 
 
 class PremergeError(Exception):
@@ -94,12 +136,12 @@ def string_typed_keys(print_config_cpp: str) -> set[str]:
 
 
 def filament_defaults(
-    exported: dict[str, Any],
+    exported: Preset,
     options: list[str],
     override_keys: set[str],
-) -> dict[str, Any]:
+) -> Preset:
     """The filament collection's default preset, as PresetBundle builds it."""
-    out: dict[str, Any] = {}
+    out: Preset = {}
     for k in options:
         if k in override_keys:
             out[k] = ["nil"]
@@ -109,7 +151,7 @@ def filament_defaults(
     return out
 
 
-def _token(v: str, text: bool) -> tuple[str, Any]:
+def _token(v: str, text: bool) -> Token:
     if not isinstance(v, str):
         raise PremergeError(f"not a serialized value: {v!r}")
     s = v.strip()
@@ -127,11 +169,11 @@ def _token(v: str, text: bool) -> tuple[str, Any]:
     return ("%" if pct else "n", f)
 
 
-def same(a: Any, b: Any, text: bool) -> bool:
+def same(a: Value, b: Value, text: bool) -> bool:
     """ConfigOption::operator== on two serialized values (same option)."""
-    if isinstance(a, list) != isinstance(b, list):
-        raise PremergeError(f"{a!r} and {b!r} differ in shape")
-    if not isinstance(a, list):
+    if isinstance(a, str) or isinstance(b, str):
+        if not (isinstance(a, str) and isinstance(b, str)):
+            raise PremergeError(f"{a!r} and {b!r} differ in shape")
         return _token(a, text) == _token(b, text)
     return len(a) == len(b) and all(
         _token(x, text) == _token(y, text) for x, y in zip(a, b, strict=True)
@@ -140,43 +182,40 @@ def same(a: Any, b: Any, text: bool) -> bool:
 
 def template_keys(
     name: str,
-    template: dict[str, Any],
-    defaults: dict[str, Any],
+    template: Preset,
+    defaults: Preset,
     options: set[str],
     text_keys: set[str],
-) -> tuple[dict[str, Any], dict[str, list[str]]]:
+) -> Contribution:
     """The settings `template` contributes as an include, and what it leaves out and why."""
     if template.get("inherits") or template.get("include"):
         raise PremergeError(
             f"template {name!r} itself inherits or includes; premerge.py can't flatten that"
         )
-    applied: dict[str, Any] = {}
-    skipped: dict[str, list[str]] = {
-        "equal_to_default": [],
-        "not_a_filament_option": [],
-    }
+    applied: Preset = {}
+    skipped: dict[Skip, list[str]] = {why: [] for why in Skip}
     for k, v in template.items():
         if k in BOOKKEEPING:
             continue
         if k not in defaults:
             if k in options:
                 raise PremergeError(f"template {name!r}: no default known for {k!r}")
-            skipped["not_a_filament_option"].append(k)
+            skipped[Skip.NOT_A_FILAMENT_OPTION].append(k)
             continue
         if same(v, defaults[k], k in text_keys):
-            skipped["equal_to_default"].append(k)
+            skipped[Skip.EQUAL_TO_DEFAULT].append(k)
             continue
         applied[k] = v
-    return applied, skipped
+    return Contribution(applied, skipped)
 
 
 def premerge(
     profiles: Path,
-    defaults: dict[str, Any],
+    defaults: Preset,
     options: set[str],
     text_keys: set[str],
     out: Path,
-) -> dict[str, Any]:
+) -> Report:
     """Write the merged tree to `out`; return the report."""
     src = profiles / VENDOR
     manifest_file = profiles / f"{VENDOR}.json"
@@ -191,24 +230,24 @@ def premerge(
 
     manifest = json.loads(manifest_file.read_text())
     files = {e["name"]: e["sub_path"] for e in manifest["filament_list"]}
-    cache: dict[str, tuple[dict[str, Any], dict[str, list[str]]]] = {}
+    cache: dict[str, Contribution] = {}
     merged_presets = 0
     for name, sub in files.items():
-        preset = json.loads((src / sub).read_text())
+        preset: Preset = json.loads((src / sub).read_text())
         inc = preset.get("include")
         if not inc:
             continue
         names = [inc] if isinstance(inc, str) else inc
-        merged: dict[str, Any] = {}
+        merged: Preset = {}
         for t in names:
             if t not in files:
                 raise PremergeError(
                     f"{name!r} includes {t!r}, which isn't in {VENDOR}.json's filament_list"
                 )
             if t not in cache:
-                template = json.loads((src / files[t]).read_text())
+                template: Preset = json.loads((src / files[t]).read_text())
                 cache[t] = template_keys(t, template, defaults, options, text_keys)
-            merged.update(cache[t][0])
+            merged.update(cache[t].applied)
         merged.update({k: v for k, v in preset.items() if k != "include"})
         (out / VENDOR / sub).write_text(json.dumps(merged, indent=4) + "\n")
         merged_presets += 1
@@ -216,8 +255,12 @@ def premerge(
         "version": manifest.get("version"),
         "filament_presets_merged": merged_presets,
         "templates": {
-            t: {"applied": sorted(a), **{why: sorted(ks) for why, ks in s.items()}}
-            for t, (a, s) in sorted(cache.items())
+            t: {
+                "applied": sorted(c.applied),
+                "equal_to_default": sorted(c.skipped[Skip.EQUAL_TO_DEFAULT]),
+                "not_a_filament_option": sorted(c.skipped[Skip.NOT_A_FILAMENT_OPTION]),
+            }
+            for t, c in sorted(cache.items())
         },
     }
 
