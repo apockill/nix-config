@@ -81,7 +81,6 @@ in
     ./desk-idle # the desk's hourly sleep check (aiBox.hermesCron.desk-idle)
     ./usage-alert # disk and memory over 95%: Discord report (aiBox.hermesCron.usage-alert)
     ./cc # cc: the agent's coding jobs, as agent runner sessions (../agents/runner)
-    ./sculpt-launcher # Sculpt Studio's builder sessions (lab-sculpt's builder-wakes)
     ./home.nix # home-manager: git, gh (the coding agents: ../agents)
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
     ./github # GitHub as the ailex-bot App: gh, git identity, gh-app-token
