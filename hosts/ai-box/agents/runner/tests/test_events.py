@@ -1,0 +1,136 @@
+"""Tests for events.py: the flat wire form of every kind, and logs from before the split."""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+from agent_runner.acp import ElicitationResponse, PermissionOption, PermissionOutcome
+from agent_runner.events import (
+    BODIES,
+    AgentNotification,
+    Body,
+    Cancelled,
+    Event,
+    Failed,
+    Heartbeat,
+    Notified,
+    PermissionAsked,
+    Prompted,
+    QuestionAsked,
+    Resolved,
+    SessionOpened,
+    StateChanged,
+    TurnEnded,
+    Updated,
+    decode_streamed,
+)
+from agent_runner.schema import SchemaError, encode
+
+# Lines as the runner wrote them before the split into modules (runner.py's emit).
+PRE_SPLIT = [
+    '{"seq": 1, "ts": 1795000000.0, "session": "job", "kind": "state", "state": "starting", "reason": null}',
+    '{"seq": 2, "ts": 1795000001.5, "session": "job", "kind": "session", "agent_session_id": "9c32", "transcript": "/t/x.jsonl", "agent_info": {"name": "fake", "version": "0"}}',
+    '{"seq": 3, "ts": 1795000002.0, "session": "job", "kind": "prompt", "text": "hello", "delivery": "sent"}',
+    '{"seq": 4, "ts": 1795000002.1, "session": "job", "kind": "update", "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "hi"}}}',
+    '{"seq": 5, "ts": 1795000002.2, "session": "job", "kind": "permission", "request_id": "p1", "title": "touch x", "tool_call_id": "t1", "options": [{"optionId": "allow", "name": "Allow", "kind": "allow_once"}]}',
+    '{"seq": 6, "ts": 1795000002.3, "session": "job", "kind": "resolved", "request_id": "p1", "by": "client", "answer": {"outcome": "selected", "optionId": "allow"}}',
+    '{"seq": 7, "ts": 1795000002.4, "session": "job", "kind": "question", "request_id": "q2", "message": "Which?", "mode": "form", "schema": {"type": "object"}, "url": null}',
+    '{"seq": 8, "ts": 1795000002.5, "session": "job", "kind": "resolved", "request_id": "q2", "by": "client", "answer": {"action": "accept", "content": {"c": "red"}}}',
+    '{"seq": 9, "ts": 1795000002.6, "session": "job", "kind": "resolved", "request_id": "p3", "by": "agent", "answer": null}',
+    '{"seq": 10, "ts": 1795000002.7, "session": "job", "kind": "resolved", "request_id": "p4", "by": "runner", "answer": null, "reason": "stopped"}',
+    '{"seq": 11, "ts": 1795000002.8, "session": "job", "kind": "turn_end", "stop_reason": "end_turn"}',
+    '{"seq": 12, "ts": 1795000002.9, "session": "job", "kind": "cancel"}',
+    '{"seq": 13, "ts": 1795000003.0, "session": "job", "kind": "error", "message": "boom"}',
+    '{"seq": 14, "ts": 1795000003.1, "session": "job", "kind": "notified", "message": "m", "ok": false, "error": "exit 1: x"}',
+    '{"seq": 15, "ts": 1795000003.2, "session": "job", "kind": "notification", "method": "auth/status_update", "params": {"ok": true}}',
+]
+
+
+@pytest.mark.parametrize("line", PRE_SPLIT)
+def test_lines_from_before_the_split_read_and_write_back_the_same(line: str) -> None:
+    event = Event.decode_json(json.loads(line))
+    assert json.dumps(event.encode_json(), ensure_ascii=False) == line
+
+
+def test_every_kind_is_covered_by_the_pre_split_lines() -> None:
+    kinds = {json.loads(line)["kind"] for line in PRE_SPLIT}
+    assert kinds == set(BODIES)
+
+
+def test_the_bodies_decode_to_their_types() -> None:
+    events = [Event.decode_json(json.loads(line)) for line in PRE_SPLIT]
+    bodies: list[Body] = [e.body for e in events]
+    assert bodies[0] == StateChanged(state="starting")
+    assert bodies[1] == SessionOpened(
+        agent_session_id="9c32",
+        transcript="/t/x.jsonl",
+        agent_info={"name": "fake", "version": "0"},
+    )
+    assert bodies[2] == Prompted(text="hello", delivery="sent")
+    assert isinstance(bodies[3], Updated)
+    assert bodies[4] == PermissionAsked(
+        request_id="p1",
+        title="touch x",
+        tool_call_id="t1",
+        options=[PermissionOption("allow", "Allow", "allow_once")],
+    )
+    assert bodies[5] == Resolved(
+        request_id="p1",
+        by="client",
+        answer=PermissionOutcome(outcome="selected", option_id="allow"),
+    )
+    assert isinstance(bodies[6], QuestionAsked)
+    assert bodies[7] == Resolved(
+        request_id="q2",
+        by="client",
+        answer=ElicitationResponse(action="accept", content={"c": "red"}),
+    )
+    assert bodies[9] == Resolved(request_id="p4", by="runner", reason="stopped")
+    assert bodies[10] == TurnEnded(stop_reason="end_turn")
+    assert bodies[11] == Cancelled()
+    assert bodies[12] == Failed(message="boom")
+    assert bodies[13] == Notified(message="m", ok=False, error="exit 1: x")
+    assert bodies[14] == AgentNotification(
+        method="auth/status_update", params={"ok": True}
+    )
+    assert events[3].kind == "update" and events[3].seq == 4
+
+
+def test_the_envelope_comes_first() -> None:
+    event = Event(7, 1.5, "s", StateChanged(state="idle"))
+    assert list(event.encode_json()) == [
+        "seq",
+        "ts",
+        "session",
+        "kind",
+        "state",
+        "reason",
+    ]
+
+
+@pytest.mark.parametrize(
+    "data, error",
+    [
+        ([1], "an event must be an object"),
+        ({"seq": 1, "ts": 0, "session": "s", "kind": "nope"}, "kind: unknown event"),
+        ({"ts": 0, "session": "s", "kind": "cancel"}, "seq: missing"),
+        ({"seq": 1, "ts": 0, "session": "s", "kind": "state"}, "state: missing"),
+        (
+            {"seq": 1, "ts": 0, "session": "s", "kind": "state", "state": "gone"},
+            "state: must be one of",
+        ),
+        ({"seq": 1, "ts": 0, "session": "s", "kind": "cancel", "x": 1}, "x: unknown"),
+    ],
+)
+def test_events_that_do_not_fit(data: object, error: str) -> None:
+    with pytest.raises(SchemaError, match=error):
+        Event.decode_json(data)
+
+
+def test_heartbeats() -> None:
+    beat = Heartbeat(ts=2.0, seq=5)
+    assert encode(beat) == {"kind": "heartbeat", "ts": 2.0, "seq": 5}
+    assert decode_streamed({"kind": "heartbeat", "ts": 2, "seq": 5}) == beat
+    streamed = decode_streamed(json.loads(PRE_SPLIT[0]))
+    assert isinstance(streamed, Event) and streamed.seq == 1

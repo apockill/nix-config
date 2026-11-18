@@ -1,16 +1,19 @@
 # The agent runner: every coding agent session on ai-box, over the Agent Client Protocol (ACP).
 #
 # One service holds every session: it starts the agent's own ACP server for each one
-# (claude-agent-acp, `agy acp`) and serves a local API on a unix socket, with `agent-runner` as
-# its CLI (`cc` is a thin layer on it). The API is in ./README.md, the code in ./runner.py (stdlib
-# Python; tests in ./test_runner.py against ./fake_acp_agent.py, run by `just test`).
+# (claude-agent-acp, `agy acp`) and serves a local API on a unix socket. `agent` is its CLI and
+# the service (`agent serve`): sessions, and jobs (a session named after a title, its task file the
+# first message). The API is in ./README.md; the code is the typed package ./agent_runner (one
+# concern per module, listed in its __init__.py), stdlib Python only; ./tests has a test module per
+# source module, the end-to-end tests against ./tests/fake_acp_agent.py, and live smoke tests that
+# skip without a sign-in. The package's build runs `mypy --strict` and the tests, so a type error or
+# a failing test fails the system build.
 #
 # It's a user service of the agent's user, not part of the Hermes gateway, so a gateway restart
 # (every switch that touches it) leaves sessions running. A switch doesn't restart it either
-# (keep-old); `agent-runner restart` applies a new runner (the service exits with 75, and systemd
-# starts the current version). A restart or a boot ends the agents' processes, not their
-# sessions: the records stay, and the next message resumes the agent's own session
-# (session/resume).
+# (keep-old); `agent restart` applies a new runner (the service exits with 75, and systemd starts
+# the current version). A restart or a boot ends the agents' processes, not their sessions: the
+# records stay, and the next message resumes the agent's own session (session/resume).
 #
 # Each vendor directory declares its agent here (aiBox.agents.runner.agents.<name>): command,
 # environment, mode, transcript path. The runner itself knows only ACP.
@@ -43,12 +46,34 @@ let
     }
   );
 
-  agentRunner = pkgs.writers.writePython3Bin "agent-runner" {
-    flakeIgnore = [
-      "E501"
-      "W503"
-      "E203"
+  py = pkgs.python3Packages;
+  agentRunner = py.buildPythonApplication {
+    pname = "agent-runner";
+    version = "1";
+    pyproject = true;
+    src = lib.fileset.toSource {
+      root = ./.;
+      fileset = lib.fileset.unions [
+        ./pyproject.toml
+        (lib.fileset.fileFilter (f: f.hasExt "py") ./agent_runner)
+        (lib.fileset.fileFilter (f: f.hasExt "py") ./tests)
+      ];
+    };
+    build-system = [ py.setuptools ];
+    nativeCheckInputs = [
+      py.pytest
+      py.mypy
     ];
+    # The type check and the tests are part of the build: either failing fails the toplevel. The
+    # live smoke tests (tests/test_live.py) skip here: the sandbox has no sign-in.
+    checkPhase = ''
+      runHook preCheck
+      mypy --strict agent_runner
+      mypy tests
+      pytest -q -p no:cacheprovider tests
+      runHook postCheck
+    '';
+    pythonImportsCheck = [ "agent_runner" ];
     makeWrapperArgs = [
       "--set-default"
       "AGENT_RUNNER_SOCKET"
@@ -62,8 +87,14 @@ let
       "--set-default"
       "AGENT_RUNNER_NOTIFY"
       "notify-alex"
+    ]
+    ++ lib.optionals (runnerCfg.tmuxJobs != null) [
+      "--set-default"
+      "AGENT_RUNNER_CC_TMUX"
+      runnerCfg.tmuxJobs
     ];
-  } (builtins.readFile ./runner.py);
+    meta.mainProgram = "agent";
+  };
 
   # The service gets only the secrets its agents pass through (the subscription token), read from
   # the secrets file, which may not be there yet at boot: user services can't wait for
@@ -74,7 +105,7 @@ let
     set -a
     eval "$(${pkgs.gnugrep}/bin/grep -E '^(${lib.concatStringsSep "|" passEnv})=' ${secretsEnv})"
     set +a
-    exec ${agentRunner}/bin/agent-runner serve
+    exec ${agentRunner}/bin/agent serve
   '';
 in
 {
@@ -84,7 +115,12 @@ in
       internal = true;
       readOnly = true;
       default = agentRunner;
-      description = "The runner's CLI (and service), agent-runner.";
+      description = "The runner's CLI and service, `agent`.";
+    };
+    tmuxJobs = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "The tool for the jobs started in tmux before the runner (cc-tmux, ../../hermes/cc), which `agent` hands those jobs to; null once the last has ended.";
     };
     default = lib.mkOption {
       type = lib.types.str;
@@ -151,7 +187,7 @@ in
 
     home-manager.users.${cfg.user}.systemd.user.services.agent-runner = {
       Unit = {
-        Description = "The coding agents' sessions over ACP (agent-runner)";
+        Description = "The coding agents' sessions over ACP (agent serve)";
         After = [ "network-online.target" ];
         # A switch mustn't end running sessions; the new runner applies on the next start.
         X-SwitchMethod = "keep-old";

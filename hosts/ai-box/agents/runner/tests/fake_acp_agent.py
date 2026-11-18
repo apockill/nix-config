@@ -1,9 +1,11 @@
-"""A stand-in ACP agent for test_runner.py: newline-delimited JSON-RPC on stdio, no model.
+"""A stand-in ACP agent for the tests: newline-delimited JSON-RPC on stdio, no model.
 
 What a prompt does depends on its text (see `turn`). FAKE_AUTH=fail-new makes session/new say the
 sign-in is missing, as `agy acp` does; the prompt "auth" fails the turn the same way, as
-claude-agent-acp does with a bad token. FAKE_STEERING=1 advertises steering. FAKE_LOG names a file
-that gets every message the agent receives.
+claude-agent-acp does with a bad token. FAKE_STEERING=1 advertises steering. FAKE_LOAD_ONLY=1
+advertises session/load but not session/resume (as agy does) and replays a message on load.
+FAKE_CONFIG_MODEL=1 offers models as a config option (as Claude does). FAKE_LOG names a file that
+gets every message the agent receives.
 """
 
 from __future__ import annotations
@@ -49,12 +51,17 @@ def say(session: str, text: str) -> None:
     )
 
 
-def ask(method: str, params: dict[str, Any]) -> Any:
-    """A request to the client; waits for its answer."""
+def next_request_id() -> int:
     global next_id
     with lock:
         rid = next_id
         next_id += 1
+    return rid
+
+
+def ask(method: str, params: dict[str, Any]) -> Any:
+    """A request to the client; waits for its answer (its result, or its error)."""
+    rid = next_request_id()
     send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
     with answered:
         answered.wait_for(lambda: rid in answers)
@@ -127,6 +134,49 @@ def turn(rid: Any, session: str, text: str) -> None:
         say(session, "working")
         cancelled.wait(30)
         return done("cancelled" if cancelled.is_set() else "end_turn")
+    if text.startswith("say "):
+        say(session, text[4:])
+        return done()
+    if text == "malformed":
+        # A permission request without its options' ids: the runner refuses it.
+        result = ask(
+            "session/request_permission",
+            {"sessionId": session, "toolCall": {"toolCallId": "t1"}, "options": [{}]},
+        )
+        say(session, f"malformed: {json.dumps(result)}")
+        return done()
+    if text == "unknown":
+        result = ask("fs/read_text_file", {"sessionId": session, "path": "/x"})
+        say(session, f"unknown: {json.dumps(result)}")
+        return done()
+    if text == "notify":
+        send({"jsonrpc": "2.0", "method": "auth/status_update", "params": {"ok": True}})
+        return done()
+    if text == "withdraw":
+        asked = next_request_id()  # not `rid`: done() answers the prompt's
+        send(
+            {
+                "jsonrpc": "2.0",
+                "id": asked,
+                "method": "session/request_permission",
+                "params": {
+                    "sessionId": session,
+                    "toolCall": {"toolCallId": "t2", "title": "rm y"},
+                    "options": [
+                        {"optionId": "allow", "name": "Allow", "kind": "allow_once"}
+                    ],
+                },
+            }
+        )
+        time.sleep(0.3)
+        send(
+            {
+                "jsonrpc": "2.0",
+                "method": "$/cancel_request",
+                "params": {"requestId": asked},
+            }
+        )
+        return done()
     if text == "later":
         say(session, "now")
         done()
@@ -147,7 +197,7 @@ def main() -> None:
         method, rid, params = msg.get("method"), msg.get("id"), msg.get("params") or {}
         if method is None:
             with answered:
-                answers[rid] = msg.get("result")
+                answers[rid] = msg.get("result", msg.get("error"))
                 answered.notify_all()
             continue
         if method == "initialize":
@@ -165,7 +215,11 @@ def main() -> None:
                         "agentInfo": {"name": "fake", "version": "0"},
                         "agentCapabilities": {
                             "loadSession": True,
-                            "sessionCapabilities": {"resume": {}},
+                            "sessionCapabilities": (
+                                {}
+                                if os.environ.get("FAKE_LOAD_ONLY")
+                                else {"resume": {}}
+                            ),
                         },
                         "_meta": meta,
                     },
@@ -181,22 +235,15 @@ def main() -> None:
                     }
                 )
                 continue
-            send(
-                {
-                    "jsonrpc": "2.0",
-                    "id": rid,
-                    "result": {
-                        "sessionId": str(uuid.uuid4()),
-                        "models": {
-                            "currentModelId": "big",
-                            "availableModels": [
-                                {"modelId": "big"},
-                                {"modelId": "small"},
-                            ],
-                        },
-                    },
+            result: dict[str, Any] = {"sessionId": str(uuid.uuid4())}
+            if os.environ.get("FAKE_CONFIG_MODEL"):
+                result["configOptions"] = [{"id": "model", "category": "model"}]
+            else:
+                result["models"] = {
+                    "currentModelId": "big",
+                    "availableModels": [{"modelId": "big"}, {"modelId": "small"}],
                 }
-            )
+            send({"jsonrpc": "2.0", "id": rid, "result": result})
         elif method == "session/resume":
             send(
                 {
@@ -210,7 +257,15 @@ def main() -> None:
                     },
                 }
             )
-        elif method in ("session/set_mode", "session/set_model"):
+        elif method == "session/load":
+            # The conversation so far comes back as updates before the answer.
+            say(params["sessionId"], "history")
+            send({"jsonrpc": "2.0", "id": rid, "result": {}})
+        elif method in (
+            "session/set_mode",
+            "session/set_model",
+            "session/set_config_option",
+        ):
             send({"jsonrpc": "2.0", "id": rid, "result": {}})
         elif method == "_session/steering":
             send({"jsonrpc": "2.0", "id": rid, "result": {"outcome": "injected"}})

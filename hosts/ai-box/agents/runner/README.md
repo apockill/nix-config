@@ -8,13 +8,19 @@ vendor harness and never replaces it: the agent's own loop, prompts, tools, skil
 transcript are unchanged, and the runner only starts, watches, steers and stops it.
 
 - Service: `agent-runner.service`, a **user** service of the agent's user (`systemctl --user
-  status agent-runner`), separate from the Hermes gateway, so a gateway restart leaves sessions
-  running. Switches don't restart it; `agent-runner restart` (`POST /v1/restart`) applies a new
-  version: the service exits with code 75 and systemd starts it again.
-- CLI: `agent-runner` (`agent-runner --help`; each verb maps to one call below). `cc` is the jobs
-  layer on top of it (../../hermes/cc).
-- Code: `runner.py`. Vendor settings (command, environment, mode, transcript path) come from the
-  vendor directories (`../claude`, `../antigravity`) through `aiBox.agents.runner.agents`.
+  status agent-runner`, running `agent serve`), separate from the Hermes gateway, so a gateway
+  restart leaves sessions running. Switches don't restart it; `agent restart` (`POST
+  /v1/restart`) applies a new version: the service exits with code 75 and systemd starts it again.
+- CLI: `agent` (`agent --help`; see [CLI](#cli)): sessions and jobs. `cc` is another name for it,
+  kept while the Hermes skills say `cc` and jobs from before the runner still run in tmux
+  (../../hermes/cc).
+- Code: the package `agent_runner/`, one concern per module (its `__init__.py` lists them), stdlib
+  Python only, every message and record a typed dataclass checked strictly where JSON comes in
+  (`schema.py`). Tests in `tests/`: one module per source module, the end-to-end tests
+  (`test_e2e.py`) against a stand-in agent (`fake_acp_agent.py`), and live smoke tests
+  (`test_live.py`, skipped without a sign-in). The nix build runs `mypy --strict` and the tests.
+  Vendor settings (command, environment, mode, transcript path) come from the vendor directories
+  (`../claude`, `../antigravity`) through `aiBox.agents.runner.agents`.
 - State: `/var/lib/hermes/agent-runner/sessions/<name>/`: `session.json` (the record),
   `events.jsonl` (every event), `agent.log` (the agent's stderr).
 
@@ -30,11 +36,13 @@ the socket can drive every session. A service that runs as another user, or a pa
 needs a bridge of its own.
 
 One request per connection (`Connection: close`). Bodies are JSON (`Content-Type:
-application/json`). Errors are `{"error": "<what went wrong, for a human>"}` with a status:
+application/json`), checked strictly: a field the call doesn't know, or a value of the wrong type,
+is a `400` naming the field (`null` is the same as leaving an optional field out). Errors are
+`{"error": "<what went wrong, for a human>"}` with a status:
 
 | status | meaning |
 |---|---|
-| 400 | a bad request (the message says which field) |
+| 400 | a bad request (the message says which field), a body that isn't JSON, a query parameter that isn't a number |
 | 404 | no such session / request / path |
 | 409 | the session's state doesn't allow it (e.g. `send` to a stopped session, `start` over a live one) |
 | 502 | the agent failed: couldn't start, sign-in missing/expired, died (the session is `failed`; `reason` says why) |
@@ -48,7 +56,7 @@ curl --unix-socket /var/lib/hermes/agent-runner/sock http://runner/v1/sessions
 
 ## Sessions
 
-A session has a **name** (`^[a-z0-9][a-z0-9-]{0,62}$`; `cc` derives it from a job title), an
+A session has a **name** (`^[a-z0-9][a-z0-9-]{0,62}$`; `agent start` makes it from a job title), an
 **agent**, a **folder** (`dir`), and the agent's own session id once it has started
 (`agent_session_id`). A session stays on record after it ends (`stopped`, `failed`) until a new
 session takes its name, or for 30 days.
@@ -78,7 +86,7 @@ session takes its name, or for 30 days.
   "reason": null,
   "model": "haiku",
   "mode": null,
-  "origin": "cc",
+  "origin": "job: Runner smoke test",
   "env": ["CLAUDE_CODE_AUTO_COMPACT_WINDOW"],
   "session_meta": null,
   "agent_session_id": "9c329bf9-1172-4864-828c-67b80f906603",
@@ -147,7 +155,7 @@ Only `name` and `dir` (an existing folder, absolute) are required.
 - `env`: extra environment for the agent process. Variables that would switch an agent to metered
   billing (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`) are
   refused. The agent's sign-in comes from the runner (Claude: the subscription token).
-- `origin`: free text saying what started the session (`cc`, `sculpt: <project>`), for lists.
+- `origin`: free text saying what started the session (`job: <title>`, `sculpt: <project>`), for lists.
 - `session_meta`: passed as `_meta` of session/new (and resume): vendor options. For Claude,
   `{"claudeCode": {"options": {...}}}` takes Claude Agent SDK options such as `disallowedTools`
   (merged with the adapter's own) or `maxTurns`.
@@ -203,7 +211,28 @@ runner from a switch takes effect.
 `{"lines": [...]}`: the last `lines` lines of a plain-text rendering of the session's events
 (prompts as `> ...`, the agent's text, `[tool] <title>`, `[permission p1] ...`, `[question q1]
 ...` with each field and its choices, `[turn ended: <reason>]`, state changes). `lines=0` gives
-none. This is what `agent-runner peek` and `cc peek` print.
+none. This is what `agent peek` prints.
+
+## CLI
+
+`agent <verb>`; `agent <verb> --help` for each. Every verb is a call or two of the API above, plus
+the job layer:
+
+| verb | does |
+|---|---|
+| `start <title> <dir> [<task-file>]` | start a **job**: a session named after the title (lowercase letters, digits and dashes: `"Sites: gate speed 2"` → `sites-gate-speed-2`), working in `<dir>`, its first message the task file (or `--task TEXT`; neither: it starts `idle`). It gets the starter's `PATH` and `TMPDIR`. Prints `session: <name>` first (tools parse that line), then the session. Options: `--agent`, `--model`, `--mode`, `--resume AGENT_SESSION_ID`, `--env NAME=VALUE`, `--origin` (default `job: <title>`), `--session-meta JSON` |
+| `send <name> <message...>` / `send --file F <name>` | a message: `sent`, `steered` or `queued` |
+| `peek <name> [lines]` | the output as text (default 40 lines) |
+| `answer <name> <request> [value]` | a permission (`p1`: an option id, or `--cancel`) or a question (`q1`: the form's fields as a JSON object, or `--decline`, `--cancel`) |
+| `wait <name>` | block until the job needs its starter; prints one of `MARKER <line>` (a line matching `--marker`, default `^[A-Z][A-Z0-9-]*-(DONE\|NEED-LIVE\|RESTART-PLEASE)(:\|\s*$)`; lines there before it started don't count), `WAITING` (then the open requests and the last output), `IDLE (<state>, quiet <n>s)` (no turn running and no event for `--idle` seconds, default 300), `ENDED <state>: <reason>` or `ENDED: no session <name>`, `TIMEOUT` (`--timeout`, default 4 h); exits 0 |
+| `list [--json]` | the sessions, oldest first, and the jobs still in tmux |
+| `status <name> [--json]`, `transcript <name>` | the session; its vendor transcript's path |
+| `cancel <name>`, `stop <name> [--reason R]` | end the turn; end the session |
+| `events [<name>] [--since N] [-f]` | events as JSON lines |
+| `restart`, `serve` | restart the service; run it |
+
+Jobs started in tmux before the runner (cc-tmux) are handed to `cc-tmux` by `send`, `peek` and
+`stop` until they end, and `list` shows them.
 
 ## Events
 

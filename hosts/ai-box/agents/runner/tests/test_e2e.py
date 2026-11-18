@@ -1,129 +1,34 @@
-"""Tests for runner.py, against fake_acp_agent.py. Run with `just test`."""
+"""End to end: the service, its API and its CLI against the stand-in agent (fake_acp_agent.py).
+
+These are the runner's tests from before the split into modules, kept as they were but for the
+new names; each module has its own tests next to these.
+"""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
-import sys
 import threading
 import time
-from collections.abc import Callable, Iterator
-from pathlib import Path
 from typing import Any
 
 import pytest
-import runner
-from runner import Client, CliError
-
-FAKE = str(Path(__file__).with_name("fake_acp_agent.py"))
-
-
-class Service:
-    """The runner's service in a thread of its own, on a scratch socket and state folder."""
-
-    def __init__(self, tmp: Path, agents: dict[str, Any]) -> None:
-        self.tmp = tmp
-        self.socket = tmp / "run" / "sock"
-        self.state = tmp / "state"
-        self.notified = tmp / "notified.txt"
-        self.agents_file = tmp / "agents.json"
-        self.agents_file.write_text(json.dumps(agents))
-        self.client = Client(str(self.socket))
-        self.thread: threading.Thread | None = None
-        self.exit_code: int | None = None
-
-    def start(self) -> None:
-        loop = asyncio.new_event_loop()
-        stop = asyncio.Event()
-        self.loop, self.stop_event = loop, stop
-        notify = ["sh", "-c", f'printf "%s\\n" "$1" >> {self.notified}', "notify"]
-
-        def run() -> None:
-            self.exit_code = loop.run_until_complete(
-                runner.serve(self.socket, self.state, self.agents_file, notify, stop)
-            )
-
-        self.thread = threading.Thread(target=run, daemon=True)
-        self.thread.start()
-        wait_for(self.socket.exists)
-
-    def stop(self) -> None:
-        if self.thread:
-            self.loop.call_soon_threadsafe(self.stop_event.set)
-            self.thread.join(20)
-            self.thread = None
-
-    def call(self, method: str, path: str, body: Any = None) -> Any:
-        return self.client.call(method, path, body)
-
-    def start_session(
-        self, name: str, task: str | None = None, **extra: Any
-    ) -> dict[str, Any]:
-        body = {"name": name, "dir": str(self.tmp), **extra}
-        if task is not None:
-            body["task"] = task
-        result: dict[str, Any] = self.call("POST", "/v1/sessions", body)
-        return result
-
-    def status(self, name: str) -> dict[str, Any]:
-        result: dict[str, Any] = self.call("GET", f"/v1/sessions/{name}")
-        return result
-
-    def wait_state(self, name: str, *states: str) -> dict[str, Any]:
-        return wait_for(lambda: (s := self.status(name))["state"] in states and s)
-
-    def events(self, name: str) -> list[dict[str, Any]]:
-        return list(self.client.events(f"/v1/sessions/{name}/events?since=0"))
-
-
-def wait_for(check: Callable[[], Any], timeout: float = 15) -> Any:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if value := check():
-            return value
-        time.sleep(0.05)
-    raise AssertionError(f"timed out waiting for {check}")
-
-
-def fake_agent(**env: str) -> dict[str, Any]:
-    return {
-        "command": [sys.executable, FAKE],
-        "env": env,
-        "transcript": "/t/{cwd_slug}/{session_id}.jsonl",
-    }
-
-
-@pytest.fixture
-def service(tmp_path: Path) -> Iterator[Service]:
-    s = Service(
-        tmp_path,
-        {
-            "default": "fake",
-            "agents": {
-                "fake": fake_agent(FAKE_LOG=str(tmp_path / "fake.log")),
-                "steering": fake_agent(FAKE_STEERING="1"),
-                "nosignin": fake_agent(FAKE_AUTH="fail-new"),
-                "auto": {
-                    **fake_agent(),
-                    "mode": "auto",
-                    "claude_trust_file": str(tmp_path / "claude.json"),
-                },
-                "token": {**fake_agent(), "pass_env": ["PASSED_TOKEN"]},
-            },
-            "refused_env": ["ANTHROPIC_API_KEY"],
-        },
-    )
-    s.start()
-    yield s
-    s.stop()
-
-
-def agent_log(service: Service) -> list[dict[str, Any]]:
-    return [
-        json.loads(line) for line in (service.tmp / "fake.log").read_text().splitlines()
-    ]
+from agent_runner import cli
+from agent_runner.client import ClientError as CliError
+from agent_runner.config import RESTART_EXIT
+from agent_runner.events import (
+    Event,
+    Failed,
+    Prompted,
+    QuestionAsked,
+    StateChanged,
+    TurnEnded,
+    Updated,
+)
+from agent_runner.render import render
+from agent_runner.schema import encode_object
+from conftest import Service, wait_for
 
 
 def test_start_runs_the_task_and_records_the_session(service: Service) -> None:
@@ -143,7 +48,7 @@ def test_start_runs_the_task_and_records_the_session(service: Service) -> None:
     out = service.call("GET", "/v1/sessions/job-1/output?lines=10")["lines"]
     assert out == ["> hello", "echo: hello", "[turn ended: end_turn]"]
     # The client offers form elicitation, so Claude keeps AskUserQuestion.
-    init = next(m for m in agent_log(service) if m.get("method") == "initialize")
+    init = next(m for m in service.agent_log() if m.get("method") == "initialize")
     assert init["params"]["clientCapabilities"]["elicitation"] == {"form": {}}
     record = json.loads(
         (service.state / "sessions" / "job-1" / "session.json").read_text()
@@ -276,8 +181,8 @@ def test_live_event_stream(service: Service) -> None:
 
     def follow() -> None:
         for event in service.client.events("/v1/events?follow=1"):
-            got.append(event)
-            if event["kind"] == "turn_end":
+            got.append(dict(encode_object(event)))
+            if event.kind == "turn_end":
                 return
 
     reader = threading.Thread(target=follow, daemon=True)
@@ -370,7 +275,7 @@ def test_sessions_outlive_a_runner_restart_and_resume(service: Service) -> None:
     )
     done = service.wait_state("keep2", "idle")
     assert done["last_message"] == "echo: again"
-    resumes = [m for m in agent_log(service) if m.get("method") == "session/resume"]
+    resumes = [m for m in service.agent_log() if m.get("method") == "session/resume"]
     assert resumes and resumes[-1]["params"]["sessionId"] == done["agent_session_id"]
     assert sid != done["agent_session_id"]
     seqs = [e["seq"] for e in service.events("keep2")]
@@ -390,48 +295,52 @@ def test_bad_requests(service: Service) -> None:
 
 
 def test_render() -> None:
-    def chunk(text: str) -> dict[str, Any]:
-        return {
-            "kind": "update",
-            "update": {
-                "sessionUpdate": "agent_message_chunk",
-                "content": {"type": "text", "text": text},
-            },
-        }
+    def ev(body: Any) -> Event:
+        return Event(1, 0.0, "s", body)
+
+    def chunk(text: str) -> Event:
+        return ev(
+            Updated(
+                update={
+                    "sessionUpdate": "agent_message_chunk",
+                    "content": {"type": "text", "text": text},
+                }
+            )
+        )
 
     events = [
-        {"kind": "prompt", "text": "do it\nnow"},
+        ev(Prompted(text="do it\nnow", delivery="sent")),
         chunk("Sure, "),
         chunk("on it.\nSecond line"),
-        {
-            "kind": "update",
-            "update": {"sessionUpdate": "tool_call", "title": "Bash ls"},
-        },
-        {
-            "kind": "update",
-            "update": {
-                "sessionUpdate": "tool_call_update",
-                "status": "failed",
-                "toolCallId": "t1",
-            },
-        },
-        {
-            "kind": "question",
-            "request_id": "q1",
-            "message": "Pick",
-            "schema": {
-                "properties": {
-                    "c": {
-                        "title": "Colour",
-                        "oneOf": [{"const": "red"}, {"const": "blue"}],
-                    }
+        ev(Updated(update={"sessionUpdate": "tool_call", "title": "Bash ls"})),
+        ev(
+            Updated(
+                update={
+                    "sessionUpdate": "tool_call_update",
+                    "status": "failed",
+                    "toolCallId": "t1",
                 }
-            },
-        },
-        {"kind": "turn_end", "stop_reason": "end_turn"},
-        {"kind": "state", "state": "failed", "reason": "boom"},
+            )
+        ),
+        ev(
+            QuestionAsked(
+                request_id="q1",
+                message="Pick",
+                schema={
+                    "properties": {
+                        "c": {
+                            "title": "Colour",
+                            "oneOf": [{"const": "red"}, {"const": "blue"}],
+                        }
+                    }
+                },
+            )
+        ),
+        ev(TurnEnded(stop_reason="end_turn")),
+        ev(StateChanged(state="failed", reason="boom")),
+        ev(Failed(message="boom")),
     ]
-    assert runner.render(events) == [
+    assert render(events) == [
         "> do it now",
         "Sure, on it.",
         "Second line",
@@ -441,40 +350,29 @@ def test_render() -> None:
         "  c: Colour [red | blue]",
         "[turn ended: end_turn]",
         "[failed] boom",
+        "[error] boom",
     ]
 
 
 def test_cli_against_the_service(
     service: Service,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("AGENT_RUNNER_SOCKET", str(service.socket))
     task = service.tmp / "task.txt"
     task.write_text("hello\n")
-    assert (
-        runner.main(
-            [
-                "start",
-                "cli",
-                "--dir",
-                str(service.tmp),
-                "--task-file",
-                str(task),
-                "--origin",
-                "test",
-            ]
-        )
-        == 0
-    )
+    env = {"AGENT_RUNNER_SOCKET": str(service.socket)}
+
+    def agent(*argv: str) -> int:
+        return cli.main(list(argv), env, "agent")
+
+    assert agent("start", "cli", str(service.tmp), str(task), "--origin", "test") == 0
     assert "name: cli" in capsys.readouterr().out
     service.wait_state("cli", "idle")
-    assert runner.main(["peek", "cli", "2"]) == 0
+    assert agent("peek", "cli", "2") == 0
     assert capsys.readouterr().out == "echo: hello\n[turn ended: end_turn]\n"
-    assert runner.main(["list"]) == 0
+    assert agent("list") == 0
     assert capsys.readouterr().out.startswith("cli idle fake since ")
-    with pytest.raises(SystemExit):
-        runner.main(["status", "ghost"])
+    assert agent("status", "ghost") == 1
     assert "no session named ghost" in capsys.readouterr().err
 
 
@@ -484,7 +382,7 @@ def test_restart_exits_for_systemd_to_start_it_again(service: Service) -> None:
     assert service.call("POST", "/v1/restart", {}) == {"restarting": True}
     assert service.thread
     service.thread.join(20)
-    assert service.exit_code == runner.RESTART_EXIT
+    assert service.exit_code == RESTART_EXIT
     service.thread = None
     service.start()
     assert service.status("r")["state"] == "offline"

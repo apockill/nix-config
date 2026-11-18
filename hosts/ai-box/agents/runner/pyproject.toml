@@ -1,0 +1,27 @@
+# The agent runner as a Python package (agent_runner/), built by default.nix. The build runs the
+# type check (mypy --strict on the package) and the tests (tests/), so a failure fails the system
+# build. The repository's own pyproject.toml has the lint settings (ruff reads it from here too).
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-runner"
+version = "1"
+description = "The coding agents' sessions on ai-box, over the Agent Client Protocol"
+requires-python = ">=3.13"
+
+[project.scripts]
+agent = "agent_runner.__main__:main"
+
+[tool.setuptools]
+packages = ["agent_runner"]
+
+[tool.black]
+target-version = ["py313"]
+
+[tool.mypy]
+python_version = "3.13"
+disallow_untyped_defs = true
+warn_unused_ignores = true
