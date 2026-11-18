@@ -36,24 +36,42 @@ STEERING = "_session/steering"
 
 
 def trust_folder(conf: Path, folder: str) -> None:
-    """Mark a folder trusted in Claude Code's .claude.json.
+    """Mark a folder trusted in Claude Code's .claude.json, and check it stayed so.
 
     Untrusted, the SDK route loads a project's deny rules but not its allow rules, and nothing
-    would ever show the trust dialog.
+    would ever show the trust dialog. Claude processes rewrite the whole file too, so a write of
+    theirs can drop this one: it's read back, written once more if it was lost, and a folder
+    that still isn't trusted fails the start (ValueError) rather than run untrusted.
     """
+    for _ in range(2):
+        if trusted(conf, folder):
+            return
+        data = claude_json(conf)
+        projects = data.setdefault("projects", {})
+        if not isinstance(projects, dict):
+            raise ValueError(f"{conf}: projects isn't an object")
+        entry = projects.setdefault(folder, {})
+        if not isinstance(entry, dict):
+            raise ValueError(f"{conf}: projects[{folder!r}] isn't an object")
+        entry["hasTrustDialogAccepted"] = True
+        write_private(conf, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    if not trusted(conf, folder):
+        raise ValueError(
+            f"{folder} doesn't stay trusted in {conf}: something rewrites it"
+        )
+
+
+def claude_json(conf: Path) -> dict[str, JsonValue]:
     data: JsonValue = json.loads(conf.read_text()) if conf.exists() else {}
     if not isinstance(data, dict):
         raise ValueError(f"{conf} isn't a JSON object")
-    projects = data.setdefault("projects", {})
-    if not isinstance(projects, dict):
-        raise ValueError(f"{conf}: projects isn't an object")
-    entry = projects.setdefault(folder, {})
-    if not isinstance(entry, dict):
-        raise ValueError(f"{conf}: projects[{folder!r}] isn't an object")
-    if entry.get("hasTrustDialogAccepted") is True:
-        return
-    entry["hasTrustDialogAccepted"] = True
-    write_private(conf, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    return data
+
+
+def trusted(conf: Path, folder: str) -> bool:
+    projects = claude_json(conf).get("projects")
+    entry = projects.get(folder) if isinstance(projects, dict) else None
+    return isinstance(entry, dict) and entry.get("hasTrustDialogAccepted") is True
 
 
 def transcript_path(template: str | None, session_id: str, cwd: str) -> str | None:

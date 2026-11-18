@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 from agent_runner.api_types import StartRequest
-from agent_runner.client import Client, ClientError, error_of, quote
+from agent_runner.client import Client, ClientError, quote, refusal
 from agent_runner.events import Event, Heartbeat, Prompted
 from conftest import Service
 
@@ -123,10 +123,16 @@ def test_an_odd_event(tmp_path: Path) -> None:
 
 def test_helpers() -> None:
     assert quote("a b/c") == "a%20b%2Fc"
-    assert error_of(httpx.Response(400, json={"error": "nope"})) == "nope"
-    assert error_of(httpx.Response(400, json={"error": 3})) == "HTTP 400"
-    assert error_of(httpx.Response(500, json="x")) == "HTTP 500"
-    assert error_of(httpx.Response(502, content=b"<html>")) == "HTTP 502"
+    assert str(refusal(httpx.Response(400, json={"error": "nope"}))) == "nope"
+    assert str(refusal(httpx.Response(400, json={"error": 3}))) == "HTTP 400"
+    assert str(refusal(httpx.Response(500, json="x"))) == "HTTP 500"
+    assert str(refusal(httpx.Response(502, content=b"<html>"))) == "HTTP 502"
+    limited = refusal(httpx.Response(429, json={"error": "x", "resets_at": 1700000000}))
+    assert (limited.status, limited.resets_at) == (429, 1700000000.0)
+    assert (
+        refusal(httpx.Response(429, json={"error": "x", "resets_at": "soon"})).resets_at
+        is None
+    )
 
 
 def test_a_socket_it_cant_reach_is_a_client_error(tmp_path: Path) -> None:

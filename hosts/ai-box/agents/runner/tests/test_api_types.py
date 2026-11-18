@@ -12,6 +12,7 @@ from agent_runner.api_types import (
     ErrorBody,
     Output,
     Restarting,
+    RestartRequest,
     SendRequest,
     Sent,
     SessionList,
@@ -62,6 +63,13 @@ def test_public_reports_env_names_only() -> None:
         "title",
         "updated_at",
         "turns",
+        "queued",
+        "limit",
+        "compact_window",
+        "allow_runner",
+        "failed_turns",
+        "misfits",
+        "notify_error",
     ]
 
 
@@ -100,6 +108,11 @@ def test_small_requests() -> None:
     assert StopRequest.model_validate({"reason": None}).reason is None
     EmptyRequest.model_validate({})
     refused(EmptyRequest, {"x": 1}, "x\n  Extra inputs are not permitted")
+    assert RestartRequest.model_validate({}).force is False
+    assert RestartRequest.model_validate({"force": True}).force is True
+    refused(
+        RestartRequest, {"force": "yes"}, "force\n  Input should be a valid boolean"
+    )
 
 
 def status() -> SessionStatus:
@@ -136,9 +149,9 @@ def test_status_round_trips_with_its_pending_events() -> None:
         }
     ]
     assert data["env"] == ["A", "TOKEN"]
-    assert list(data)[-5:] == [
+    assert data["queued"] == ["next"]
+    assert list(data)[-4:] == [
         "pending",
-        "queued",
         "last_message",
         "alive",
         "last_event_at",
@@ -164,7 +177,11 @@ def test_lists_and_small_answers() -> None:
     )
     assert Restarting().model_dump() == {"restarting": True}
     assert Output(lines=["a"]).model_dump() == {"lines": ["a"]}
-    assert ErrorBody(error="x").model_dump() == {"error": "x"}
+    assert ErrorBody(error="x").model_dump(exclude_none=True) == {"error": "x"}
+    assert ErrorBody(error="x", resets_at=5.0).model_dump() == {
+        "error": "x",
+        "resets_at": 5.0,
+    }
 
 
 def test_answers_refuse_what_they_dont_know() -> None:

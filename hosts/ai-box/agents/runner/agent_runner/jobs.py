@@ -53,6 +53,7 @@ class JobSpec(Strict):
     env: tuple[tuple[str, str], ...] = ()
     origin: str | None = None
     session_meta: JsonObject | None = None
+    allow_runner: bool = False
 
 
 def start_request(spec: JobSpec, environ: Mapping[str, str]) -> StartRequest:
@@ -77,6 +78,7 @@ def start_request(spec: JobSpec, environ: Mapping[str, str]) -> StartRequest:
         env=env,
         origin=spec.origin or f"job: {spec.title}",
         session_meta=spec.session_meta,
+        allow_runner=spec.allow_runner or None,
     )
 
 

@@ -23,6 +23,7 @@ from .api_types import (
     ErrorBody,
     Output,
     Restarting,
+    RestartRequest,
     SendRequest,
     Sent,
     SessionList,
@@ -38,14 +39,17 @@ from .runner import Runner, status
 from .session import Session
 
 DOCS = "see agents/runner/README.md"
+# Where server.py's protocol puts the calling process's pid (the socket's SO_PEERCRED).
+PEER_PID = "agent_runner.peer_pid"
 
 
 def answer(model: BaseModel, code: int = 200) -> Response:
     return JSONResponse(model.model_dump(mode="json", by_alias=True), code)
 
 
-def error(message: str, code: int) -> Response:
-    return JSONResponse(ErrorBody(error=message).model_dump(), code)
+def error(message: str, code: int, resets_at: float | None = None) -> Response:
+    body = ErrorBody(error=message, resets_at=resets_at)
+    return JSONResponse(body.model_dump(exclude_none=True), code)
 
 
 async def body_of(request: Request) -> JsonObject:
@@ -92,7 +96,13 @@ class Api:
         r = self.runner
 
         async def restart(request: Request) -> Response:
-            await body_as(request, EmptyRequest)
+            force = (await body_as(request, RestartRequest)).force
+            if (busy := r.busy()) and not force:
+                raise RunnerError(
+                    f"{', '.join(busy)} would lose their running turn or open request;"
+                    " wait for them, or restart with force (`agent restart --force`)",
+                    409,
+                )
             self.restart_requested = True
             asyncio.get_running_loop().call_later(0.2, self.stop.set)
             return answer(Restarting())
@@ -170,8 +180,13 @@ class Api:
             type[Exception] | int, Callable[[Request, Exception], Awaitable[Response]]
         ] = {HTTPException: self.http_error}
         for route in routes:
-            route.app = guarded(route.endpoint)
+            route.app = guarded(route.endpoint, self.admit)
         return Starlette(routes=routes, exception_handlers=handlers)
+
+    def admit(self, request: Request) -> None:
+        """RunnerError 403 for a caller inside a session that may not use the runner."""
+        pid = request.scope.get(PEER_PID)
+        self.runner.admit(pid if isinstance(pid, int) else None)
 
     async def events(
         self, session: Session | None, since: int, follow: bool
@@ -211,16 +226,18 @@ class Api:
 Endpoint = Callable[[Request], Awaitable[Response]]
 
 
-def guarded(endpoint: Endpoint) -> ASGIApp:
-    """An endpoint whose failures are answers: RunnerError with its status, anything else a 500
-    (logged). Answered here rather than by an exception handler, which Starlette re-raises after,
-    closing the connection (a client's next call on it was reset)."""
+def guarded(endpoint: Endpoint, admit: Callable[[Request], None]) -> ASGIApp:
+    """An endpoint for callers `admit` lets in, whose failures are answers: RunnerError with its
+    status, anything else a 500 (logged). Answered here rather than by an exception handler,
+    which Starlette re-raises after, closing the connection (a client's next call on it was
+    reset)."""
 
     async def run(request: Request) -> Response:
         try:
+            admit(request)
             return await endpoint(request)
         except RunnerError as e:
-            return error(str(e), e.status)
+            return error(str(e), e.status, e.resets_at)
         except Exception as e:  # one bad request mustn't end the service
             print(
                 f"agent-runner: {request.method} {request.url.path}: {e!r}",

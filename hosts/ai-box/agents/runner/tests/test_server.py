@@ -53,7 +53,7 @@ def test_serve_until_stopped(tmp_path: Path) -> None:
         task = asyncio.create_task(serve(s, stop))
         while not s.socket.is_socket():
             await asyncio.sleep(0.02)
-        assert stat.S_IMODE(s.socket.stat().st_mode) == 0o660
+        assert stat.S_IMODE(s.socket.stat().st_mode) == 0o600
         agents = await asyncio.to_thread(Client(str(s.socket)).agents)
         assert agents.default == "fake" and agents.agents == ["fake"]
         stop.set()

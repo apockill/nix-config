@@ -11,6 +11,7 @@ from acp.schema import (
     AllowedOutcome,
     PermissionOption,
 )
+from agent_runner.base import JsonObject
 from agent_runner.events import (
     AgentNotification,
     Body,
@@ -178,3 +179,22 @@ def test_heartbeats() -> None:
     assert decode_streamed({"kind": "heartbeat", "ts": 2, "seq": 5}) == beat
     streamed = decode_streamed(json.loads(PRE_SPLIT[0]))
     assert isinstance(streamed, Event) and streamed.seq == 1
+
+
+def test_an_error_event_carries_the_agents_kind_and_data_only_when_given() -> None:
+    plain = Event(seq=1, ts=1.0, session="s", body=Failed(message="boom"))
+    assert plain.model_dump(mode="json") == {
+        "seq": 1,
+        "ts": 1.0,
+        "session": "s",
+        "kind": "error",
+        "message": "boom",
+    }
+    data: JsonObject = {
+        "errorKind": "rate_limit",
+        "rateLimit": {"resetsAt": 1795010400},
+    }
+    limited = Failed(message="the turn failed", error_kind="rate_limit", data=data)
+    flat = Event(seq=2, ts=2.0, session="s", body=limited).model_dump(mode="json")
+    assert flat["error_kind"] == "rate_limit" and flat["data"] == data
+    assert Event.model_validate(flat).body == limited

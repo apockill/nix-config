@@ -40,6 +40,11 @@ RESTART_EXIT = 75
 KEEP_ENDED_SECONDS = 30 * 24 * 3600
 # How long notifying Alex may take.
 NOTIFY_SECONDS = 60.0
+# A session whose turns fail this many times in a row (for any reason but a usage limit) is
+# reported to Alex, once until a turn ends well again.
+REPEATED_FAILURES = 3
+# A usage limit without a reset time is reported again at most this often.
+UNKNOWN_LIMIT_NOTICE_SECONDS = 3600.0
 
 
 class AgentSpec(Strict):
@@ -57,6 +62,9 @@ class AgentSpec(Strict):
     transcript: str | None = None
     # Claude Code's .claude.json: the session's folder is marked trusted there before it starts.
     claude_trust_file: str | None = None
+    # The variable the agent reads its context window for compaction from (Claude:
+    # CLAUDE_CODE_AUTO_COMPACT_WINDOW); its value, from `env` or the session's, is recorded.
+    compact_window_env: str | None = None
 
 
 class Config(Strict):
@@ -66,6 +74,11 @@ class Config(Strict):
     default_agent: str = Field(alias="default")
     # Never passed to an agent: they'd switch it from the subscription to metered billing.
     refused_env: list[str] = []
+    # The umask agents run with (octal, e.g. "0022"); the service itself runs with 0077, and its
+    # agents write files in repositories others read. None: the service's own.
+    agent_umask: str | None = Field(default=None, pattern=r"^0[0-7]{3}$")
+    # A permission or question nobody has answered after this long is reported to Alex (once).
+    parked_notify_seconds: float = Field(default=1800.0, gt=0)
 
     @model_validator(mode="after")
     def _default_is_defined(self) -> Config:

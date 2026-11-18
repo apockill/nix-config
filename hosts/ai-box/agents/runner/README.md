@@ -26,25 +26,48 @@ transcript are unchanged, and the runner only starts, watches, steers and stops 
 
 No fallbacks: if an agent can't start, or its sign-in is missing or expired, the session goes to
 `failed` with the reason, the call that started it fails with that reason, and Alex gets a Discord
-message (`notify-alex`). The same happens when an agent process dies unexpectedly.
+message (`notify-alex`). The same happens when an agent process dies unexpectedly. Alex is also
+told, once each:
+- when an agent hits the account's **usage limit** (once per reset, whichever session hits it;
+  the session goes `limited`, see States);
+- when a session's turns fail **3 times in a row** for any other reason;
+- when a permission or question has waited **30 minutes** with no answer
+  (`aiBox.agents.runner.notifyUnansweredAfter`);
+- when a runner **stop or restart cuts turns short** (named), and when a session's record
+  **can't be read** (it stays listed as `failed`, saying why).
+
+If telling Alex fails, the session's `notify_error` says why (`agent list --json`; the daily
+usage digest, `../drift`, reports it).
 
 ## Transport
 
 HTTP/1.1 on the unix socket `/var/lib/hermes/agent-runner/sock` (nix: `aiBox.agents.runner.socket`),
-reachable only by the agent's user (`hermes`). There's no auth beyond that: anything that can open
-the socket can drive every session. A service that runs as another user, or a page in a browser,
-needs a bridge of its own.
+mode `0600`: the agent's user (`hermes`) only. The service runs with `UMask=0077`, so its records
+and event logs (which hold tool outputs and file contents) are that user's only too; the agents
+themselves keep a user service's `0022` (they write files in repositories that others read). A
+service that runs as another user, or a page in a browser, needs a bridge of its own.
+
+**From inside a session**, the API is refused (`403`) unless the session was started with
+`allow_runner`. Every session runs as the same user, so the runner tells a session's processes
+from Hermes by the calling process (the socket's peer pid, `agent_runner/peers.py`): a process
+descended from a session's agent is that session; one that left that tree still carries the
+session's marker (`AGENT_RUNNER_SESSION`, `AGENT_RUNNER_OF`, set for every agent); and in the
+service, any process in the service's own cgroup is an agent's, marker or not. So a fenced
+session (a Sculpt builder in `bypassPermissions`) can't start an unfenced one, or answer, send to
+or stop another session, with `agent`, `curl --unix-socket` or anything else.
 
 One request per connection (`Connection: close`). Bodies are JSON (`Content-Type:
 application/json`), checked strictly: a field the call doesn't know, or a value of the wrong type,
 is a `400` naming the field (`null` is the same as leaving an optional field out). Errors are
-`{"error": "<what went wrong, for a human>"}` with a status:
+`{"error": "<what went wrong, for a human>"}` with a status (a `429` adds `"resets_at"`):
 
 | status | meaning |
 |---|---|
 | 400 | a bad request (the message says which field), a body that isn't JSON, a query parameter that isn't a number |
 | 404 | no such session / request / path |
-| 409 | the session's state doesn't allow it (e.g. `send` to a stopped session, `start` over a live one) |
+| 403 | the caller is inside a session that may not use the runner (above) |
+| 409 | the session's state doesn't allow it (e.g. `send` to a stopped session, `start` over a live one, `restart` while turns run) |
+| 429 | the agent hit the account's usage limit: the body has `resets_at` (Unix seconds) when the agent said |
 | 502 | the agent failed: couldn't start, sign-in missing/expired, died (the session is `failed`; `reason` says why) |
 | 504 | the agent didn't answer a setup request in time |
 
@@ -69,6 +92,7 @@ session takes its name, or for 30 days.
 | `running` | a turn is in progress |
 | `waiting` | the agent waits for an answer: a permission request or a question (see `pending`) |
 | `idle` | the agent is up and between turns (it may still send updates, e.g. agy finishing subagent work after `end_turn`) |
+| `limited` | the last turn hit the account's usage limit: `limit` says until when (`resets_at`) and which; `send` is refused (`429`) until then, and the session goes `idle` by itself at the reset. Read from the agent's error data (claude-agent-acp's `errorKind: "rate_limit"`, `rateLimit.resetsAt`), never from its text |
 | `offline` | no agent process (the runner restarted, or a reboot); the next `send` resumes the agent's session |
 | `failed` | the agent couldn't start, its sign-in failed, or it died; `reason` says why. A `send` retries by resuming the session when one was created |
 | `stopped` | ended by `stop`; final |
@@ -99,6 +123,12 @@ session takes its name, or for 30 days.
   "last_event_at": 1795000042.5,
   "pending": [],
   "queued": [],
+  "limit": null,
+  "compact_window": 200000,
+  "allow_runner": false,
+  "failed_turns": 0,
+  "misfits": 0,
+  "notify_error": null,
   "last_message": "Done: ..."
 }
 ```
@@ -111,14 +141,23 @@ session takes its name, or for 30 days.
   transcript is the record.
 - `title`: the agent's own title for the conversation, once it has one.
 - `pending`: the open permission requests and questions, each the event that announced it (below).
-- `queued`: messages waiting for the running turn to end (agents without steering).
+- `queued`: messages waiting for the running turn to end (agents without steering). They're in
+  the record, so a runner restart keeps them, and they go before a newer message.
+- `limit`: the usage limit the last turn hit, `{"resets_at": <Unix seconds or null>, "kind":
+  "five_hour"}`; cleared by a turn that ends well.
+- `compact_window`: the context size (tokens) at which the agent compacts the conversation
+  (Claude: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, 200,000 unless the start's `env` sets it; null for an
+  agent without one).
+- `allow_runner`: whether the session's own processes may use this API.
+- `failed_turns`: turns that failed in a row; `misfits`: messages from the agent that didn't fit
+  ACP (each also an `error` event); `notify_error`: why telling Alex last failed, if it did.
 - `last_message`: the agent's text since the last prompt.
 - `alive`: whether the agent's process is up. `last_event_at`: when the session's latest event
   happened; with `state` it tells a session that's working (`running`, or `idle` with recent
   events: agy finishing subagent work) from one that has gone quiet.
 
-`GET /v1/sessions` returns `{"sessions": [...]}` with the same fields except `pending` (a count),
-`queued` and `last_message`, oldest first.
+`GET /v1/sessions` returns `{"sessions": [...]}` with the same fields except `pending` (a count)
+and `last_message`, oldest first.
 
 `GET /v1/agents` returns `{"default": "claude", "agents": ["antigravity", "claude"]}`.
 
@@ -135,7 +174,8 @@ session takes its name, or for 30 days.
   "resume": null,
   "env": {"CLAUDE_CODE_AUTO_COMPACT_WINDOW": "200000"},
   "origin": "sculpt: vase",
-  "session_meta": {"claudeCode": {"options": {"disallowedTools": ["WebFetch"]}}}
+  "session_meta": {"claudeCode": {"options": {"disallowedTools": ["WebFetch"]}}},
+  "allow_runner": false
 }
 ```
 
@@ -147,14 +187,21 @@ Only `name` and `dir` (an existing folder, absolute) are required.
   model id; Antigravity takes one of its ids (e.g. `gemini-3.8-flash-low`, the cheapest). A model
   the agent rejects fails the start. Omitted: the agent's default.
 - `mode`: the agent's permission mode (session/set_mode): Claude `default`, `acceptEdits`, `plan`,
-  `auto`, `bypassPermissions` (default: `auto`, from its settings). Antigravity sessions are
+  `auto`, `bypassPermissions` (default: `auto`, claude-agent-acp's own default, which falls back to
+  `default` for a model without auto mode; the canary checks it daily, `../drift`). Antigravity sessions are
   always set to `auto` unless this says otherwise: in its own default mode its prompt and tools
   differ from the terminal UI's.
 - `resume`: an agent session id to continue (session/resume) instead of creating one, e.g. from an
   earlier session's `agent_session_id`.
-- `env`: extra environment for the agent process. Variables that would switch an agent to metered
-  billing (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`) are
-  refused. The agent's sign-in comes from the runner (Claude: the subscription token).
+- `env`: extra environment for the agent process. Variables that would move an agent off its
+  subscription are refused: Claude's `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`,
+  `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`,
+  `CLAUDE_CODE_USE_FOUNDRY`; Antigravity's `GEMINI_API_KEY`, `GOOGLE_API_KEY`. The agent's sign-in
+  comes from the runner (Claude: the subscription token). `CLAUDE_CODE_AUTO_COMPACT_WINDOW` here
+  replaces the 200,000 default (a whole number). `ENABLE_CLAUDEAI_MCP_SERVERS=false` leaves out the
+  account's claude.ai connectors (Behaviour).
+- `allow_runner`: let the session's own processes use this API (start, send to, answer, stop
+  sessions). Off by default; give it only to sessions that start jobs of their own.
 - `origin`: free text saying what started the session (`job: <title>`, `sculpt: <project>`), for lists.
 - `session_meta`: passed as `_meta` of session/new (and resume): vendor options. For Claude,
   `{"claudeCode": {"options": {...}}}` takes Claude Agent SDK options such as `disallowedTools`
@@ -164,8 +211,9 @@ What happens: the folder is marked trusted for Claude (otherwise Claude ignores 
 permission allow rules), the agent starts, the session is created, mode and model are set, and the
 task is sent. The call returns `201` with the session once the agent has shown signs of life
 (first update plus up to 3 s, or 30 s at most), so a sign-in rejected on the first request fails
-the start itself (`502`). A name that belongs to a session that isn't `stopped` or `failed` is a
-`409`.
+the start itself (`502`), and a task refused at the usage limit fails it with a `429` and
+`resets_at` (the session stays, `limited`: send it a message after the reset, or stop it). A name
+that belongs to a session that isn't `stopped` or `failed` is a `409`.
 
 ### Send: `POST /v1/sessions/{name}/send`
 
@@ -176,7 +224,9 @@ the start itself (`502`). A name that belongs to a session that isn't `stopped` 
 - `queued`: a turn was running and the agent can't be steered (Antigravity): it's sent when the
   turn ends.
 
-An `offline` session (or a `failed` one that had started) is resumed first. `stopped` is a `409`.
+An `offline` session (or a `failed` one that had started) is resumed first; messages still queued
+from before go first, then this one (`queued`). `stopped` is a `409`; a `limited` one is a `429`
+with `resets_at` until the reset (a limit without a reset time lets the send try).
 
 ### Cancel: `POST /v1/sessions/{name}/cancel`
 
@@ -204,7 +254,9 @@ Returns the session. An id that isn't open is a `404`.
 
 `{"restarting": true}`, then the service shuts down (every agent process ends; sessions become
 `offline`) and systemd starts it again as its current version, about 5 s later. This is how a new
-runner from a switch takes effect.
+runner from a switch takes effect. While a turn runs or a request waits, it's a `409` naming the
+sessions, unless `{"force": true}`: their turns are lost (Alex is told which), their queued
+messages kept.
 
 ### Output as text: `GET /v1/sessions/{name}/output?lines=40`
 
@@ -220,16 +272,16 @@ the job layer:
 
 | verb | does |
 |---|---|
-| `start <title> <dir> [<task-file>]` | start a **job**: a session named after the title (lowercase letters, digits and dashes: `"Sites: gate speed 2"` → `sites-gate-speed-2`), working in `<dir>`, its first message the task file (or `--task TEXT`; neither: it starts `idle`). It gets the starter's `PATH` and `TMPDIR`. Prints `session: <name>` first (tools parse that line), then the session. Options: `--agent`, `--model`, `--mode`, `--resume AGENT_SESSION_ID`, `--env NAME=VALUE`, `--origin` (default `job: <title>`), `--session-meta JSON` |
+| `start <title> <dir> [<task-file>]` | start a **job**: a session named after the title (lowercase letters, digits and dashes: `"Sites: gate speed 2"` → `sites-gate-speed-2`), working in `<dir>`, its first message the task file (or `--task TEXT`; neither: it starts `idle`). It gets the starter's `PATH` and `TMPDIR`. Once it has started, prints `session: <name>` first (tools parse that line), then the session; a failed start prints the runner's error instead (and `resets_at: <t>` at the usage limit) and exits 1. Options: `--agent`, `--model`, `--mode`, `--resume AGENT_SESSION_ID`, `--env NAME=VALUE`, `--origin` (default `job: <title>`), `--session-meta JSON`, `--allow-runner` |
 | `send <name> <message...>` / `send --file F <name>` | a message: `sent`, `steered` or `queued` |
 | `peek <name> [lines]` | the output as text (default 40 lines) |
 | `answer <name> <request> [value]` | a permission (`p1`: an option id, or `--cancel`) or a question (`q1`: the form's fields as a JSON object, or `--decline`, `--cancel`) |
-| `wait <name>` | block until the job needs its starter; prints one of `MARKER <line>` (a line matching `--marker`, default `^[A-Z][A-Z0-9-]*-(DONE\|NEED-LIVE\|RESTART-PLEASE)(:\|\s*$)`; lines there before it started don't count), `WAITING` (then the open requests and the last output), `IDLE (<state>, quiet <n>s)` (no turn running and no event for `--idle` seconds, default 300), `ENDED <state>: <reason>` or `ENDED: no session <name>`, `TIMEOUT` (`--timeout`, default 4 h); exits 0 |
+| `wait <name>` | block until the job needs its starter; prints one of `WAITING` (then the open requests and the last output), `MARKER <line>` (a line matching `--marker`, default `^[A-Z][A-Z0-9-]*-(DONE\|NEED-LIVE\|RESTART-PLEASE)(:\|\s*$)`, printed since the session's last prompt: one printed before the waiter started counts, one from an earlier turn doesn't, and prompts are never searched), `LIMITED <resets_at> <what>` (the usage limit; `resets_at` in Unix seconds or `unknown`), `IDLE (<state>, quiet <n>s)` (no turn running and no event for `--idle` seconds, default 300), `ENDED <state>: <reason>` or `ENDED: no session <name>`, `TIMEOUT after <n>s: <name> is still <state>; ...` (`--timeout`, default 4 h: the job runs on and nothing watches it, so wait again or stop it); exits 0. It reconnects while the runner restarts (up to 120 s) |
 | `list [--json]` | the sessions, oldest first |
 | `status <name> [--json]`, `transcript <name>` | the session; its vendor transcript's path |
 | `cancel <name>`, `stop <name> [--reason R]` | end the turn; end the session |
 | `events [<name>] [--since N] [-f]` | events as JSON lines |
-| `restart`, `serve` | restart the service; run it |
+| `restart [--force]`, `serve` | restart the service (refused while turns run, unless forced); run it |
 
 
 ## Events
@@ -262,8 +314,8 @@ following, a `{"kind": "heartbeat", "ts": ..., "seq": <the runner's latest seq>}
 | `question` | `request_id`, `message`, `mode`, `schema`, `url` | the agent asks the user (form elicitation): `schema` is a JSON Schema object whose `properties` are the fields; choices are `enum` or `oneOf`/`anyOf` of `{const, title}` |
 | `resolved` | `request_id`, `by` (`client`, `agent`, `runner`), `answer`, `reason` | a permission or question was answered, withdrawn by the agent, or dropped (stop, the agent exited) |
 | `cancel` | | `cancel` was sent |
-| `error` | `message` | something failed; for a failed session also the reason |
-| `notified` | `message`, `ok`, `error` | Alex was told about a failure (`notify-alex`), or telling him failed (`ok: false`) |
+| `error` | `message`, `error_kind`, `data` | something failed; for a failed session also the reason. A failed turn carries the agent's own `error_kind` and error `data` when it gave them (claude-agent-acp: `rate_limit`, `overloaded`, `server_error`, ...; at a usage limit `data.rateLimit.resetsAt`) |
+| `notified` | `message`, `ok`, `error` | Alex was told something (`notify-alex`), or sending it failed (`ok: false`) |
 | `notification` | `method`, `params` | any other notification from the agent (e.g. `auth/status_update`) |
 
 `update` carries the agent's ACP session update unchanged; `update.sessionUpdate` says which:
@@ -295,7 +347,18 @@ A UI that only shows text and tool calls needs `agent_message_chunk`, `tool_call
   vendor transcript.
 - **Restarts**: stopping the runner (or a reboot) ends every agent process; their sessions become
   `offline` and the next `send` resumes them (session/resume, same transcript). A turn that was
-  running is lost. The event logs keep their history.
+  running is lost, and Alex is told which; queued messages are kept. The event logs keep their
+  history.
+- **Compaction**: Claude sessions compact at 200,000 tokens of context
+  (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, set by `../claude`), not near the 1M window: every request
+  re-reads the whole context from cache, so a big context is what uses up the quota.
+- **claude.ai connectors**: a Claude session gets the account's claude.ai connectors as deferred
+  MCP tools (`mcp__claude_ai_Gmail__*`, `..._Google_Calendar__*`, `..._Google_Drive__*`,
+  `..._Claude_Docs__*`: reading and sending mail drafts, trashing messages, creating and deleting
+  calendar events, reading and creating Drive files and docs), once they connect in the
+  background. For one session, start it with `env` `ENABLE_CLAUDEAI_MCP_SERVERS=false` (or deny
+  `mcp__claude_ai_*` in `session_meta`'s `disallowedTools`); for every Claude session, set that
+  variable in `../claude`'s agent `env`, or `disableClaudeAiConnectors` in its settings.
 - **Permissions**: Claude runs in its `auto` mode and Antigravity in `auto`, so most tool calls
   don't ask. When one does, the session is `waiting` until a client answers. Over ACP,
   Antigravity ignores its `settings.json` permission rules (a known gap, accepted for now).

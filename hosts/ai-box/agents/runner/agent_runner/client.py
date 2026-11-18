@@ -26,21 +26,34 @@ from .events import Event, Heartbeat, decode_streamed
 class ClientError(Exception):
     """The runner refused a call (its message), isn't running, or answered something odd."""
 
-    def __init__(self, message: str, status: int = 0) -> None:
+    def __init__(
+        self, message: str, status: int = 0, resets_at: float | None = None
+    ) -> None:
         super().__init__(message)
+        # The HTTP status; 0 if the runner didn't answer.
         self.status = status
+        # With a 429: when the usage limit resets (Unix seconds), if the agent said.
+        self.resets_at = resets_at
 
 
 def quote(part: str) -> str:
     return urllib.parse.quote(part, safe="")
 
 
-def error_of(response: httpx.Response) -> str:
+def refusal(response: httpx.Response) -> ClientError:
+    """The runner's error answer as a ClientError: its message, status and any reset time."""
     try:
-        message = response.json().get("error")
-    except (ValueError, AttributeError):
-        message = None
-    return message if isinstance(message, str) else f"HTTP {response.status_code}"
+        body = response.json()
+    except ValueError:
+        body = None
+    body = body if isinstance(body, dict) else {}
+    message = body.get("error")
+    resets_at = body.get("resets_at")
+    return ClientError(
+        message if isinstance(message, str) else f"HTTP {response.status_code}",
+        response.status_code,
+        float(resets_at) if isinstance(resets_at, int | float) else None,
+    )
 
 
 class Client:
@@ -82,7 +95,7 @@ class Client:
         """One call; its answer as JSON. ClientError with the runner's message if it refused."""
         response = self._request(method, path, body)
         if response.status_code >= 300:
-            raise ClientError(error_of(response), response.status_code)
+            raise refusal(response)
         try:
             return response.json()
         except ValueError as e:
@@ -102,12 +115,14 @@ class Client:
             with self.http.stream("GET", path, timeout=None) as response:
                 if response.status_code >= 300:
                     response.read()
-                    raise ClientError(error_of(response), response.status_code)
+                    raise refusal(response)
                 for line in response.iter_lines():
                     if line.strip():
                         yield decode_streamed(json.loads(line))
         except httpx.ConnectError as e:
             raise self.unreachable(e) from e
+        except httpx.HTTPError as e:
+            raise ClientError(f"the runner's event stream broke off: {e}") from e
         except (ValueError, ValidationError) as e:
             raise ClientError(f"the runner sent an odd event: {e}") from e
 
@@ -150,5 +165,6 @@ class Client:
         path = f"/v1/sessions/{quote(name)}/requests/{quote(request_id)}"
         return self.typed(SessionStatus, "POST", path, body)
 
-    def restart(self) -> Restarting:
-        return self.typed(Restarting, "POST", "/v1/restart", {})
+    def restart(self, force: bool = False) -> Restarting:
+        body: JsonObject = {"force": True} if force else {}
+        return self.typed(Restarting, "POST", "/v1/restart", body)

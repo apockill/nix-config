@@ -17,6 +17,7 @@ from acp.schema import (
     SetSessionModelRequest,
     SetSessionModelResponse,
 )
+from agent_runner import vendors
 from agent_runner.errors import RunnerError
 from agent_runner.vendors import (
     SteeringResult,
@@ -77,6 +78,36 @@ def test_trust_folder_refuses_a_file_it_does_not_understand(
     conf = tmp_path / ".claude.json"
     conf.write_text(content)
     with pytest.raises(ValueError):
+        trust_folder(conf, "/w")
+
+
+def test_trust_folder_writes_again_if_a_claude_dropped_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conf = tmp_path / ".claude.json"
+    conf.write_text('{"projects": {}}')
+    writes: list[str] = []
+
+    def racing(path: Path, text: str) -> None:
+        # A claude rewrites the file from its own copy right after the first write.
+        writes.append(text)
+        path.write_text(text if len(writes) > 1 else '{"projects": {}, "theirs": 1}')
+
+    monkeypatch.setattr(vendors, "write_private", racing)
+    trust_folder(conf, "/w")
+    assert len(writes) == 2
+    assert json.loads(conf.read_text())["projects"]["/w"]["hasTrustDialogAccepted"]
+
+
+def test_trust_folder_fails_if_the_folder_never_stays_trusted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conf = tmp_path / ".claude.json"
+    conf.write_text("{}")
+    monkeypatch.setattr(vendors, "write_private", lambda path, text: None)
+    with pytest.raises(
+        ValueError, match="/w doesn't stay trusted in .*: something rewrites"
+    ):
         trust_folder(conf, "/w")
 
 

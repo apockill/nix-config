@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from agent_runner.config import KEEP_ENDED_SECONDS, Config
 from agent_runner.errors import RunnerError
 from agent_runner.events import Event, Prompted, State
 from agent_runner.notify import Notifier
+from agent_runner.peers import Peers
 from agent_runner.runner import Runner
 from agent_runner.store import Record, Store
 from conftest import Service, fake_agent
@@ -22,11 +24,14 @@ def runner(tmp: Path) -> Runner:
     config = Config.model_validate(
         {
             "default": "fake",
-            "agents": {"fake": fake_agent(), "other": fake_agent()},
+            "agents": {
+                "fake": fake_agent(),
+                "other": {**fake_agent(), "compact_window_env": "WINDOW"},
+            },
             "refused_env": ["ANTHROPIC_API_KEY"],
         }
     )
-    return Runner(config, Store(tmp / "state"), Notifier([]))
+    return Runner(config, Store(tmp / "state"), Notifier([]), Peers(str(tmp / "sock")))
 
 
 def start(tmp: Path, **fields: Any) -> StartRequest:
@@ -38,6 +43,9 @@ def test_check_gives_the_agent(tmp_path: Path) -> None:
     assert r.check(start(tmp_path)) == "fake"
     assert r.check(start(tmp_path, agent="other", env={"OK_1": "x"})) == "other"
     assert r.check(start(tmp_path, name="a" * 63)) == "fake"
+    assert r.check(start(tmp_path, agent="other", env={"WINDOW": "300000"})) == "other"
+    # Only the agent's own window variable must be a number.
+    assert r.check(start(tmp_path, env={"WINDOW": "big"})) == "fake"
 
 
 @pytest.mark.parametrize(
@@ -51,6 +59,10 @@ def test_check_gives_the_agent(tmp_path: Path) -> None:
         ({"dir": "/nonexistent"}, "dir: an existing folder"),
         ({"env": {"1X": "y"}}, "env: '1X' isn't a variable name"),
         ({"env": {"ANTHROPIC_API_KEY": "y"}}, "ANTHROPIC_API_KEY would switch"),
+        (
+            {"agent": "other", "env": {"WINDOW": "big"}},
+            "env: WINDOW must be a whole number of tokens",
+        ),
     ],
 )
 def test_check_refuses(tmp_path: Path, fields: dict[str, Any], error: str) -> None:
@@ -80,7 +92,9 @@ def on_disk(tmp: Path, name: str, state: State, updated_at: float, seq: int) -> 
     files.append(Event(seq=seq, ts=updated_at, session=name, body=body))
 
 
-def test_load_puts_live_sessions_offline_and_continues_seq(tmp_path: Path) -> None:
+def test_load_puts_live_sessions_offline_and_continues_seq(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     now = time.time()
     on_disk(tmp_path, "busy", "running", now, 7)
     on_disk(tmp_path, "quiet", "idle", now - 10, 3)
@@ -107,6 +121,11 @@ def test_load_puts_live_sessions_offline_and_continues_seq(tmp_path: Path) -> No
     record = json.loads(r.sessions["busy"].files.record.read_text())
     assert record["state"] == "offline"
     assert [s.name for s in r.summaries()] == ["quiet", "done", "away", "busy"]
+    # Alex hears of the turn the restart cut short (notify-alex; here only stderr).
+    assert (
+        "the runner restarted during the turns of busy; they're offline"
+        in capsys.readouterr().err
+    )
 
 
 def test_load_deletes_long_ended_sessions(tmp_path: Path) -> None:
@@ -117,10 +136,23 @@ def test_load_deletes_long_ended_sessions(tmp_path: Path) -> None:
     (tmp_path / "state/sessions/broken/session.json").write_text("{")
     r = runner(tmp_path)
     r.load()
-    assert sorted(r.sessions) == ["kept"]
+    assert sorted(r.sessions) == ["broken", "kept"]
     assert not (tmp_path / "state/sessions/gone").exists()
-    # A record that doesn't fit is skipped, not deleted.
-    assert (tmp_path / "state/sessions/broken/session.json").exists()
+    # A record that doesn't fit is a failed session saying why, and stays as it is on disk.
+    broken = r.sessions["broken"].record
+    assert broken.state == "failed"
+    assert broken.reason and broken.reason.startswith(
+        "its session.json can't be read: 1 validation error"
+    )
+    assert (tmp_path / "state/sessions/broken/session.json").read_text() == "{"
+
+
+def test_admit_needs_to_know_the_caller(tmp_path: Path) -> None:
+    r = runner(tmp_path)
+    with pytest.raises(RunnerError, match="can't tell who is calling") as e:
+        r.admit(None)
+    assert e.value.status == 403
+    assert not r.admit(os.getpid()).inside
 
 
 def test_get(tmp_path: Path) -> None:
@@ -147,4 +179,4 @@ def test_summaries_are_oldest_first(service: Service) -> None:
     listed = service.call("GET", "/v1/sessions")["sessions"]
     assert [s["name"] for s in listed] == ["b", "a", "c"]
     assert all(s["pending"] == 0 and s["alive"] for s in listed)
-    assert "queued" not in listed[0] and "last_message" not in listed[0]
+    assert listed[0]["queued"] == [] and "last_message" not in listed[0]

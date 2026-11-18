@@ -14,57 +14,55 @@ from typing import Any
 from acp.exceptions import RequestError
 from acp.schema import InitializeResponse
 
-from .agent import (
-    AUTH_REQUIRED,
-    AgentExited,
-    AgentProcess,
-    Wanted,
-    agent_env,
-    open_session,
-)
+from .agent import AUTH_REQUIRED, AgentExited, AgentProcess, agent_env
 from .bus import EventBus
-from .config import SETUP_SECONDS, AgentSpec, Config
+from .config import AgentSpec, Config
 from .errors import RunnerError
 from .events import (
     ENDED,
     Body,
-    Cancelled,
-    Delivery,
     Event,
     Failed,
     Notified,
-    Prompted,
+    PermissionAsked,
     SessionOpened,
     State,
     StateChanged,
-    TurnEnded,
 )
-from .inbox import Inbox
+from .limits import LimitNotices, active, describe
 from .notify import Notifier, Outcome
+from .opening import Wanted, open_session
 from .parking import Parking
+from .peers import Peers, marker
+from .render import asked
 from .store import Record, SessionFiles
-from .vendors import STEERING, SteeringResult, steering, steers, trust_folder
+from .turns import Turns
+from .vendors import trust_folder
 
 
 @dataclass(frozen=True)
 class Services:
-    """What every session shares: the agents, the event bus, and the way to tell Alex."""
+    """What every session shares: the agents, the event bus, the way to tell Alex (and what
+    limits Alex has heard of), and who's calling (the runner's name for its sessions' marker).
+    """
 
     config: Config
     bus: EventBus
     notifier: Notifier
+    peers: Peers
+    limit_notices: LimitNotices
 
 
-class Session(Inbox):
+class Session(Turns):
     def __init__(self, services: Services, record: Record, files: SessionFiles) -> None:
         self.services = services
+        self.limit_notices = services.limit_notices
         self.record = record
         self.files = files
         self.agent: AgentProcess | None = None
         self.init: InitializeResponse | None = None
         self.parking = Parking()
         self.waiting = defaultdict(deque)
-        self.queue: deque[str] = deque()
         self.turn: asyncio.Task[None] | None = None
         self.open_lock = asyncio.Lock()
         self.stopping = False
@@ -115,13 +113,16 @@ class Session(Inbox):
         self.emit(StateChanged(state=state, reason=reason))
 
     def settle_state(self) -> None:
-        """running, waiting or idle, from what's open."""
+        """running, waiting, limited or idle, from what's open."""
         if self.record.state in ENDED or not self.alive:
             return
         if self.parking.open:
             self.set_state("waiting")
         elif self.turn and not self.turn.done():
             self.set_state("running")
+        elif active(self.record.limit, time.time()):
+            assert self.record.limit
+            self.set_state("limited", describe(self.record.limit))
         else:
             self.set_state("idle")
 
@@ -129,15 +130,39 @@ class Session(Inbox):
         """Failing loudly: the state says why, Alex is told, the agent ends."""
         self.set_state("failed", reason)
         self.emit(Failed(message=reason))
-        self.services.notifier.notify(
-            f"agent-runner: session {self.name} ({self.record.agent}) failed: {reason}",
-            self.notified,
+        self.tell_alex(
+            f"agent-runner: session {self.name} ({self.record.agent}) failed: {reason}"
         )
         if self.agent:
             await self.agent.terminate()
 
+    def tell_alex(self, message: str) -> None:
+        self.services.notifier.notify(message, self.notified)
+
     def notified(self, message: str, outcome: Outcome) -> None:
         self.emit(Notified(message=message, ok=outcome.ok, error=outcome.error))
+        # A failure to tell stays in the record, where `agent list` and the daily digest see it.
+        self.record.notify_error = None if outcome.ok else f"{outcome.error}"
+        self.save()
+
+    def parked(self, event: Event) -> None:
+        """A request parked: Alex is told if nobody answers it in parked_notify_seconds."""
+        self.spawn(self.unanswered(event, self.services.config.parked_notify_seconds))
+
+    async def unanswered(self, event: Event, after: float) -> None:
+        await asyncio.sleep(after)
+        request_id, what = asked(event)
+        if (
+            request_id not in self.parking.open
+            or self.parking.open[request_id].event != event
+        ):
+            return
+        kind = "permission" if isinstance(event.body, PermissionAsked) else "question"
+        self.tell_alex(
+            f"agent-runner: session {self.name} has waited {duration(after)} for an answer"
+            f" to its {kind} {request_id}: {what[:200]} (agent peek {self.name};"
+            f" agent answer {self.name} {request_id} ...)"
+        )
 
     def explain(self, error: BaseException, doing: str) -> str:
         if isinstance(error, RequestError) and error.code == AUTH_REQUIRED:
@@ -169,9 +194,13 @@ class Session(Inbox):
             trust_folder(Path(spec.claude_trust_file), rec.dir)
         self.files.folder.mkdir(parents=True, exist_ok=True)
         env = agent_env(rec.agent, spec, rec.env, config.refused_env, os.environ)
+        env.update(marker(rec.name, self.services.peers.runner))
+        if spec.compact_window_env and (window := env.get(spec.compact_window_env)):
+            rec.compact_window = int(window)
         self.waiting.clear()
+        umask = int(config.agent_umask, 8) if config.agent_umask else None
         self.agent = agent = await AgentProcess.spawn(
-            spec.command, rec.dir, env, self.files.agent_log, self
+            spec.command, rec.dir, env, self.files.agent_log, self, umask
         )
         self.spawn(self.watch(agent))
         wanted = Wanted(
@@ -217,72 +246,10 @@ class Session(Inbox):
         tail = f"(agent stderr: {agent.stderr_tail()})" if agent.stderr else ""
         await self.fail(f"the agent exited (code {code}) {tail}")
 
-    # Prompts
-    async def send(self, text: str) -> Delivery:
-        """Hand the agent a message: a new turn, steered into the running one, or queued."""
-        if self.record.state == "stopped":
-            raise RunnerError(f"{self.name} is stopped", 409)
-        if not self.alive:
-            if not self.record.agent_session_id:
-                raise RunnerError(
-                    f"{self.name} never started, so there's nothing to resume", 409
-                )
-            await self.open(resume=self.record.agent_session_id)
-        assert self.agent and self.init
-        if self.turn and not self.turn.done():
-            if steers(self.init):
-                raw = await self.agent.extension(
-                    STEERING, steering(self.agent_session, text), SETUP_SECONDS
-                )
-                if SteeringResult.model_validate(raw or {}).outcome == "injected":
-                    self.emit(Prompted(text=text, delivery="steered"))
-                    return "steered"
-            if self.turn and not self.turn.done():
-                self.queue.append(text)
-                self.emit(Prompted(text=text, delivery="queued"))
-                return "queued"
-        self.first_update.clear()
-        self.turn = asyncio.create_task(self.run_turn(text))
-        return "sent"
-
-    async def run_turn(self, text: str) -> None:
-        assert self.agent
-        self.emit(Prompted(text=text, delivery="sent"))
-        self.last_text = ""
-        self.record.turns += 1
-        self.settle_state()
-        try:
-            result = await self.agent.prompt(self.agent_session, text)
-            self.emit(TurnEnded(stop_reason=result.stop_reason))
-        except RequestError as e:
-            if e.code == AUTH_REQUIRED:
-                await self.fail(self.explain(e, "the turn failed"))
-                return
-            self.emit(Failed(message=f"the turn failed: {e}"))
-        except RunnerError as e:
-            self.emit(Failed(message=f"the turn failed: {e}"))
-        except AgentExited:
-            return  # watch() reports it
-        finally:
-            self.first_update.set()
-            if self.turn is asyncio.current_task():
-                self.turn = None
-        self.settle_state()
-        if self.queue and self.record.state not in ENDED:
-            self.turn = asyncio.create_task(self.run_turn(self.queue.popleft()))
-
-    async def cancel(self) -> None:
-        """End the turn, cancel open requests, drop the queue; the agent stays up."""
-        self.queue.clear()
-        for request_id in list(self.parking.open):
-            self.resolved(request_id, self.parking.cancel(request_id))
-        if self.agent and self.alive and self.record.agent_session_id:
-            await self.agent.cancel(self.agent_session)
-            self.emit(Cancelled())
-
     async def stop(self, reason: str) -> None:
         self.stopping = True
         self.queue.clear()
+        self.save()
         self.drop_pending("stopped")
         if self.agent:
             await self.agent.terminate()
@@ -296,3 +263,7 @@ class Session(Inbox):
         await self.agent.terminate()
         if self.record.state not in ENDED:
             self.set_state("offline", reason)
+
+
+def duration(seconds: float) -> str:
+    return f"{seconds / 60:.0f} min" if seconds >= 60 else f"{seconds:.0f} s"

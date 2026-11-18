@@ -42,8 +42,13 @@ let
           ;
         pass_env = a.passEnv;
         claude_trust_file = a.claudeTrustFile;
+        compact_window_env = a.compactWindowEnv;
       }) runnerCfg.agents;
       refused_env = lib.unique (lib.concatMap (a: a.refusedEnv) (lib.attrValues runnerCfg.agents));
+      # The service runs with UMask 0077; its agents keep a user service's usual 0022, since
+      # they write files in repositories others read (Caddy serves sites from them).
+      agent_umask = "0022";
+      parked_notify_seconds = runnerCfg.notifyUnansweredAfter * 60;
     }
   );
 
@@ -130,7 +135,12 @@ in
       type = lib.types.str;
       readOnly = true;
       default = "${state}/sock";
-      description = "The runner's API (README.md): HTTP on a unix socket, the agent's user only.";
+      description = "The runner's API (README.md): HTTP on a unix socket (0600), the agent's user only; from inside a session only if it was started with allow_runner.";
+    };
+    notifyUnansweredAfter = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 30;
+      description = "Minutes a permission or question may wait for an answer before Alex is told (once per request).";
     };
     agents = lib.mkOption {
       description = "The agents the runner can start, one per vendor directory.";
@@ -170,6 +180,11 @@ in
               default = null;
               description = "Claude Code's .claude.json, where each session's folder is marked trusted.";
             };
+            compactWindowEnv = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = "The variable the agent reads its compaction window from; its value (from `env`, or a session's own) is in the session's record.";
+            };
           };
         }
       );
@@ -196,7 +211,12 @@ in
         Environment = [
           "PATH=/run/wrappers/bin:/etc/profiles/per-user/${cfg.user}/bin:/run/current-system/sw/bin"
           "LANG=C.UTF-8"
+          # Its cgroup is its own: a caller in it is one of its agents' processes (peers.py).
+          "AGENT_RUNNER_OWN_CGROUP=1"
         ];
+        # Its socket, records and event logs (tool outputs, file contents) are its user's only;
+        # the user's group has other members (caddy). Agents get 0022 back (agents file).
+        UMask = "0077";
         WorkingDirectory = cfg.stateDir;
         Restart = "on-failure";
         RestartSec = 5;

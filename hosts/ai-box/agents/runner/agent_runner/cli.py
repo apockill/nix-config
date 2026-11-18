@@ -19,6 +19,7 @@ from .api_types import SessionStatus
 from .base import JsonObject
 from .client import Client, ClientError, quote
 from .jobs import JobError, JobSpec, answer_body, read_task, start_request
+from .limits import describe
 from .render import asked
 from .wait import Waiting, wait
 
@@ -72,6 +73,11 @@ def parser(prog: str) -> Parser:
     s.add_argument(
         "--session-meta", type=meta_arg, metavar="JSON", help="vendor options"
     )
+    s.add_argument(
+        "--allow-runner",
+        action="store_true",
+        help="let the session's own processes use the runner (start, answer, stop sessions)",
+    )
     s = sub.add_parser(
         "send", help="a message: a new turn, steered into the running one, or queued"
     )
@@ -118,18 +124,28 @@ def parser(prog: str) -> Parser:
     s.add_argument("name", nargs="?")
     s.add_argument("--since", type=int, default=0)
     s.add_argument("--follow", "-f", action="store_true")
-    sub.add_parser("restart", help="restart the service as its current version")
+    s = sub.add_parser("restart", help="restart the service as its current version")
+    s.add_argument(
+        "--force",
+        action="store_true",
+        help="even if turns run or requests wait (they're lost)",
+    )
     return p
 
 
 def show(s: SessionStatus) -> None:
     for key in (
         "name", "agent", "model", "state", "reason", "origin", "dir",
-        "agent_session_id", "transcript", "title", "turns",
+        "agent_session_id", "transcript", "title", "turns", "compact_window",
+        "misfits", "notify_error",
     ):  # fmt: skip
         value = getattr(s, key)
-        if value not in (None, ""):
+        if value not in (None, "", 0) or key == "turns":
             print(f"{key}: {value}")
+    if s.limit:
+        print(f"limit: {s.limit.resets_at or 'unknown'} ({describe(s.limit)})")
+    if s.allow_runner:
+        print("allow_runner: yes")
     for event in s.pending:
         request_id, what = asked(event)
         print(f"pending {event.kind} {request_id}: {what}")
@@ -199,7 +215,7 @@ class Cli:
                         flush=True,
                     )
             case "restart":
-                c.restart()
+                c.restart(args.force)
                 print("restarting; sessions resume on their next message")
         return 0
 
@@ -218,10 +234,13 @@ class Cli:
             env=tuple(args.env),
             origin=args.origin,
             session_meta=args.session_meta,
+            allow_runner=args.allow_runner,
         )
         req = start_request(spec, environ)
-        print(f"session: {req.name}", flush=True)  # other tools parse this line
-        show(self.client.start(req))
+        status = self.client.start(req)
+        # Other tools parse this line: it comes only once the session has started.
+        print(f"session: {req.name}", flush=True)
+        show(status)
         return 0
 
     def list(self, as_json: bool) -> int:
@@ -251,7 +270,12 @@ def main(argv: Sequence[str], environ: dict[str, str], prog: str) -> int:
     cli = Cli(Client(socket))
     try:
         return cli.run(args, environ)
-    except (ClientError, JobError) as e:
+    except ClientError as e:
+        print(f"{prog}: {e}", file=sys.stderr)
+        if e.resets_at:
+            print(f"{prog}: resets_at: {e.resets_at:.0f}", file=sys.stderr)
+        return 1
+    except JobError as e:
         print(f"{prog}: {e}", file=sys.stderr)
         return 1
     except BrokenPipeError:

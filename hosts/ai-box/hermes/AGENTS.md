@@ -48,6 +48,11 @@
    `nix build .#nixosConfigurations.ai-box.config.system.build.toplevel`
    You can test changes live on the machine with `ai-box-test` (runs `nixos-rebuild test`;
    ephemeral — autoUpgrade or reboot reverts to master).
+   A PR that changes `flake.lock`, `hosts/ai-box/agents/claude/acp.nix` or
+   `hosts/ai-box/agents/antigravity` also runs the branch's canary, and puts its
+   output in the PR: `nix build .#nixosConfigurations.ai-box.config.aiBox.agents.drift.canary
+   -o /tmp/canary && /tmp/canary/bin/agents-canary` (a short Haiku session; every
+   line `ok` or `skip`, else say which assumption broke).
 3. Open a PR with `gh pr create`.
 4. Alex reviews on GitHub; reply to each review comment there with what you
    did (pushing back is fine).
@@ -92,12 +97,15 @@ about the change.
   <task-file>` starts the job as a session on the agent runner (`hosts/ai-box/agents/runner`, its
   README.md has every verb): Claude Code by default, the Antigravity CLI with `--agent
   antigravity` (`--model` picks the model). Wait on it with `agent wait <session>` (a background
-  process with notify: it wakes you on a done marker, a question, a quiet job or its end), follow
-  it with `agent peek`, steer with `agent send`, answer a permission request or question it shows
-  with `agent answer`, end it with `agent stop`. It runs outside the gateway, so your restarts
-  don't touch it; after a reboot `agent send` resumes it. If the agent can't start or its sign-in
-  has expired, `agent start` fails with the reason and Alex gets a Discord note: tell him what you
-  were starting, never fall back to another route.
+  process with notify: it wakes you on a done marker printed since its last prompt, a question, a
+  usage limit (`LIMITED <resets_at>`), a quiet job or its end; on `TIMEOUT` the job still runs, so
+  wait again or stop it), follow it with `agent peek`, steer with `agent send`, answer a
+  permission request or question it shows with `agent answer`, end it with `agent stop` once it
+  is done. It runs outside the gateway, so your restarts don't touch it; after a reboot `agent
+  send` resumes it. If the agent can't start or its sign-in has expired, `agent start` fails with
+  the reason and Alex gets a Discord note: tell him what you were starting, never fall back to
+  another route. A job's own processes can't use `agent` (the runner refuses them) unless it was
+  started with `--allow-runner`; give that only to a job that must start jobs itself.
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions by default. They can't use the terminal, files, or browser unless
   Alex explicitly asks for that job (then create it with its own tool list and

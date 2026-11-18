@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from .base import JsonObject, Strict
 from .events import Delivery, Event, State
-from .store import Record
+from .store import Limit, Record
 
 # --- Requests -----------------------------------------------------------------------------------
 
@@ -27,6 +27,9 @@ class StartRequest(Strict):
     env: dict[str, str] | None = None
     origin: str | None = None
     session_meta: JsonObject | None = None
+    # Whether the session's own processes may use this API; a session that may not can't start
+    # one that may.
+    allow_runner: bool | None = None
 
 
 class SendRequest(Strict):
@@ -42,7 +45,13 @@ class StopRequest(Strict):
 
 
 class EmptyRequest(Strict):
-    """POST .../cancel and /v1/restart: no fields."""
+    """POST .../cancel: no fields."""
+
+
+class RestartRequest(Strict):
+    """POST /v1/restart: refused while a turn runs or a request waits, unless forced."""
+
+    force: bool = False
 
 
 # --- Answers ------------------------------------------------------------------------------------
@@ -68,6 +77,13 @@ class SessionFields(Strict):
     title: str | None = None
     updated_at: float = 0.0
     turns: int = 0
+    queued: list[str] = []
+    limit: Limit | None = None
+    compact_window: int | None = None
+    allow_runner: bool = False
+    failed_turns: int = 0
+    misfits: int = 0
+    notify_error: str | None = None
 
 
 def public(record: Record) -> dict[str, object]:
@@ -88,7 +104,6 @@ class SessionStatus(SessionFields):
 
     # The open permission requests and questions: each the event that announced it.
     pending: list[Event]
-    queued: list[str]
     last_message: str
     alive: bool
     last_event_at: float
@@ -117,3 +132,5 @@ class Restarting(Strict):
 
 class ErrorBody(Strict):
     error: str
+    # With a 429: when the usage limit resets (Unix seconds), if the agent said.
+    resets_at: float | None = None

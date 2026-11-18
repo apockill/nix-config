@@ -51,6 +51,7 @@ def test_agents(service: Service) -> None:
             "nosignin",
             "steering",
             "token",
+            "windowed",
         ],
     }
 

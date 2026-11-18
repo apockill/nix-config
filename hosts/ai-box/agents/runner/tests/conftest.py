@@ -126,6 +126,10 @@ AGENTS = {
     "loadonly": fake_agent(FAKE_LOAD_ONLY="1"),
     "configmodel": fake_agent(FAKE_CONFIG_MODEL="1"),
     "token": {**fake_agent(), "pass_env": ["PASSED_TOKEN"]},
+    "windowed": {
+        **fake_agent(WINDOW="200000"),
+        "compact_window_env": "WINDOW",
+    },
 }
 
 

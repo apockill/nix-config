@@ -67,11 +67,21 @@ def test_a_pre_split_record_loads(tmp_path: Path) -> None:
     files.record.write_text(json.dumps(old))
     loaded = files.load()
     assert loaded.agent_session_id == "9c32" and loaded.state == "offline"
-    files.save(
-        loaded
-    )  # written back field for field as the runner before the split wrote it
-    assert json.loads(files.record.read_text()) == old
-    assert list(json.loads(files.record.read_text())) == list(old)
+    # Written back field for field as the runner before the split wrote it, then the new ones
+    # at their defaults.
+    files.save(loaded)
+    written = json.loads(files.record.read_text())
+    assert {k: written[k] for k in old} == old
+    assert list(written)[: len(old)] == list(old)
+    assert {k: written[k] for k in list(written)[len(old) :]} == {
+        "queued": [],
+        "limit": None,
+        "compact_window": None,
+        "allow_runner": False,
+        "failed_turns": 0,
+        "misfits": 0,
+        "notify_error": None,
+    }
 
 
 def test_the_event_log(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -114,7 +124,7 @@ def test_load_keeps_live_and_recent_records_and_prunes_old_ended_ones(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     store = Store(tmp_path)
-    assert store.load(0.0) == []
+    assert store.load(0.0) == ([], [])
     now = 10 * KEEP_ENDED_SECONDS
     old = now - KEEP_ENDED_SECONDS - 1
     store.files("a-live").save(record("a-live", state="idle", updated_at=old))
@@ -125,9 +135,37 @@ def test_load_keeps_live_and_recent_records_and_prunes_old_ended_ones(
     bad = store.files("d-bad")
     bad.folder.mkdir()
     bad.record.write_text('{"name": 1}')
-    names = [r.name for r in store.load(now)]
-    assert names == ["a-live", "b-recent"]
+    records, unreadable = store.load(now)
+    assert [r.name for r in records] == ["a-live", "b-recent"]
+    assert [u.name for u in unreadable] == ["d-bad"]
+    assert unreadable[0].error == "4 validation errors for Record"
     assert not store.files("c-old").folder.exists()
-    assert "skipped" in capsys.readouterr().err
+    assert "can't read" in capsys.readouterr().err
     store.remove("a-live")
     assert not store.files("a-live").folder.exists()
+
+
+def test_the_last_event_behind_a_long_line(tmp_path: Path) -> None:
+    files = SessionFiles(tmp_path / "job")
+    files.append(Event(seq=7, ts=7.0, session="job", body=Failed(message="x")))
+    # A tool's whole output in one event, then a line a crash cut short.
+    files.append(
+        Event(seq=8, ts=8.0, session="job", body=Failed(message="y" * 300_000))
+    )
+    with files.events.open("a") as f:
+        f.write('{"seq": 9, "ts": 9.0, "session": "job", "kind": "err')
+    assert files.last_event() == (8, 8.0)
+    files.events.write_text('{"seq": 9, "ts": 9.0, "sess')
+    assert files.last_event() == (0, 0.0)
+
+
+def test_load_makes_old_files_private(tmp_path: Path) -> None:
+    store = Store(tmp_path)
+    files = store.files("job")
+    files.save(record("job"))
+    files.append(Event(seq=1, ts=1.0, session="job", body=Failed(message="x")))
+    files.events.chmod(0o644)
+    files.folder.chmod(0o755)
+    store.load(0.0)
+    assert stat.S_IMODE(files.events.stat().st_mode) == 0o600
+    assert stat.S_IMODE(files.folder.stat().st_mode) == 0o700

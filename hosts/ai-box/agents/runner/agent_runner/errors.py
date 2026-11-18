@@ -10,9 +10,13 @@ from .base import describe
 class RunnerError(Exception):
     """An expected failure, reported to the API's caller with an HTTP status."""
 
-    def __init__(self, message: str, status: int = 400) -> None:
+    def __init__(
+        self, message: str, status: int = 400, resets_at: float | None = None
+    ) -> None:
         super().__init__(message)
         self.status = status
+        # A usage limit's reset time (Unix seconds), for a 429.
+        self.resets_at = resets_at
 
     @classmethod
     def bad_request(cls, error: ValidationError) -> RunnerError:

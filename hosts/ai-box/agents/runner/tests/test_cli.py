@@ -207,6 +207,45 @@ def test_without_the_runner(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     assert capsys.readouterr().err.startswith("agent: the runner isn't running")
 
 
+def test_a_limited_start_says_when_it_resets(
+    service: Service, capsys: pytest.CaptureFixture[str]
+) -> None:
+    resets = 1795010400 + 10**9  # far ahead
+    assert (
+        Agent(service)("start", "L", str(service.tmp), "--task", f"limit {resets}") == 1
+    )
+    out, err = capsys.readouterr()
+    # The session line comes only once a start has gone through.
+    assert "session:" not in out
+    assert "agent: l hit the usage limit (five_hour) until" in err
+    assert f"agent: resets_at: {resets}" in err
+    assert Agent(service)("status", "l") == 0
+    out = capsys.readouterr().out
+    assert (
+        "state: limited" in out and f"limit: {resets}.0 (usage limit (five_hour)" in out
+    )
+
+
+def test_allow_runner(service: Service, capsys: pytest.CaptureFixture[str]) -> None:
+    assert Agent(service)("start", "A", str(service.tmp), "--allow-runner") == 0
+    assert "allow_runner: yes" in capsys.readouterr().out
+    assert service.status("a")["allow_runner"] is True
+
+
+def test_restart_refuses_while_a_turn_runs(
+    service: Service, capsys: pytest.CaptureFixture[str]
+) -> None:
+    service.start_session("slow", "slow")
+    service.wait_state("slow", "running")
+    assert Agent(service)("restart") == 1
+    assert "slow would lose their running turn" in capsys.readouterr().err
+    assert Agent(service)("restart", "--force") == 0
+    assert service.thread
+    service.thread.join(20)
+    assert service.exit_code == 75
+    service.thread = None
+
+
 def test_restart(service: Service, capsys: pytest.CaptureFixture[str]) -> None:
     assert Agent(service)("restart") == 0
     assert "restarting" in capsys.readouterr().out

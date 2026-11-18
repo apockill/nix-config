@@ -10,7 +10,10 @@ let
   acp = pkgs.callPackage ./acp.nix { claude = config.aiBox.agents.claude.cli; };
 in
 {
-  imports = [ ./claude-code.nix ];
+  imports = [
+    ./claude-code.nix
+    ./skew.nix # claude-agent-acp's SDK and the CLI must be the same Claude Code release
+  ];
 
   aiBox.agents.claude.acp = acp;
   services.hermes-agent.extraPackages = [ acp ];
@@ -28,11 +31,23 @@ in
     env = {
       CLAUDE_CONFIG_DIR = claudeDir;
       CLAUDE_CODE_EXECUTABLE = "${config.aiBox.agents.claude.cli}/bin/claude";
+      # Compact at 200k tokens rather than near the 1M window: every request re-reads the whole
+      # context from cache, and on 11-18 62% of the cache reads came from contexts over 400k
+      # (workspace designs/acp-daemons/SKEPTIC.md, finding 2). Sculpt's builders use 200k too
+      # (SCBUILD-15). A session's --env CLAUDE_CODE_AUTO_COMPACT_WINDOW=... overrides it.
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW = "200000";
     };
+    compactWindowEnv = "CLAUDE_CODE_AUTO_COMPACT_WINDOW";
     passEnv = [ "CLAUDE_CODE_OAUTH_TOKEN" ];
+    # Each would move the session off the subscription: to metered API billing (a key or token),
+    # to Bedrock, Vertex or Foundry, or to another endpoint.
     refusedEnv = [
       "ANTHROPIC_API_KEY"
       "ANTHROPIC_AUTH_TOKEN"
+      "ANTHROPIC_BASE_URL"
+      "CLAUDE_CODE_USE_BEDROCK"
+      "CLAUDE_CODE_USE_VERTEX"
+      "CLAUDE_CODE_USE_FOUNDRY"
     ];
     transcript = "${claudeDir}/projects/{cwd_slug}/{session_id}.jsonl";
     # In a folder never trusted, the SDK route ignores the project's allow rules.

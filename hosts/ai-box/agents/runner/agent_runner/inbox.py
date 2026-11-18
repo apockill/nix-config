@@ -96,6 +96,12 @@ class Inbox:
     def settle_state(self) -> None:
         raise NotImplementedError
 
+    def save(self) -> None:
+        raise NotImplementedError
+
+    def parked(self, event: Event) -> None:
+        raise NotImplementedError
+
     @property
     def name(self) -> str:
         return self.record.name
@@ -155,13 +161,18 @@ class Inbox:
         except ValidationError as e:
             self.misfit(method, e)
             return None
-        reply = self.parking.park(rpc_id, self.emit(asked))
+        event = self.emit(asked)
+        reply = self.parking.park(rpc_id, event)
+        self.parked(event)
         self.first_update.set()
         self.settle_state()
         return reply
 
     def misfit(self, method: str, error: ValidationError) -> None:
-        # Loud, not fatal: the session says why (and the SDK refuses a request that doesn't fit).
+        # Loud, not fatal: the session says why and counts them (status's misfits), and the SDK
+        # refuses a request that doesn't fit.
+        self.record.misfits += 1
+        self.save()
         self.emit(
             Failed(
                 message=f"the agent sent a {method} that doesn't fit ACP: {describe(error)}"

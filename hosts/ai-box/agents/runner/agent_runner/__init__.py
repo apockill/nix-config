@@ -16,10 +16,13 @@ The modules, from the bottom up:
   base, errors  the strict pydantic base and the expected failures
   config      the agents file and the runner's fixed limits
   events      the events (README.md, "Events"); store: sessions on disk; bus: numbering, fan-out
-  vendors     where the agents differ; agent: one agent process on the ACP SDK
+  vendors     where the agents differ; agent: one agent process on the ACP SDK; opening: its
+              session (new, resumed, loaded), mode and model
   parking     permissions and questions waiting for an answer; notify: telling Alex
-  session     one session: its process, turns and state; inbox: what its agent sends it
-  runner      every session, by name
+  limits      usage limits, from the turn error's data
+  inbox       what its agent sends a session; turns: its turns, failures and queue; session: one
+              session, its process and state
+  runner      every session, by name; peers: who calls (from inside a session or not)
   api_types, api, server   the API (Starlette) and the service (uvicorn)
   client, render, jobs, wait, cli   the CLI
 """

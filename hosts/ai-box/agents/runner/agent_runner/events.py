@@ -28,11 +28,18 @@ from pydantic import (
     model_validator,
 )
 
-from .base import JsonObject, Strict
+from .base import JsonObject, JsonValue, Strict
 
 # Session states (README.md, "States").
 State = Literal[
-    "starting", "running", "idle", "waiting", "offline", "failed", "stopped"
+    "starting",
+    "running",
+    "idle",
+    "waiting",
+    "limited",
+    "offline",
+    "failed",
+    "stopped",
 ]
 ENDED: frozenset[State] = frozenset({"failed", "stopped"})
 
@@ -143,12 +150,27 @@ class Cancelled(Strict):
 
 
 class Failed(Strict):
+    """Something failed: a turn (with the agent's error kind and data, if it gave them), a
+    message from the agent that doesn't fit ACP, or the session itself."""
+
     kind: Literal["error"] = "error"
     message: str
+    # The agent's own classification and its error's data, e.g. claude-agent-acp's
+    # {"errorKind": "rate_limit", "rateLimit": {"resetsAt": ...}}.
+    error_kind: str | None = None
+    data: JsonValue = None
+
+    @model_serializer(mode="wrap")
+    def _only_given(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        out: dict[str, Any] = handler(self)
+        for key in ("error_kind", "data"):
+            if out.get(key) is None:
+                out.pop(key, None)
+        return out
 
 
 class Notified(Strict):
-    """Alex was told about a failure (notify-alex), or telling him failed."""
+    """Alex was told something (notify-alex), or sending it failed."""
 
     kind: Literal["notified"] = "notified"
     message: str

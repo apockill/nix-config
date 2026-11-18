@@ -101,3 +101,14 @@ def test_a_failed_model_keeps_the_session_resumable(service: Service) -> None:
     assert s["state"] == "failed" and s["agent_session_id"]
     [error] = [e for e in service.events("m") if e["kind"] == "error"]
     assert "no model 'huge'" in error["message"]
+
+
+def test_duration() -> None:
+    from agent_runner.session import duration
+
+    assert (duration(0.4), duration(59), duration(60), duration(1800)) == (
+        "0 s",
+        "59 s",
+        "1 min",
+        "30 min",
+    )

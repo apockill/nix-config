@@ -18,9 +18,20 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from .base import JsonObject, StrictMutable
+from .base import JsonObject, Strict, StrictMutable
 from .config import KEEP_ENDED_SECONDS
 from .events import ENDED, Event, State
+
+# How much of events.jsonl is read back at a time to find its last event.
+TAIL_CHUNK = 65536
+
+
+class Limit(Strict):
+    """A usage limit the agent hit: when it resets (Unix seconds; None if it didn't say) and
+    which (the agent's own name for it, e.g. Claude's five_hour or seven_day)."""
+
+    resets_at: float | None = None
+    kind: str | None = None
 
 
 class Record(StrictMutable):
@@ -47,6 +58,19 @@ class Record(StrictMutable):
     title: str | None = None
     updated_at: float = 0.0
     turns: int = 0
+    # Messages sent while a turn ran, not yet taken in: they survive a runner restart.
+    queued: list[str] = []
+    # The usage limit the last turn hit; cleared by a turn that ends well.
+    limit: Limit | None = None
+    # The context window the agent compacts at (its compact_window_env), when it has one.
+    compact_window: int | None = None
+    # Whether the session's own processes may use the runner's API (start or answer sessions).
+    allow_runner: bool = False
+    # Turns that failed in a row; messages from the agent that didn't fit ACP.
+    failed_turns: int = 0
+    misfits: int = 0
+    # The last time telling Alex failed, and why (cleared when telling succeeds).
+    notify_error: str | None = None
 
 
 def write_private(path: Path, text: str) -> None:
@@ -115,18 +139,26 @@ class SessionFiles:
             return
 
     def last_event(self) -> tuple[int, float]:
-        """The seq and time of the last logged event ((0, 0.0) if none)."""
+        """The seq and time of the last logged event ((0, 0.0) if none). Read back from the end
+        a chunk at a time until a whole line is an event: a last line can be megabytes (a
+        tool's whole output), and a line cut short by a crash isn't one."""
         try:
             with self.events.open("rb") as f:
-                f.seek(0, os.SEEK_END)
-                f.seek(max(0, f.tell() - 65536))
-                tail = f.read().splitlines()
+                end = f.seek(0, os.SEEK_END)
+                carry = b""  # a line whose start is further back
+                while end > 0:
+                    start = max(0, end - TAIL_CHUNK)
+                    f.seek(start)
+                    lines = (f.read(end - start) + carry).split(b"\n")
+                    end = start
+                    carry = lines.pop(0) if start else b""
+                    for line in reversed(lines):
+                        with contextlib.suppress(ValidationError):
+                            event = Event.model_validate_json(line)
+                            return event.seq, event.ts
         except OSError:
-            return 0, 0.0
-        for line in reversed(tail):
-            with contextlib.suppress(ValidationError):
-                event = Event.model_validate_json(line)
-                return event.seq, event.ts
+            pass
+        return 0, 0.0
         return 0, 0.0
 
 
@@ -142,21 +174,42 @@ class Store:
     def remove(self, name: str) -> None:
         shutil.rmtree(self.files(name).folder, ignore_errors=True)
 
-    def load(self, now: float) -> list[Record]:
-        """Every record on disk, oldest name first; ended ones past retention are deleted."""
+    def load(self, now: float) -> tuple[list[Record], list[Unreadable]]:
+        """Every record on disk, oldest name first (ended ones past retention are deleted), and
+        the sessions whose record can't be read. Files from before the service's UMask 0077 are
+        made its user's only."""
         sessions = self.root / "sessions"
         if not sessions.is_dir():
-            return []
-        records = []
+            return [], []
+        private(self.root)
+        records, unreadable = [], []
         for path in sorted(sessions.glob("*/session.json")):
             files = SessionFiles(path.parent)
+            private(files.folder)
             try:
                 record = files.load()
             except (OSError, ValidationError) as e:
-                print(f"agent-runner: skipped {path}: {e}", file=sys.stderr)
+                print(f"agent-runner: can't read {path}: {e}", file=sys.stderr)
+                unreadable.append(Unreadable(path.parent.name, str(e).splitlines()[0]))
                 continue
             if record.state in ENDED and now - record.updated_at > KEEP_ENDED_SECONDS:
                 shutil.rmtree(files.folder, ignore_errors=True)
                 continue
             records.append(record)
-        return records
+        return records, unreadable
+
+
+@dataclass(frozen=True)
+class Unreadable:
+    """A session folder whose session.json doesn't parse: kept as a failed session."""
+
+    name: str
+    error: str
+
+
+def private(folder: Path) -> None:
+    """A folder and the files in it: their owner's only."""
+    with contextlib.suppress(OSError):
+        folder.chmod(0o700)
+        for path in folder.iterdir():
+            path.chmod(0o700 if path.is_dir() else 0o600)

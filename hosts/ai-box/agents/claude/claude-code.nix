@@ -19,6 +19,8 @@ let
     paths = [ pkgs.claude-code ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = "wrapProgram $out/bin/claude --set-default CLAUDE_CONFIG_DIR ${cfg.stateDir}/.claude";
+    # The release, for the version skew check (./skew.nix).
+    passthru.version = pkgs.claude-code.version;
   };
 in
 {

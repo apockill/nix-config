@@ -31,6 +31,11 @@ class Notifier:
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
+    async def drain(self, timeout: float) -> None:
+        """Wait (at most `timeout`) for the notices still being sent."""
+        if self.tasks:
+            await asyncio.wait(set(self.tasks), timeout=timeout)
+
     async def _send(self, message: str, done: Callable[[str, Outcome], None]) -> None:
         outcome = await self.send(message)
         if not outcome.ok:
