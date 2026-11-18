@@ -137,6 +137,7 @@ def test_start_runs_the_task_and_records_the_session(service: Service) -> None:
     done = service.wait_state("job-1", "idle")
     assert done["last_message"] == "echo: hello"
     assert done["turns"] == 1
+    assert done["last_event_at"] >= done["created_at"]
     kinds = [e["kind"] for e in service.events("job-1")]
     assert kinds.index("prompt") < kinds.index("turn_end")
     out = service.call("GET", "/v1/sessions/job-1/output?lines=10")["lines"]
@@ -356,6 +357,7 @@ def test_sessions_outlive_a_runner_restart_and_resume(service: Service) -> None:
     service.start()
     s = service.status("keep")
     assert s["state"] == "offline" and "a message resumes it" in s["reason"]
+    assert s["last_event_at"] > 0
     # The model must be set again on resume; the fake's resumed session only offers "small".
     service.call("POST", "/v1/sessions/keep/stop", {})
     service.start_session("keep2", "hello", model="small")

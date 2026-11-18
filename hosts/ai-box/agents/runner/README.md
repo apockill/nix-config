@@ -88,6 +88,7 @@ session takes its name, or for 30 days.
   "updated_at": 1795000042.5,
   "turns": 1,
   "alive": true,
+  "last_event_at": 1795000042.5,
   "pending": [],
   "queued": [],
   "last_message": "Done: ..."
@@ -104,6 +105,9 @@ session takes its name, or for 30 days.
 - `pending`: the open permission requests and questions, each the event that announced it (below).
 - `queued`: messages waiting for the running turn to end (agents without steering).
 - `last_message`: the agent's text since the last prompt.
+- `alive`: whether the agent's process is up. `last_event_at`: when the session's latest event
+  happened; with `state` it tells a session that's working (`running`, or `idle` with recent
+  events: agy finishing subagent work) from one that has gone quiet.
 
 `GET /v1/sessions` returns `{"sessions": [...]}` with the same fields except `pending` (a count),
 `queued` and `last_message`, oldest first.

@@ -465,6 +465,8 @@ class Session:
         self.open_lock = asyncio.Lock()
         self.stopping = False
         self.first_update = asyncio.Event()
+        # When the session's latest event happened: how long it has been quiet.
+        self.last_event_at = 0.0
 
     # Files
     @property
@@ -877,6 +879,7 @@ class Session:
         out["queued"] = list(self.queue)
         out["last_message"] = self.last_text
         out["alive"] = bool(self.conn and self.conn.running)
+        out["last_event_at"] = self.last_event_at
         return out
 
 
@@ -933,6 +936,7 @@ class Runner:
                 file=sys.stderr,
             )
         self.ring.append(event)
+        session.last_event_at = event["ts"]
         for queue in list(self.subscribers):
             queue.put_nowait(event)
         return event
@@ -977,7 +981,9 @@ class Runner:
                 shutil.rmtree(path.parent, ignore_errors=True)
                 continue
             self.sessions[record.name] = Session(self, record)
-            self.seq = max(self.seq, last_seq(path.parent / "events.jsonl"))
+            seq, ts = last_event(path.parent / "events.jsonl")
+            self.seq = max(self.seq, seq)
+            self.sessions[record.name].last_event_at = ts
         # Only now, with seq past every logged event: these emit.
         for session in self.sessions.values():
             record = session.record
@@ -1078,6 +1084,7 @@ class Runner:
                 **s.record.public(),
                 "pending": len(s.pending),
                 "alive": bool(s.conn and s.conn.running),
+                "last_event_at": s.last_event_at,
             }
             for s in sorted(self.sessions.values(), key=lambda s: s.record.created_at)
         ]
@@ -1102,8 +1109,8 @@ class Runner:
             self.subscribers.discard(queue)
 
 
-def last_seq(path: Path) -> int:
-    """The seq of the last event in a session's log (0 if none)."""
+def last_event(path: Path) -> tuple[int, float]:
+    """The seq and time of the last event in a session's log ((0, 0.0) if none)."""
     try:
         with path.open("rb") as f:
             f.seek(0, os.SEEK_END)
@@ -1112,10 +1119,11 @@ def last_seq(path: Path) -> int:
             tail = f.read().splitlines()
         for line in reversed(tail):
             with contextlib.suppress(ValueError, KeyError, TypeError):
-                return int(json.loads(line)["seq"])
+                event = json.loads(line)
+                return int(event["seq"]), float(event["ts"])
     except OSError:
         pass
-    return 0
+    return 0, 0.0
 
 
 def read_events(path: Path, since: int = 0) -> Iterator[dict[str, Any]]:
