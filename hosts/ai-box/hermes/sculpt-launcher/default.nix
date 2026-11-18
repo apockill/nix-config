@@ -1,17 +1,23 @@
 # sculpt-launcher: starts and resumes Sculpt Studio's builder sessions (Alex, 11-14: Sculpt Studio's
-# builder is a Claude Code session per project, resumed, surviving restarts; the studio's backend
+# builder is an agent session per project, resumed, surviving restarts; the studio's backend
 # decides when a project needs its builder, and this service only bridges the app sandbox).
 #
 # The studio (the lab-sculpt instance, ai-box-apps' apps/sculpt-studio) runs sandboxed under the
-# apps runner and can't start Claude Code. This service runs the studio's own launcher script from
+# apps runner and can't start an agent. This service runs the studio's own launcher script from
 # the live sites checkout as the agent's user: it long-polls `builder-wakes` on the studio's socket,
-# runs one `claude -p` per wanted project in the project's directory with the studio's builder
-# environment first on PATH, and reports builder-started/-ended. Everything studio-specific (which
-# project, the prompt, the environment, the permission fence) comes from the studio and its script.
+# asks the agent runner (../../agents/runner, SCULPT_RUNNER) for one session per wanted project in
+# the project's directory with the studio's builder environment first on PATH, follows it there and
+# reports builder-started/-ended. Everything studio-specific (which project, the prompt, the
+# environment, the permission fence, Claude or another agent) comes from the studio and its script.
 #
-# Builders authenticate with the claude.ai login in ~/.claude (like cc's jobs). A switch doesn't
-# restart the service, so running builders aren't cut off mid-turn; a crash restarts it, and the
-# studio re-offers any project whose builder didn't report back.
+# Builders are runner sessions, so they show in the sites live view (agents.<domain>) as
+# "sculpt: <project>", sign in as every runner session does (the runner's subscription token), and
+# outlive this service: a restart or a switch doesn't cut a builder off, and the next start follows
+# the running sessions again. No fallback: with the runner down or an agent that can't start, the
+# project shows its builder paused and why.
+#
+# `--claude` and CLAUDE_CONFIG_DIR are for a launcher from before the runner (it runs `claude -p`
+# itself); the current one ignores them. Drop them once ai-box-apps' change agent-runner is on main.
 {
   config,
   lib,
@@ -24,7 +30,7 @@ let
 in
 {
   systemd.services.sculpt-launcher = {
-    description = "Sculpt Studio's builder sessions (Claude Code, one per project)";
+    description = "Sculpt Studio's builder sessions (one agent-runner session per project)";
     wantedBy = [ "multi-user.target" ];
     after = [ "network-online.target" "ai-box-apps-runner.service" ];
     wants = [ "network-online.target" ];
@@ -33,6 +39,8 @@ in
       HOME = cfg.stateDir;
       CLAUDE_CONFIG_DIR = "${cfg.stateDir}/.claude";
       PATH = lib.mkForce "/run/wrappers/bin:/etc/profiles/per-user/${cfg.user}/bin:/run/current-system/sw/bin";
+      # The runner's API (agents/runner/README.md); a launcher from before the runner ignores it.
+      SCULPT_RUNNER = config.aiBox.agents.runner.socket;
     };
     serviceConfig = {
       User = cfg.user;
@@ -44,8 +52,8 @@ in
         "--socket /run/sites/lab-sculpt/app.sock"
         "--claude /etc/profiles/per-user/${cfg.user}/bin/claude"
       ];
-      # The studio may be down or restarting (a namespace switch); the script retries, and a crash
-      # or a missing script (the checkout on another branch) is retried here.
+      # The studio or the runner may be down or restarting (a namespace switch); the script
+      # retries, and a crash or a missing script (the checkout on another branch) is retried here.
       Restart = "always";
       RestartSec = 10;
     };
