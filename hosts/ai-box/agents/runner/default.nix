@@ -79,6 +79,13 @@ let
 in
 {
   options.aiBox.agents.runner = {
+    package = lib.mkOption {
+      type = lib.types.package;
+      internal = true;
+      readOnly = true;
+      default = agentRunner;
+      description = "The runner's CLI (and service), agent-runner.";
+    };
     default = lib.mkOption {
       type = lib.types.str;
       default = "claude";

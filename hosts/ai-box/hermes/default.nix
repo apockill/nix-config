@@ -80,7 +80,7 @@ in
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
     ./desk-idle # the desk's hourly sleep check (aiBox.hermesCron.desk-idle)
     ./usage-alert # disk and memory over 95%: Discord report (aiBox.hermesCron.usage-alert)
-    ./cc # cc: Claude Code jobs as Remote Control sessions
+    ./cc # cc: the agent's coding jobs, as agent runner sessions (../agents/runner)
     ./sculpt-launcher # Sculpt Studio's builder sessions (lab-sculpt's builder-wakes)
     ./home.nix # home-manager: git, gh (the coding agents: ../agents)
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya

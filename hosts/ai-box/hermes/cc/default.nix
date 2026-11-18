@@ -1,20 +1,16 @@
-# `cc`: the agent's Claude Code jobs as Remote Control sessions, so Alex can
-# watch and steer them from claude.ai/code or the Claude app while they run.
+# `cc`: the agent's coding jobs, as sessions on the agent runner (../../agents/runner).
 #
-# Each job is an interactive `claude --remote-control` in its own tmux session.
-# Remote Control needs the full `claude auth login` (stored in
-# ~/.claude/.credentials.json); the long-lived CLAUDE_CODE_OAUTH_TOKEN can't
-# open Remote Control sessions and takes precedence, so jobs run without it.
-# Plain `claude -p` keeps using the token, as the fallback when the login lapses.
+# `cc start <title> <dir> <task-file>` starts a job as a runner session named after its title:
+# Claude Code by default, the Antigravity CLI with `--agent antigravity`. `cc send/peek/answer/
+# list/stop` follow and steer it. Jobs run in the runner's service, so gateway restarts and
+# switches leave them running, and a reboot leaves them resumable (the next `cc send` resumes the
+# conversation). ./cc.py is the CLI (stdlib Python; tests in ./test_cc.py, run by `just test`).
 #
-# The tmux server runs as its own service (cc-tmux), not under the agent: a
-# gateway restart (every switch, including the hourly upgrade) killed jobs
-# whose tmux lived in hermes-agent's cgroup. A switch doesn't restart it either.
-# A boot still ends every job, so `cc start` records each one (name, dir, Claude
-# session id, environment) and cc-restore resumes the recorded conversations
-# whenever the tmux server starts. `cc stop` deletes the record.
-#
-# ./cc.py is the CLI (stdlib Python; tests in ./test_cc.py, run by `just test`).
+# Before the runner, each job was an interactive `claude --remote-control` in tmux, so Alex could
+# follow it in the Claude app; the sites live view replaces that. The jobs started that way run on
+# until they finish: the cc-tmux service and its tool, `cc-tmux` (./cc_tmux.py, the old cc), stay
+# for them, `cc` hands it any job name only that tmux server knows, and cc-restore still resumes
+# them at boot. Both go once the last of them has ended.
 {
   config,
   lib,
@@ -28,9 +24,9 @@ let
   jobs = "${cfg.stateDir}/.claude/cc-jobs";
   tmuxCmd = "${pkgs.tmux}/bin/tmux -S ${sock}";
 
-  # cc.py reads all three from the environment; a caller's own values win
+  # cc_tmux.py reads all three from the environment; a caller's own values win
   # (the tests point them at a scratch server).
-  cc = pkgs.writers.writePython3Bin "cc" {
+  ccTmux = pkgs.writers.writePython3Bin "cc-tmux" {
     flakeIgnore = [ "E501" ];
     makeWrapperArgs = [
       "--set-default"
@@ -43,13 +39,32 @@ let
       "CC_JOBS"
       jobs
     ];
+  } (builtins.readFile ./cc_tmux.py);
+
+  cc = pkgs.writers.writePython3Bin "cc" {
+    # W503: black breaks long conditions before the operator.
+    flakeIgnore = [
+      "E501"
+      "W503"
+    ];
+    makeWrapperArgs = [
+      "--set-default"
+      "CC_RUNNER"
+      "${config.aiBox.agents.runner.package}/bin/agent-runner"
+      "--set-default"
+      "CC_LEGACY"
+      "${ccTmux}/bin/cc-tmux"
+    ];
   } (builtins.readFile ./cc.py);
 in
 {
-  services.hermes-agent.extraPackages = [ cc ];
+  services.hermes-agent.extraPackages = [
+    cc
+    ccTmux
+  ];
 
   systemd.services.cc-tmux = {
-    description = "tmux server for the agent's Claude Code jobs (cc)";
+    description = "tmux server for the agent's Claude Code jobs from before the agent runner (cc-tmux)";
     wantedBy = [ "multi-user.target" ];
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
@@ -79,7 +94,7 @@ in
 
   # Pulled in by every start of cc-tmux (boot, or a restart after a crash took the jobs with it).
   systemd.services.cc-restore = {
-    description = "Resume the agent's recorded Claude Code jobs (cc restore)";
+    description = "Resume the agent's recorded tmux Claude Code jobs (cc-tmux restore)";
     wantedBy = [ "cc-tmux.service" ];
     after = [ "cc-tmux.service" ];
     environment.HOME = cfg.stateDir;
@@ -87,7 +102,7 @@ in
       User = cfg.user;
       Group = cfg.group;
       Type = "oneshot";
-      ExecStart = "${cc}/bin/cc restore";
+      ExecStart = "${ccTmux}/bin/cc-tmux restore";
     };
   };
 }

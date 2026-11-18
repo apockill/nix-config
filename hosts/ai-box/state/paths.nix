@@ -232,7 +232,7 @@ in
     };
     "${hermes}/.claude" = {
       backup = "cache";
-      why = "Claude Code session history and its claude.ai login (Remote Control; hermes/cc); handy across reboots, not needed on a new box (sign in again).";
+      why = "Claude Code: settings, session transcripts (the agent runner points at them) and the claude.ai login of the tmux jobs from before the runner (hermes/cc); handy across reboots, not needed on a new box (sign in again).";
     };
     "${hermes}/.hermes/cache" = {
       backup = "cache";

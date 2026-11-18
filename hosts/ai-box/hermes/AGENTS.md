@@ -88,7 +88,15 @@ about the change.
   token). No per-token billing; never set `ANTHROPIC_API_KEY`, which switches
   to metered billing. Claude Code uses the same subscription and is the
   preferred harness for coding work.
-- **Run Claude Code jobs with `cc`**, not `claude -p`: `cc start "<project>: <job>" <dir> <task-file>` starts an interactive Remote Control session in tmux, which Alex can watch and steer from claude.ai/code or the Claude app. Follow it with `cc peek`, steer with `cc send`, end it with `cc stop`. Remote Control needs the full `claude auth login` (Alex signs in once in the live view); if it has lapsed, tell Alex and fall back to `claude -p`, which uses the token.
+- **Run coding jobs with `cc`**, not `claude -p`: `cc start "<project>: <job>" <dir> <task-file>`
+  starts the job as a session on the agent runner (`hosts/ai-box/agents/runner`): Claude Code by
+  default, the Antigravity CLI with `--agent antigravity` (`--model` picks the model). Follow it
+  with `cc peek`, steer with `cc send`, answer a permission request or question it shows with
+  `cc answer`, end it with `cc stop`. It runs outside the gateway, so your restarts don't touch
+  it; after a reboot `cc send` resumes it. If the agent can't start or its sign-in has expired,
+  `cc start` fails with the reason and Alex gets a Discord note: tell him what you were starting,
+  never fall back to another route. Jobs from before the runner (tmux, Remote Control) run on
+  until they end; `cc` still reaches them.
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions by default. They can't use the terminal, files, or browser unless
   Alex explicitly asks for that job (then create it with its own tool list and
