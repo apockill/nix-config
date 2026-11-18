@@ -1,4 +1,4 @@
-"""`agent wait`: block until a job needs its starter, for the Hermes waiters (cc-wait.sh).
+"""`agent wait`: block until a job needs its starter (Hermes runs it as a background waiter).
 
 It returns (and the CLI exits 0, so a background waiter wakes its owner) when the job
   - prints a line that matches the marker               -> "MARKER <the line>"

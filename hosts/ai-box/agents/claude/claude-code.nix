@@ -12,7 +12,7 @@ let
   # wipe only keeps ~/.claude (state/paths.nix), and a file of its own in ~
   # can't be bind-mounted because Claude Code replaces it by renaming. So the
   # claude on hermes's PATH defaults it to ~/.claude for every launcher (the
-  # agent, cc, code-server's Claude extension).
+  # agent, the agent runner's sessions, code-server's Claude extension).
   claudeCode = pkgs.symlinkJoin {
     name = "claude-code";
     paths = [ pkgs.claude-code ];

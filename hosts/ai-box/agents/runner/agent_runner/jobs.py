@@ -1,8 +1,7 @@
-"""Jobs: what the CLI adds to the API (it was cc's job layer).
+"""Jobs: what the CLI adds to the API.
 
 A job is a session named after its title (`slug`), started from a task file as its first message,
-with the starter's PATH and temp folder (PASSED_ENV). The jobs started in tmux before the runner
-(cc-tmux, AGENT_RUNNER_CC_TMUX) are handed to that tool until the last of them ends: `Legacy`.
+with the starter's PATH and temp folder (PASSED_ENV).
 """
 
 from __future__ import annotations
@@ -11,8 +10,7 @@ import json
 import os
 import re
 import string
-import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -107,41 +105,3 @@ def answer_body(
             raise JobError(f"{request_id}: the answer isn't JSON: {e}") from e
         return {"action": "accept", "content": content}
     raise JobError(f"{request_id} isn't a request id (p1, q1, ...; see peek)")
-
-
-@dataclass(frozen=True)
-class Legacy:
-    """The tmux jobs from before the runner: cc-tmux (None once it's gone)."""
-
-    command: str | None
-
-    def run(
-        self, *args: str, capture: bool = False
-    ) -> subprocess.CompletedProcess[str]:
-        assert self.command
-        try:
-            return subprocess.run(
-                [self.command, *args],
-                capture_output=capture,
-                text=True,
-                errors="replace",
-                check=False,
-            )
-        except OSError as e:
-            raise JobError(f"can't run {self.command}: {e.strerror}") from e
-
-    def listing(self) -> list[str]:
-        """cc-tmux's list: one line per job, its name first."""
-        if not self.command:
-            return []
-        done = self.run("list", capture=True)
-        if done.returncode != 0:
-            raise JobError(f"cc-tmux list failed: {done.stderr.strip()}")
-        return [ln for ln in done.stdout.splitlines() if ln.strip() and ln != "no jobs"]
-
-    def names(self) -> list[str]:
-        return [line.split()[0] for line in self.listing()]
-
-    def handle(self, args: Sequence[str]) -> int:
-        """Run a verb on a tmux job, with the CLI's own output; its exit code."""
-        return self.run(*args).returncode

@@ -1,4 +1,4 @@
-"""cli.py: every verb of `agent` against the service, and the tmux jobs from before it."""
+"""cli.py: every verb of `agent` against the service."""
 
 from __future__ import annotations
 
@@ -8,21 +8,18 @@ from pathlib import Path
 import pytest
 from agent_runner import cli
 from conftest import Service
-from test_jobs import fake_tmux, tmux_calls
 
 
 class Agent:
-    """`agent` with the service's socket, and a stand-in cc-tmux if given its jobs."""
+    """`agent` with the service's socket."""
 
-    def __init__(self, service: Service, tmux_jobs: list[str] | None = None) -> None:
+    def __init__(self, service: Service) -> None:
         self.service = service
         self.env = {
             "AGENT_RUNNER_SOCKET": str(service.socket),
             "PATH": "/the/callers/path",
             "TMPDIR": "/tmp/x",
         }
-        if tmux_jobs is not None:
-            self.env["AGENT_RUNNER_CC_TMUX"] = str(fake_tmux(service.tmp, tmux_jobs))
 
     def __call__(self, *argv: str) -> int:
         return cli.main(list(argv), self.env, "agent")
@@ -191,59 +188,23 @@ def test_list(service: Service, capsys: pytest.CaptureFixture[str]) -> None:
     assert listed["name"] == "a" and listed["pending"] == 1
 
 
-def test_tmux_jobs_go_to_cc_tmux(
+def test_an_unknown_session_is_the_runners_error(
     service: Service, capfd: pytest.CaptureFixture[str]
 ) -> None:
-    agent = Agent(service, ["old-job"])
-    service.start_session("new-job")
-    assert agent("send", "new-job", "hello") == 0
-    assert agent("send", "old-job", "hello", "--there") == 0
-    assert agent("peek", "old-job", "5") == 0
-    assert agent("stop", "old-job") == 3  # cc-tmux's own exit code
-    assert agent("stop", "new-job") == 0
-    calls = [c for c in tmux_calls(service.tmp) if c[0] != "list"]
-    assert calls == [
-        ["send", "old-job", "hello --there"],
-        ["peek", "old-job", "5"],
-        ["stop", "old-job"],
-    ]
-    assert service.status("new-job")["state"] == "stopped"
-    capfd.readouterr()
-    assert agent("peek", "ghost") == 1
-    assert "no session named ghost" in capfd.readouterr().err
-    assert agent("wait", "old-job") == 1
-    assert "tmux-legacy/cc-wait.sh" in capfd.readouterr().err
-
-
-def test_list_shows_both(service: Service, capfd: pytest.CaptureFixture[str]) -> None:
-    agent = Agent(service, ["old-job"])
-    service.start_session("new-job")
-    capfd.readouterr()
-    assert agent("list") == 0
-    out = capfd.readouterr().out.splitlines()
-    assert out[0].startswith("new-job idle fake since ")
-    assert out[1:] == [
-        "in tmux, from before the runner (Remote Control):",
-        "  old-job running since today",
-    ]
-    service.call("POST", "/v1/sessions/new-job/stop", {})
-
-
-def test_a_title_still_running_in_tmux_isnt_started_again(
-    service: Service, capsys: pytest.CaptureFixture[str]
-) -> None:
-    agent = Agent(service, ["old-job"])
-    assert agent("start", "Old job", str(service.tmp), task(service, "x")) == 1
-    assert "still running in tmux" in capsys.readouterr().err
-    assert service.call("GET", "/v1/sessions") == {"sessions": []}
+    agent = Agent(service)
+    for verb in (["peek", "ghost"], ["send", "ghost", "hi"], ["stop", "ghost"]):
+        assert agent(*verb) == 1
+        assert "no session named ghost" in capfd.readouterr().err
+    assert agent("wait", "ghost") == 0
+    assert capfd.readouterr().out == "ENDED: no session ghost\n"
 
 
 def test_without_the_runner(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main(["list"], {}, "agent") == 1
     assert "agent: AGENT_RUNNER_SOCKET isn't set" in capsys.readouterr().err
     env = {"AGENT_RUNNER_SOCKET": str(tmp_path / "sock")}
-    assert cli.main(["list"], env, "cc") == 1
-    assert capsys.readouterr().err.startswith("cc: the runner isn't running")
+    assert cli.main(["list"], env, "agent") == 1
+    assert capsys.readouterr().err.startswith("agent: the runner isn't running")
 
 
 def test_restart(service: Service, capsys: pytest.CaptureFixture[str]) -> None:

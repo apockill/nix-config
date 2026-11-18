@@ -49,7 +49,7 @@ def test_a_pre_split_record_loads(tmp_path: Path) -> None:
         "reason": "the runner restarted; a message resumes it",
         "model": "haiku",
         "mode": None,
-        "origin": "cc: Job",
+        "origin": "job: Job",
         "env": {"PATH": "/bin"},
         "session_meta": None,
         "agent_session_id": "9c32",

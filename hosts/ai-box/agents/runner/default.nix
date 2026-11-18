@@ -87,11 +87,6 @@ let
       "--set-default"
       "AGENT_RUNNER_NOTIFY"
       "notify-alex"
-    ]
-    ++ lib.optionals (runnerCfg.tmuxJobs != null) [
-      "--set-default"
-      "AGENT_RUNNER_CC_TMUX"
-      runnerCfg.tmuxJobs
     ];
     meta.mainProgram = "agent";
   };
@@ -116,11 +111,6 @@ in
       readOnly = true;
       default = agentRunner;
       description = "The runner's CLI and service, `agent`.";
-    };
-    tmuxJobs = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      description = "The tool for the jobs started in tmux before the runner (cc-tmux, ../../hermes/cc), which `agent` hands those jobs to; null once the last has ended.";
     };
     default = lib.mkOption {
       type = lib.types.str;

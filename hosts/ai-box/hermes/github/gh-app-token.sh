@@ -2,7 +2,7 @@
 # The private key is read from 1Password (vault ai-assistant, item "GitHub App", field credential)
 # straight into openssl through a pipe; it never touches disk, argv or the environment.
 # Use:  GH_TOKEN=$(gh-app-token) gh pr create ...   (the token itself must never be printed)
-# Without the 1Password service account (a cc job's tmux server, a cron job) op would stop and ask
+# Without the 1Password service account (an agent job, a cron job) op would stop and ask
 # on the terminal to add an account, hanging whatever called gh: fail at once instead.
 if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
   echo "gh-app-token: no OP_SERVICE_ACCOUNT_TOKEN here, so no GitHub token" >&2

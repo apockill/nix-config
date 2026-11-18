@@ -88,15 +88,16 @@ about the change.
   token). No per-token billing; never set `ANTHROPIC_API_KEY`, which switches
   to metered billing. Claude Code uses the same subscription and is the
   preferred harness for coding work.
-- **Run coding jobs with `cc`**, not `claude -p`: `cc start "<project>: <job>" <dir> <task-file>`
-  starts the job as a session on the agent runner (`hosts/ai-box/agents/runner`): Claude Code by
-  default, the Antigravity CLI with `--agent antigravity` (`--model` picks the model). Follow it
-  with `cc peek`, steer with `cc send`, answer a permission request or question it shows with
-  `cc answer`, end it with `cc stop`. It runs outside the gateway, so your restarts don't touch
-  it; after a reboot `cc send` resumes it. If the agent can't start or its sign-in has expired,
-  `cc start` fails with the reason and Alex gets a Discord note: tell him what you were starting,
-  never fall back to another route. Jobs from before the runner (tmux, Remote Control) run on
-  until they end; `cc` still reaches them.
+- **Run coding jobs with `agent`**, not `claude -p`: `agent start "<project>: <job>" <dir>
+  <task-file>` starts the job as a session on the agent runner (`hosts/ai-box/agents/runner`, its
+  README.md has every verb): Claude Code by default, the Antigravity CLI with `--agent
+  antigravity` (`--model` picks the model). Wait on it with `agent wait <session>` (a background
+  process with notify: it wakes you on a done marker, a question, a quiet job or its end), follow
+  it with `agent peek`, steer with `agent send`, answer a permission request or question it shows
+  with `agent answer`, end it with `agent stop`. It runs outside the gateway, so your restarts
+  don't touch it; after a reboot `agent send` resumes it. If the agent can't start or its sign-in
+  has expired, `agent start` fails with the reason and Alex gets a Discord note: tell him what you
+  were starting, never fall back to another route.
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions by default. They can't use the terminal, files, or browser unless
   Alex explicitly asks for that job (then create it with its own tool list and

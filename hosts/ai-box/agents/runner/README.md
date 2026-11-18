@@ -11,9 +11,8 @@ transcript are unchanged, and the runner only starts, watches, steers and stops 
   status agent-runner`, running `agent serve`), separate from the Hermes gateway, so a gateway
   restart leaves sessions running. Switches don't restart it; `agent restart` (`POST
   /v1/restart`) applies a new version: the service exits with code 75 and systemd starts it again.
-- CLI: `agent` (`agent --help`; see [CLI](#cli)): sessions and jobs. `cc` is another name for it,
-  kept while the Hermes skills say `cc` and jobs from before the runner still run in tmux
-  (../../hermes/cc).
+- CLI: `agent` (`agent --help`; see [CLI](#cli)): sessions and jobs. It is the only way to run a
+  coding job on ai-box.
 - Code: the package `agent_runner/`, one concern per module (its `__init__.py` lists them), stdlib
   Python only, every message and record a typed dataclass checked strictly where JSON comes in
   (`schema.py`). Tests in `tests/`: one module per source module, the end-to-end tests
@@ -225,14 +224,12 @@ the job layer:
 | `peek <name> [lines]` | the output as text (default 40 lines) |
 | `answer <name> <request> [value]` | a permission (`p1`: an option id, or `--cancel`) or a question (`q1`: the form's fields as a JSON object, or `--decline`, `--cancel`) |
 | `wait <name>` | block until the job needs its starter; prints one of `MARKER <line>` (a line matching `--marker`, default `^[A-Z][A-Z0-9-]*-(DONE\|NEED-LIVE\|RESTART-PLEASE)(:\|\s*$)`; lines there before it started don't count), `WAITING` (then the open requests and the last output), `IDLE (<state>, quiet <n>s)` (no turn running and no event for `--idle` seconds, default 300), `ENDED <state>: <reason>` or `ENDED: no session <name>`, `TIMEOUT` (`--timeout`, default 4 h); exits 0 |
-| `list [--json]` | the sessions, oldest first, and the jobs still in tmux |
+| `list [--json]` | the sessions, oldest first |
 | `status <name> [--json]`, `transcript <name>` | the session; its vendor transcript's path |
 | `cancel <name>`, `stop <name> [--reason R]` | end the turn; end the session |
 | `events [<name>] [--since N] [-f]` | events as JSON lines |
 | `restart`, `serve` | restart the service; run it |
 
-Jobs started in tmux before the runner (cc-tmux) are handed to `cc-tmux` by `send`, `peek` and
-`stop` until they end, and `list` shows them.
 
 ## Events
 

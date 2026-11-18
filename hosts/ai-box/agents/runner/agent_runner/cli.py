@@ -1,7 +1,7 @@
 """`agent`: the coding agents' sessions and jobs, from a shell (README.md, "CLI").
 
 Each verb is a call or two of the API, plus the job layer (jobs.py): names from titles, the task
-file as the first message, the jobs still in tmux from before the runner, and `wait`.
+file as the first message, and `wait`.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from typing import NoReturn
 
 from .api_types import SessionStatus
 from .client import Client, ClientError, quote
-from .jobs import JobError, JobSpec, Legacy, answer_body, read_task, start_request
+from .jobs import JobError, JobSpec, answer_body, read_task, start_request
 from .render import asked
 from .schema import JsonObject, encode
 from .wait import Waiting, wait
@@ -111,7 +111,7 @@ def parser(prog: str) -> Parser:
             s.add_argument("--json", action="store_true")
         if verb == "stop":
             s.add_argument("--reason")
-    s = sub.add_parser("list", help="the sessions, and the jobs still in tmux")
+    s = sub.add_parser("list", help="the sessions, oldest first")
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("events", help="events as JSON lines")
     s.add_argument("name", nargs="?")
@@ -137,19 +137,8 @@ def show(s: SessionStatus) -> None:
 
 
 class Cli:
-    def __init__(self, client: Client, legacy: Legacy) -> None:
+    def __init__(self, client: Client) -> None:
         self.client = client
-        self.legacy = legacy
-
-    def in_tmux(self, name: str) -> bool:
-        """A job only the tmux server from before the runner knows."""
-        try:
-            self.client.status(name)
-            return False
-        except ClientError as e:
-            if e.status != 404:
-                raise
-        return name in self.legacy.names()
 
     def run(self, args: argparse.Namespace, environ: dict[str, str]) -> int:
         c = self.client
@@ -160,17 +149,11 @@ class Cli:
                 text = read_task(args.file) if args.file else " ".join(args.message)
                 if not text.strip():
                     raise JobError("send needs a message (or --file)")
-                if self.in_tmux(args.name):
-                    return self.legacy.handle(["send", args.name, text])
                 print(c.send(args.name, text).delivery)
             case "peek":
-                if self.in_tmux(args.name):
-                    return self.legacy.handle(["peek", args.name, str(args.lines)])
                 for line in c.output(args.name, args.lines).lines:
                     print(line)
             case "stop":
-                if self.in_tmux(args.name):
-                    return self.legacy.handle(["stop", args.name])
                 show(c.stop(args.name, args.reason))
             case "answer":
                 body = answer_body(
@@ -178,10 +161,6 @@ class Cli:
                 )
                 show(c.answer(args.name, args.request_id, body))
             case "wait":
-                if self.in_tmux(args.name):
-                    raise JobError(
-                        f"{args.name} is a tmux job; wait on it with tmux-legacy/cc-wait.sh"
-                    )
                 try:
                     marker = re.compile(args.marker) if args.marker else Waiting.marker
                 except re.error as e:
@@ -237,8 +216,6 @@ class Cli:
             session_meta=args.session_meta,
         )
         req = start_request(spec, environ)
-        if req.name in self.legacy.names():
-            raise JobError(f"a job named {req.name} is still running in tmux (cc-tmux)")
         print(f"session: {req.name}", flush=True)  # other tools parse this line
         show(self.client.start(req))
         return 0
@@ -255,10 +232,6 @@ class Cli:
             print(f"{s.name} {s.state} {s.agent}{model} since {since}{extra}")
         if not sessions:
             print("no sessions")
-        if legacy := self.legacy.listing():
-            print("in tmux, from before the runner (Remote Control):")
-            for line in legacy:
-                print(f"  {line}")
         return 0
 
 
@@ -271,7 +244,7 @@ def main(argv: Sequence[str], environ: dict[str, str], prog: str) -> int:
             file=sys.stderr,
         )
         return 1
-    cli = Cli(Client(socket), Legacy(environ.get("AGENT_RUNNER_CC_TMUX") or None))
+    cli = Cli(Client(socket))
     try:
         return cli.run(args, environ)
     except (ClientError, JobError) as e:

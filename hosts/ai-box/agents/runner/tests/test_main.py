@@ -27,7 +27,6 @@ def test_other_verbs_are_the_cli(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("AGENT_RUNNER_SOCKET", str(service.socket))
-    monkeypatch.delenv("AGENT_RUNNER_CC_TMUX", raising=False)
     assert main(["list"]) == 0
     assert capsys.readouterr().out == "no sessions\n"
     monkeypatch.delenv("AGENT_RUNNER_SOCKET")

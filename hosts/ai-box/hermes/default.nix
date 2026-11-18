@@ -80,7 +80,6 @@ in
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
     ./desk-idle # the desk's hourly sleep check (aiBox.hermesCron.desk-idle)
     ./usage-alert # disk and memory over 95%: Discord report (aiBox.hermesCron.usage-alert)
-    ./cc # the coding jobs from tmux before the agent runner (../agents/runner), and `cc` = `agent`
     ./home.nix # home-manager: git, gh (the coding agents: ../agents)
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
     ./github # GitHub as the ailex-bot App: gh, git identity, gh-app-token
@@ -254,7 +253,7 @@ in
   systemd.services.hermes-agent = {
     wants = [ "hermes-secrets.service" ];
     after = [ "hermes-secrets.service" ];
-    # Same as cc-tmux (cc/default.nix): Claude Code's .claude.json in ~/.claude.
+    # Claude Code's .claude.json in ~/.claude, as for every claude on its PATH (agents/claude).
     environment.CLAUDE_CONFIG_DIR = "${cfg.stateDir}/.claude";
     serviceConfig = {
       EnvironmentFile = [ "${secretsDir}/env" ];

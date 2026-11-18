@@ -1,58 +1,18 @@
-"""jobs.py: names from titles, the start request of a job, answers, and the tmux jobs' tool."""
+"""jobs.py: names from titles, the start request of a job, and answers."""
 
 from __future__ import annotations
 
-import json
-import sys
 from pathlib import Path
 
 import pytest
 from agent_runner.jobs import (
     JobError,
     JobSpec,
-    Legacy,
     answer_body,
     read_task,
     slug,
     start_request,
 )
-
-# A stand-in cc-tmux: logs its arguments as one JSON line, then acts on the first one.
-FAKE_TMUX = """\
-import json, sys
-log, known = sys.argv[1], [k for k in sys.argv[2].split(",") if k]
-args = sys.argv[3:]
-with open(log, "a") as f:
-    f.write(json.dumps(args) + "\\n")
-if args[0] == "list":
-    if known == ["FAIL"]:
-        print("tmux is broken", file=sys.stderr)
-        sys.exit(1)
-    print("\\n".join(f"{k} running since today" for k in known) or "no jobs")
-else:
-    print(f"tmux {args[0]}")
-    sys.exit(3 if args[0] == "stop" else 0)
-"""
-
-
-def fake_tmux(tmp: Path, jobs: list[str]) -> Path:
-    """A cc-tmux that knows `jobs`; its calls go to tmp/tmux.log."""
-    script = tmp / "fake_tmux.py"
-    script.write_text(FAKE_TMUX)
-    exe = tmp / "cc-tmux"
-    exe.write_text(
-        f"#!/bin/sh\nexec {sys.executable} {script} {tmp / 'tmux.log'}"
-        f" '{','.join(jobs)}' \"$@\"\n"
-    )
-    exe.chmod(0o755)
-    return exe
-
-
-def tmux_calls(tmp: Path) -> list[list[str]]:
-    log = tmp / "tmux.log"
-    if not log.exists():
-        return []
-    return [json.loads(line) for line in log.read_text().splitlines()]
 
 
 @pytest.mark.parametrize(
@@ -163,35 +123,3 @@ def test_answer_body_refuses(
 ) -> None:
     with pytest.raises(JobError, match=error):
         answer_body(request_id, value, decline, False)
-
-
-def test_legacy_without_cc_tmux() -> None:
-    legacy = Legacy(None)
-    assert legacy.listing() == [] and legacy.names() == []
-
-
-def test_legacy_lists_and_hands_verbs_on(
-    tmp_path: Path, capfd: pytest.CaptureFixture[str]
-) -> None:
-    legacy = Legacy(str(fake_tmux(tmp_path, ["old-job", "other"])))
-    assert legacy.listing() == [
-        "old-job running since today",
-        "other running since today",
-    ]
-    assert legacy.names() == ["old-job", "other"]
-    capfd.readouterr()
-    assert legacy.handle(["peek", "old-job", "5"]) == 0
-    assert legacy.handle(["stop", "old-job"]) == 3
-    assert capfd.readouterr().out == "tmux peek\ntmux stop\n"
-    assert tmux_calls(tmp_path)[-2:] == [["peek", "old-job", "5"], ["stop", "old-job"]]
-
-
-def test_legacy_with_no_jobs(tmp_path: Path) -> None:
-    assert Legacy(str(fake_tmux(tmp_path, []))).names() == []
-
-
-def test_legacy_failures_are_loud(tmp_path: Path) -> None:
-    with pytest.raises(JobError, match="cc-tmux list failed: tmux is broken"):
-        Legacy(str(fake_tmux(tmp_path, ["FAIL"]))).listing()
-    with pytest.raises(JobError, match="can't run /nonexistent/cc-tmux"):
-        Legacy("/nonexistent/cc-tmux").listing()

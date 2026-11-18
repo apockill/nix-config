@@ -232,7 +232,7 @@ in
     };
     "${hermes}/.claude" = {
       backup = "cache";
-      why = "Claude Code: settings, session transcripts (the agent runner points at them) and the claude.ai login of the tmux jobs from before the runner (hermes/cc); handy across reboots, not needed on a new box (sign in again).";
+      why = "Claude Code: settings and session transcripts (the agent runner points at them); handy across reboots, not needed on a new box.";
     };
     "${hermes}/.hermes/cache" = {
       backup = "cache";
@@ -256,7 +256,7 @@ in
     };
     "${hermes}/worktrees" = {
       backup = "cache";
-      why = "Git worktrees of in-flight changes (sites, nix-config) that cc jobs run in. Commits live in each repo's own .git; kept so jobs and their .brief/ files survive a reboot.";
+      why = "Git worktrees of in-flight changes (sites, nix-config) that agent jobs run in. Commits live in each repo's own .git; kept so jobs and their .brief/ files survive a reboot.";
     };
     # Generated or transient files inside ~/.hermes (restic): kept with it,
     # but not backed up.
@@ -301,7 +301,7 @@ in
     "${hermes}/.claude.json" = {
       file = true;
       backup = "ephemeral";
-      why = "Stale Claude Code config from before CLAUDE_CONFIG_DIR moved it into ~/.claude (hermes/cc/default.nix).";
+      why = "Stale Claude Code config from before CLAUDE_CONFIG_DIR moved it into ~/.claude (agents/claude/claude-code.nix).";
     };
     "${hermes}/sites-ops-scratch" = {
       backup = "ephemeral";
