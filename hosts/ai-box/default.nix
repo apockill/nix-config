@@ -24,7 +24,6 @@
     ./robotics
     ./projects
     ./agents # the coding agents (Claude Code, Antigravity CLI), one directory per vendor
-    ./agentsview # every agent conversation in one place (agentsview.alexthiele.io)
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
