@@ -92,7 +92,7 @@ in
     };
     "/var/lib/hermes-instructions" = {
       backup = "cache";
-      why = "Stamps for installing SOUL/AGENTS/CLAUDE.md; if lost, the repo versions are reinstalled.";
+      why = "Stamps for installing SOUL.md and the AGENTS.md files (hermes/default.nix); if lost, the repo versions are reinstalled.";
     };
     "/var/lib/private/llama-cpp" = {
       backup = "cache";

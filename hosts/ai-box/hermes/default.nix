@@ -19,10 +19,12 @@ let
   # The agent may edit its instructions on disk (and keeps a PR in sync), so
   # these are installed only when the repo's version changes, not on every
   # activation. Stamps are root-owned so the agent can't suppress an update.
+  # The last one is every coding agent's (../agents): each vendor links its own
+  # user-level instructions file to it.
   instructions = {
     "${hermesHome}/SOUL.md" = ./SOUL.md;
     "${workspace}/AGENTS.md" = ./AGENTS.md;
-    "${cfg.stateDir}/.claude/CLAUDE.md" = ./CLAUDE.md;
+    "${cfg.stateDir}/.agents/AGENTS.md" = ../agents/AGENTS.md;
   };
   stampDir = "/var/lib/hermes-instructions";
 
@@ -80,7 +82,7 @@ in
     ./usage-alert # disk and memory over 95%: Discord report (aiBox.hermesCron.usage-alert)
     ./cc # cc: Claude Code jobs as Remote Control sessions
     ./sculpt-launcher # Sculpt Studio's builder sessions (lab-sculpt's builder-wakes)
-    ./home.nix # home-manager: git, gh, Claude Code settings
+    ./home.nix # home-manager: git, gh (the coding agents: ../agents)
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
     ./github # GitHub as the ailex-bot App: gh, git identity, gh-app-token
     {

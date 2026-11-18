@@ -21,8 +21,9 @@
   Alex on Discord, and `ai-box-reboot` refuses while any exist.
 - `restic` paths are backed up nightly to the agent's Google Drive
   (`hosts/ai-box/backups`), with a weekly restore drill.
-- Your home directory's config (git, gh, Claude Code settings) comes from
-  home-manager in `hosts/ai-box/hermes/home.nix`; don't configure it by hand.
+- Your home directory's config (git, gh) comes from home-manager in
+  `hosts/ai-box/hermes/home.nix`, and the coding agents' (Claude Code,
+  Antigravity) from `hosts/ai-box/agents/`; don't configure them by hand.
 
 ## Installing tools
 
