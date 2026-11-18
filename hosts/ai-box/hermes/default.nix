@@ -80,7 +80,7 @@ in
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
     ./desk-idle # the desk's hourly sleep check (aiBox.hermesCron.desk-idle)
     ./usage-alert # disk and memory over 95%: Discord report (aiBox.hermesCron.usage-alert)
-    ./cc # cc: the agent's coding jobs, as agent runner sessions (../agents/runner)
+    ./cc # the coding jobs from tmux before the agent runner (../agents/runner), and `cc` = `agent`
     ./home.nix # home-manager: git, gh (the coding agents: ../agents)
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
     ./github # GitHub as the ailex-bot App: gh, git identity, gh-app-token

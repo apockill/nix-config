@@ -1,16 +1,14 @@
-# `cc`: the agent's coding jobs, as sessions on the agent runner (../../agents/runner).
-#
-# `cc start <title> <dir> <task-file>` starts a job as a runner session named after its title:
-# Claude Code by default, the Antigravity CLI with `--agent antigravity`. `cc send/peek/answer/
-# list/stop` follow and steer it. Jobs run in the runner's service, so gateway restarts and
-# switches leave them running, and a reboot leaves them resumable (the next `cc send` resumes the
-# conversation). ./cc.py is the CLI (stdlib Python; tests in ./test_cc.py, run by `just test`).
+# The jobs started in tmux before the agent runner (../../agents/runner), until the last one ends.
 #
 # Before the runner, each job was an interactive `claude --remote-control` in tmux, so Alex could
-# follow it in the Claude app; the sites live view replaces that. The jobs started that way run on
-# until they finish: the cc-tmux service and its tool, `cc-tmux` (./cc_tmux.py, the old cc), stay
-# for them, `cc` hands it any job name only that tmux server knows, and cc-restore still resumes
-# them at boot. Both go once the last of them has ended.
+# follow it in the Claude app; the runner's sessions and the sites live view replace that. The jobs
+# started that way run on until they finish: the cc-tmux service and its tool, `cc-tmux`
+# (./cc_tmux.py, the old cc), stay for them, the runner's CLI (`agent`) hands it any job name only
+# that tmux server knows (aiBox.agents.runner.tmuxJobs), and cc-restore still resumes them at boot.
+#
+# `cc` is now only another name for `agent` (`cc start <title> <dir> <task-file>` and the rest work
+# as before), kept for the Hermes skills that still say `cc`. All of this directory goes once the
+# last tmux job has ended (`agent list` shows them) and the skills say `agent`.
 {
   config,
   lib,
@@ -41,27 +39,19 @@ let
     ];
   } (builtins.readFile ./cc_tmux.py);
 
-  cc = pkgs.writers.writePython3Bin "cc" {
-    # W503: black breaks long conditions before the operator.
-    flakeIgnore = [
-      "E501"
-      "W503"
-    ];
-    makeWrapperArgs = [
-      "--set-default"
-      "CC_RUNNER"
-      "${config.aiBox.agents.runner.package}/bin/agent-runner"
-      "--set-default"
-      "CC_LEGACY"
-      "${ccTmux}/bin/cc-tmux"
-    ];
-  } (builtins.readFile ./cc.py);
+  # `cc`: `agent` under its old name.
+  agent = config.aiBox.agents.runner.package;
+  cc = pkgs.runCommand "cc" { } ''
+    mkdir -p $out/bin
+    ln -s ${agent}/bin/agent $out/bin/cc
+  '';
 in
 {
   services.hermes-agent.extraPackages = [
     cc
     ccTmux
   ];
+  aiBox.agents.runner.tmuxJobs = "${ccTmux}/bin/cc-tmux";
 
   systemd.services.cc-tmux = {
     description = "tmux server for the agent's Claude Code jobs from before the agent runner (cc-tmux)";
