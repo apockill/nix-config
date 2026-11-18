@@ -23,6 +23,7 @@
     ./watchdog.nix # a hung restart resets itself (Tegra WDT); system logs for the agent
     ./robotics
     ./projects
+    ./agentsview # every agent conversation in one place (agentsview.alexthiele.io)
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common
