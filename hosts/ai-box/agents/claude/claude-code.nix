@@ -25,5 +25,6 @@ in
   # (Opus 5.5 needs 2.1.280+); this flake tracks Claude Code releases.
   nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ];
 
+  aiBox.agents.claude.cli = claudeCode;
   services.hermes-agent.extraPackages = [ claudeCode ];
 }

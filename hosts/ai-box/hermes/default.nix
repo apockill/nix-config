@@ -78,7 +78,6 @@ in
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
     ./desk-idle # the desk's hourly sleep check (aiBox.hermesCron.desk-idle)
     ./usage-alert # disk and memory over 95%: Discord report (aiBox.hermesCron.usage-alert)
-    ./claude-code.nix # Claude Code: current release, config in ~/.claude
     ./cc # cc: Claude Code jobs as Remote Control sessions
     ./sculpt-launcher # Sculpt Studio's builder sessions (lab-sculpt's builder-wakes)
     ./home.nix # home-manager: git, gh, Claude Code settings
