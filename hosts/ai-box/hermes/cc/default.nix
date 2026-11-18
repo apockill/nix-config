@@ -42,7 +42,11 @@ let
   } (builtins.readFile ./cc_tmux.py);
 
   cc = pkgs.writers.writePython3Bin "cc" {
-    flakeIgnore = [ "E501" ];
+    # W503: black breaks long conditions before the operator.
+    flakeIgnore = [
+      "E501"
+      "W503"
+    ];
     makeWrapperArgs = [
       "--set-default"
       "CC_RUNNER"
