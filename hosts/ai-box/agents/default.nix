@@ -17,6 +17,7 @@
 let
   cfg = config.services.hermes-agent;
   shared = "${cfg.stateDir}/.agents";
+  inherit (config.aiBox.agents) links;
 
   package =
     description:
@@ -53,11 +54,7 @@ in
     links = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
       default = { };
-      description = ''
-        A vendor's own file name for a shared file or folder: link (absolute path) -> target.
-        A real folder already at the link (from before) has its entries moved into the target
-        first; anything of the same name already in the target stays, and the folder is kept.
-      '';
+      description = "A vendor's own file name for a shared file or folder: link (absolute, in the agent's home) -> target. home-manager makes each link.";
     };
   };
 
@@ -67,6 +64,12 @@ in
       why = "Shared agent config (hosts/ai-box/agents): AGENTS.md, reinstalled from the repo when missing, and the user-level skills folder, whose entries are links to checkouts (spec init) or generated.";
     };
 
+    # The shared skills folder, which the vendors' skills links point to.
+    systemd.tmpfiles.settings.agents.${config.aiBox.agents.skills}.d = {
+      inherit (cfg) user group;
+      mode = "0755";
+    };
+
     # Folders kept across boots are bind mounts (state/persist.nix); a link made before its folder
     # is mounted (the first switch that declares it) would be hidden under the mount.
     systemd.services."home-manager-${cfg.user}".unitConfig.RequiresMountsFor = [
@@ -74,38 +77,20 @@ in
     ]
     ++ lib.attrNames config.aiBox.agents.links;
 
+    assertions = lib.mapAttrsToList (link: _: {
+      assertion = lib.hasPrefix "${cfg.stateDir}/" link;
+      message = "aiBox.agents.links: ${link} isn't in the agent's home (${cfg.stateDir})";
+    }) config.aiBox.agents.links;
+
     home-manager.users.${cfg.user} =
-      { lib, ... }:
+      { config, ... }:
       {
-        home.activation.agentLinks = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-          run mkdir -p ${config.aiBox.agents.skills}
-          agentLink() {
-            local link=$1 target=$2 entry
-            if [ -L "$link" ]; then
-              run ln -sfn "$target" "$link"
-            elif [ -d "$link" ]; then
-              for entry in "$link"/* "$link"/.[!.]*; do
-                [ -e "$entry" ] || [ -L "$entry" ] || continue
-                if [ -e "$target/''${entry##*/}" ] || [ -L "$target/''${entry##*/}" ]; then
-                  echo "agentLink: kept $entry: $target has one of that name" >&2
-                else
-                  run mv "$entry" "$target/"
-                fi
-              done
-              run rmdir "$link" && run ln -s "$target" "$link" \
-                || echo "agentLink: $link isn't empty, so it isn't linked to $target" >&2
-            else
-              [ -e "$link" ] && run rm "$link"
-              run mkdir -p "''${link%/*}"
-              run ln -s "$target" "$link"
-            fi
+        home.file = lib.mapAttrs' (
+          link: target:
+          lib.nameValuePair (lib.removePrefix "${cfg.stateDir}/" link) {
+            source = config.lib.file.mkOutOfStoreSymlink target;
           }
-          ${lib.concatStrings (
-            lib.mapAttrsToList (link: target: ''
-              agentLink ${lib.escapeShellArg link} ${lib.escapeShellArg target}
-            '') config.aiBox.agents.links
-          )}
-        '';
+        ) links;
       };
   };
 }

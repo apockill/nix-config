@@ -9,10 +9,11 @@ let
   cfg = config.services.hermes-agent;
 
   # Claude Code keeps .claude.json in CLAUDE_CONFIG_DIR, else in ~. The root
-  # wipe only keeps ~/.claude (state/paths.nix), and a file of its own in ~
-  # can't be bind-mounted because Claude Code replaces it by renaming. So the
-  # claude on hermes's PATH defaults it to ~/.claude for every launcher (the
-  # agent, the agent runner's sessions, code-server's Claude extension).
+  # wipe only keeps ~/.claude (declared in ./default.nix), and a file of its own
+  # in ~ can't be bind-mounted because Claude Code replaces it by renaming. So
+  # the claude on hermes's PATH defaults it to ~/.claude for every launcher (a
+  # login shell, cron, the agent runner's sessions, Sculpt, code-server's Claude
+  # extension), and hermes-agent and the runner set it too.
   claudeCode = pkgs.symlinkJoin {
     name = "claude-code";
     paths = [ pkgs.claude-code ];

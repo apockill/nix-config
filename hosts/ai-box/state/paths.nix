@@ -230,10 +230,6 @@ in
       backup = "cache";
       why = "nix, Go and tool caches.";
     };
-    "${hermes}/.claude" = {
-      backup = "cache";
-      why = "Claude Code: settings and session transcripts (the agent runner points at them); handy across reboots, not needed on a new box.";
-    };
     "${hermes}/.hermes/cache" = {
       backup = "cache";
       why = "Scratch and web caches.";
@@ -297,11 +293,6 @@ in
     "${hermes}/Downloads" = {
       backup = "ephemeral";
       why = "Browser downloads; scratch.";
-    };
-    "${hermes}/.claude.json" = {
-      file = true;
-      backup = "ephemeral";
-      why = "Stale Claude Code config from before CLAUDE_CONFIG_DIR moved it into ~/.claude (agents/claude/claude-code.nix).";
     };
     "${hermes}/sites-ops-scratch" = {
       backup = "ephemeral";

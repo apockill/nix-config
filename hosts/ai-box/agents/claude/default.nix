@@ -15,6 +15,13 @@ in
   aiBox.agents.claude.acp = acp;
   services.hermes-agent.extraPackages = [ acp ];
 
+  # Every claude here keeps its config in ~/.claude (CLAUDE_CONFIG_DIR, ./claude-code.nix), its
+  # .claude.json included, so there's no ~/.claude.json to keep.
+  aiBox.state.paths.${claudeDir} = {
+    backup = "cache";
+    why = "Claude Code (agents/claude): settings, .claude.json (folder trust, onboarding) and session transcripts, which the agent runner points at; handy across reboots, not needed on a new box.";
+  };
+
   # Sessions through the runner (../runner): Claude Code's own binary, on the subscription token.
   aiBox.agents.runner.agents.claude = {
     command = [ "${acp}/bin/claude-agent-acp" ];
@@ -32,8 +39,13 @@ in
     claudeTrustFile = "${claudeDir}/.claude.json";
   };
 
-  # Claude Code reads AGENTS.md in a repository, but at user level only its own CLAUDE.md, and
-  # skills only from .claude/skills.
+  # At user level Claude Code reads only its own CLAUDE.md, and skills only from .claude/skills:
+  # these links give it the shared ones. Measured on 2026-11-18 (claude 2.1.326, the CLI and
+  # claude-agent-acp, the API requests themselves): the linked file reaches the model once, in
+  # a repo with only AGENTS.md, with a CLAUDE.md importing @AGENTS.md, and with neither; a repo's
+  # AGENTS.md reaches it once too, never twice. Claude reading a bare AGENTS.md depends on the
+  # account's state (this account's config does, a fresh one didn't); `@AGENTS.md` in a CLAUDE.md
+  # works either way.
   aiBox.agents.links = {
     "${claudeDir}/CLAUDE.md" = config.aiBox.agents.instructions;
     "${claudeDir}/skills" = config.aiBox.agents.skills;
