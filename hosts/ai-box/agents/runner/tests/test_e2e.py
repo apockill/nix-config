@@ -27,7 +27,6 @@ from agent_runner.events import (
     Updated,
 )
 from agent_runner.render import render
-from agent_runner.schema import encode_object
 from conftest import Service, wait_for
 
 
@@ -107,10 +106,8 @@ def test_permission_requests_wait_for_an_answer(service: Service) -> None:
         {"option_id": "allow"},
     )
     done = service.wait_state("perm", "idle")
-    assert (
-        done["last_message"]
-        == 'permission: {"outcome": "selected", "optionId": "allow"}'
-    )
+    said = done["last_message"].removeprefix("permission: ")
+    assert json.loads(said) == {"outcome": "selected", "optionId": "allow"}
     assert (
         "[permission p1] touch x (allow, reject)"
         in service.call("GET", "/v1/sessions/perm/output")["lines"]
@@ -128,10 +125,8 @@ def test_questions_are_answered_as_forms(service: Service) -> None:
         f"/v1/sessions/q/requests/{pending['request_id']}",
         {"action": "accept", "content": {"colour": "blue"}},
     )
-    assert (
-        service.wait_state("q", "idle")["last_message"]
-        == 'question: {"action": "accept", "content": {"colour": "blue"}}'
-    )
+    said = service.wait_state("q", "idle")["last_message"].removeprefix("question: ")
+    assert json.loads(said) == {"action": "accept", "content": {"colour": "blue"}}
 
 
 def test_a_message_during_a_turn_is_queued_then_sent(service: Service) -> None:
@@ -181,7 +176,7 @@ def test_live_event_stream(service: Service) -> None:
 
     def follow() -> None:
         for event in service.client.events("/v1/events?follow=1"):
-            got.append(dict(encode_object(event)))
+            got.append(event.model_dump(mode="json"))
             if event.kind == "turn_end":
                 return
 
@@ -296,7 +291,7 @@ def test_bad_requests(service: Service) -> None:
 
 def test_render() -> None:
     def ev(body: Any) -> Event:
-        return Event(1, 0.0, "s", body)
+        return Event(seq=1, ts=0.0, session="s", body=body)
 
     def chunk(text: str) -> Event:
         return ev(
@@ -312,7 +307,15 @@ def test_render() -> None:
         ev(Prompted(text="do it\nnow", delivery="sent")),
         chunk("Sure, "),
         chunk("on it.\nSecond line"),
-        ev(Updated(update={"sessionUpdate": "tool_call", "title": "Bash ls"})),
+        ev(
+            Updated(
+                update={
+                    "sessionUpdate": "tool_call",
+                    "toolCallId": "t0",
+                    "title": "Bash ls",
+                }
+            )
+        ),
         ev(
             Updated(
                 update={

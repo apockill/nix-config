@@ -13,9 +13,10 @@ transcript are unchanged, and the runner only starts, watches, steers and stops 
   /v1/restart`) applies a new version: the service exits with code 75 and systemd starts it again.
 - CLI: `agent` (`agent --help`; see [CLI](#cli)): sessions and jobs. It is the only way to run a
   coding job on ai-box.
-- Code: the package `agent_runner/`, one concern per module (its `__init__.py` lists them), stdlib
-  Python only, every message and record a typed dataclass checked strictly where JSON comes in
-  (`schema.py`). Tests in `tests/`: one module per source module, the end-to-end tests
+- Code: the package `agent_runner/`, one concern per module (its `__init__.py` lists them), on the
+  ACP Python SDK (`agent-client-protocol`: the connection and the protocol's models), pydantic
+  (every record and body, checked strictly where it comes in), Starlette and uvicorn (the API) and
+  httpx (the CLI). Tests in `tests/`: one module per source module, the end-to-end tests
   (`test_e2e.py`) against a stand-in agent (`fake_acp_agent.py`), and live smoke tests
   (`test_live.py`, skipped without a sign-in). The nix build runs `mypy --strict` and the tests.
   Vendor settings (command, environment, mode, transcript path) come from the vendor directories

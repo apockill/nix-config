@@ -13,16 +13,17 @@ import shutil
 import sys
 import tempfile
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import ValidationError
+
+from .base import JsonObject, StrictMutable
 from .config import KEEP_ENDED_SECONDS
 from .events import ENDED, Event, State
-from .schema import JsonObject, SchemaError, decode, encode
 
 
-@dataclass(kw_only=True)
-class Record:
+class Record(StrictMutable):
     """A session's record (session.json)."""
 
     name: str
@@ -37,7 +38,7 @@ class Record:
     # Who started it: free text such as "job: <title>", "sculpt: <project>".
     origin: str | None = None
     # Extra environment for the agent, as given to `start` (kept for resumes).
-    env: dict[str, str] = field(default_factory=dict)
+    env: dict[str, str] = {}
     # `_meta` for session/new (vendor options, e.g. Claude's disallowed tools); kept for resumes.
     session_meta: JsonObject | None = None
     # The agent's own session id (resume with it) and its transcript of the session.
@@ -76,15 +77,15 @@ class SessionFiles:
         return self.folder / "agent.log"
 
     def save(self, record: Record) -> None:
-        write_private(self.record, json.dumps(encode(record), indent=2) + "\n")
+        write_private(self.record, record.model_dump_json(indent=2) + "\n")
 
     def load(self) -> Record:
-        """The record; OSError, ValueError (not JSON) or SchemaError (doesn't fit)."""
-        return decode(Record, json.loads(self.record.read_text()))
+        """The record; OSError, or ValidationError (not JSON, or doesn't fit)."""
+        return Record.model_validate_json(self.record.read_text())
 
     def append(self, event: Event) -> None:
         """Log an event; a failure is reported, not raised (the event still goes out live)."""
-        line = json.dumps(event.encode_json(), ensure_ascii=False) + "\n"
+        line = json.dumps(event.model_dump(mode="json"), ensure_ascii=False) + "\n"
         try:
             self.folder.mkdir(parents=True, exist_ok=True)
             with self.events.open("a") as f:
@@ -101,8 +102,8 @@ class SessionFiles:
             with self.events.open() as f:
                 for number, line in enumerate(f, 1):
                     try:
-                        event = Event.decode_json(json.loads(line))
-                    except (ValueError, SchemaError) as e:
+                        event = Event.model_validate_json(line)
+                    except ValidationError as e:
                         print(
                             f"agent-runner: {self.events}:{number}: not an event: {e}",
                             file=sys.stderr,
@@ -123,8 +124,8 @@ class SessionFiles:
         except OSError:
             return 0, 0.0
         for line in reversed(tail):
-            with contextlib.suppress(ValueError, SchemaError):
-                event = Event.decode_json(json.loads(line))
+            with contextlib.suppress(ValidationError):
+                event = Event.model_validate_json(line)
                 return event.seq, event.ts
         return 0, 0.0
 
@@ -151,7 +152,7 @@ class Store:
             files = SessionFiles(path.parent)
             try:
                 record = files.load()
-            except (OSError, ValueError) as e:  # SchemaError is a ValueError
+            except (OSError, ValidationError) as e:
                 print(f"agent-runner: skipped {path}: {e}", file=sys.stderr)
                 continue
             if record.state in ENDED and now - record.updated_at > KEEP_ENDED_SECONDS:

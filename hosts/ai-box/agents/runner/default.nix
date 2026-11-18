@@ -4,7 +4,8 @@
 # (claude-agent-acp, `agy acp`) and serves a local API on a unix socket. `agent` is its CLI and
 # the service (`agent serve`): sessions, and jobs (a session named after a title, its task file the
 # first message). The API is in ./README.md; the code is the typed package ./agent_runner (one
-# concern per module, listed in its __init__.py), stdlib Python only; ./tests has a test module per
+# concern per module, listed in its __init__.py), on the ACP Python SDK, pydantic, Starlette and
+# uvicorn; ./tests has a test module per
 # source module, the end-to-end tests against ./tests/fake_acp_agent.py, and live smoke tests that
 # skip without a sign-in. The package's build runs `mypy --strict` and the tests, so a type error or
 # a failing test fails the system build.
@@ -60,6 +61,14 @@ let
       ];
     };
     build-system = [ py.setuptools ];
+    # The ACP Python SDK (agentclientprotocol/python-sdk) and the API's web stack, from nixpkgs.
+    dependencies = [
+      py.agent-client-protocol
+      py.pydantic
+      py.starlette
+      py.uvicorn
+      py.httpx
+    ];
     nativeCheckInputs = [
       py.pytest
       py.mypy

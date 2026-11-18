@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 from agent_runner.config import AgentSpec, Config
-from agent_runner.schema import SchemaError
+from pydantic import ValidationError
 
 
 def write(tmp_path: Path, data: Any) -> Path:
@@ -51,16 +51,17 @@ def test_the_agents_file_as_default_nix_writes_it(tmp_path: Path) -> None:
     [
         ({"default": "x", "agents": {"x": {"command": ["a"], "cmd": 1}}}, "cmd"),
         ({"default": "y", "agents": {"x": {"command": ["a"]}}}, "isn't defined"),
-        ({"default": "x", "agents": {"x": {"command": []}}}, "can't be empty"),
+        ({"default": "x", "agents": {"x": {"command": []}}}, "at least 1 item"),
         ({"default": "x", "agents": {"x": {"command": "a"}}}, "agents.x.command"),
-        ({"agents": {"x": {"command": ["a"]}}}, "default: missing"),
+        ({"default": "x", "agents": {"x": {"command": [1]}}}, "agents.x.command.0"),
+        ({"agents": {"x": {"command": ["a"]}}}, "default\n  Field required"),
         ({"default": "x", "agents": {"x": {"command": ["a"]}}, "more": 1}, "more"),
     ],
 )
 def test_a_file_that_does_not_fit_stops_the_service(
     tmp_path: Path, data: Any, error: str
 ) -> None:
-    with pytest.raises((SchemaError, ValueError), match=error):
+    with pytest.raises(ValidationError, match=error):
         Config.load(write(tmp_path, data))
 
 

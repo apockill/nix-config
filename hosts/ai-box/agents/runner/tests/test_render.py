@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
-from agent_runner.acp import PermissionOption
+from acp.schema import PermissionOption
+from agent_runner.base import JsonObject
 from agent_runner.events import (
     Body,
     Cancelled,
@@ -15,19 +18,22 @@ from agent_runner.events import (
     Updated,
 )
 from agent_runner.render import asked, question_fields, render
-from agent_runner.schema import JsonValue
 
 
 def ev(body: Body) -> Event:
-    return Event(1, 0.0, "s", body)
+    return Event(seq=1, ts=0.0, session="s", body=body)
+
+
+def tool(update: str, **fields: Any) -> Updated:
+    return Updated(update={"sessionUpdate": update, "toolCallId": "t1", **fields})
 
 
 PERMISSION = PermissionAsked(
     request_id="p1",
     title="touch x",
     options=[
-        PermissionOption("allow", "Allow", "allow_once"),
-        PermissionOption("reject", "Reject", "reject_once"),
+        PermissionOption(option_id="allow", name="Allow", kind="allow_once"),
+        PermissionOption(option_id="reject", name="Reject", kind="reject_once"),
     ],
 )
 
@@ -40,17 +46,20 @@ def test_requests_plans_and_states() -> None:
                 update={
                     "sessionUpdate": "plan",
                     "entries": [
-                        {"content": "read", "status": "completed"},
-                        {"content": "write"},
+                        {"content": "read", "status": "completed", "priority": "high"},
+                        {"content": "write", "status": "pending", "priority": "low"},
                     ],
                 }
             )
         ),
-        ev(Updated(update={"sessionUpdate": "tool_call", "kind": "read"})),
-        ev(Updated(update={"sessionUpdate": "tool_call"})),
-        ev(
-            Updated(update={"sessionUpdate": "tool_call_update", "status": "completed"})
-        ),
+        ev(tool("tool_call", title="", kind="read")),
+        ev(tool("tool_call", title="")),
+        ev(tool("tool_call_update", status="completed")),
+        ev(tool("tool_call_update", status="failed", title="rm y")),
+        ev(tool("tool_call_update", status="failed")),
+        # Not ACP (no toolCallId): passed on to clients, but nothing to show.
+        ev(Updated(update={"sessionUpdate": "tool_call", "title": "no id"})),
+        ev(Updated(update={"sessionUpdate": "a_kind_from_the_future"})),
         ev(Updated(update={"sessionUpdate": "usage_update", "used": 3})),
         ev(StateChanged(state="idle")),
         ev(StateChanged(state="offline", reason="the runner restarted")),
@@ -61,13 +70,24 @@ def test_requests_plans_and_states() -> None:
     assert render(events) == [
         "[permission p1] touch x (allow, reject)",
         "[plan completed] read",
-        "[plan ?] write",
+        "[plan pending] write",
         "[tool] read",
         "[tool] ?",
+        "[tool failed] rm y",
+        "[tool failed] t1",
         "[offline] the runner restarted",
         "[stopped]",
         "[turn ended: None]",
     ]
+
+
+def test_only_text_content_is_text() -> None:
+    image: JsonObject = {"type": "image", "data": "AAAA", "mimeType": "image/png"}
+    events = [
+        ev(Updated(update={"sessionUpdate": "agent_message_chunk", "content": image})),
+        ev(TurnEnded(stop_reason="end_turn")),
+    ]
+    assert render(events) == ["[turn ended: end_turn]"]
 
 
 def test_text_is_joined_until_something_else_comes() -> None:
@@ -111,7 +131,7 @@ def test_text_is_joined_until_something_else_comes() -> None:
         ),
     ],
 )
-def test_question_fields(schema: JsonValue, lines: list[str]) -> None:
+def test_question_fields(schema: JsonObject | None, lines: list[str]) -> None:
     assert question_fields(schema) == lines
 
 

@@ -187,6 +187,21 @@ def turn(rid: Any, session: str, text: str) -> None:
     done()
 
 
+def model_option(current: str) -> dict[str, Any]:
+    """Claude's way to offer models: a select config option of category "model"."""
+    return {
+        "id": "model",
+        "name": "Model",
+        "category": "model",
+        "type": "select",
+        "currentValue": current,
+        "options": [
+            {"value": "big", "name": "Big"},
+            {"value": "small", "name": "Small"},
+        ],
+    }
+
+
 def main() -> None:
     log = open(os.environ["FAKE_LOG"], "a") if os.environ.get("FAKE_LOG") else None
     for line in sys.stdin:
@@ -237,11 +252,14 @@ def main() -> None:
                 continue
             result: dict[str, Any] = {"sessionId": str(uuid.uuid4())}
             if os.environ.get("FAKE_CONFIG_MODEL"):
-                result["configOptions"] = [{"id": "model", "category": "model"}]
+                result["configOptions"] = [model_option("big")]
             else:
                 result["models"] = {
                     "currentModelId": "big",
-                    "availableModels": [{"modelId": "big"}, {"modelId": "small"}],
+                    "availableModels": [
+                        {"modelId": "big", "name": "Big"},
+                        {"modelId": "small", "name": "Small"},
+                    ],
                 }
             send({"jsonrpc": "2.0", "id": rid, "result": result})
         elif method == "session/resume":
@@ -252,7 +270,7 @@ def main() -> None:
                     "result": {
                         "models": {
                             "currentModelId": "big",
-                            "availableModels": [{"modelId": "small"}],
+                            "availableModels": [{"modelId": "small", "name": "Small"}],
                         }
                     },
                 }
@@ -261,11 +279,10 @@ def main() -> None:
             # The conversation so far comes back as updates before the answer.
             say(params["sessionId"], "history")
             send({"jsonrpc": "2.0", "id": rid, "result": {}})
-        elif method in (
-            "session/set_mode",
-            "session/set_model",
-            "session/set_config_option",
-        ):
+        elif method == "session/set_config_option":
+            option = model_option(params["value"])
+            send({"jsonrpc": "2.0", "id": rid, "result": {"configOptions": [option]}})
+        elif method in ("session/set_mode", "session/set_model"):
             send({"jsonrpc": "2.0", "id": rid, "result": {}})
         elif method == "_session/steering":
             send({"jsonrpc": "2.0", "id": rid, "result": {"outcome": "injected"}})

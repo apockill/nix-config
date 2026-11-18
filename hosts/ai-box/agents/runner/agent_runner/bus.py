@@ -26,7 +26,7 @@ class EventBus:
 
     def publish(self, session: str, files: SessionFiles, body: Body) -> Event:
         self.seq += 1
-        event = Event(self.seq, time.time(), session, body)
+        event = Event(seq=self.seq, ts=time.time(), session=session, body=body)
         files.append(event)
         self.ring.append(event)
         for queue in list(self.subscribers):

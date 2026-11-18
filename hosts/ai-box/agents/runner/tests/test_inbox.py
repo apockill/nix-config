@@ -18,9 +18,12 @@ def test_a_malformed_request_is_refused_loudly(service: Service) -> None:
     service.start_session("m", "malformed")
     done = service.wait_state("m", "idle")
     answer = json.loads(done["last_message"].removeprefix("malformed: "))
-    assert answer["code"] == -32602 and "optionId: missing" in answer["message"]
+    assert answer["code"] == -32602 and answer["message"] == "Invalid params"
+    wrong = {".".join(map(str, e["loc"])) for e in answer["data"]["errors"]}
+    assert "options.0.optionId" in wrong
     [error] = kinds(service.events("m"), "error")
     assert "session/request_permission that doesn't fit ACP" in error["message"]
+    assert "options.0.optionId: Field required" in error["message"]
     assert not kinds(service.events("m"), "permission")
     assert done["pending"] == []
 
@@ -29,8 +32,9 @@ def test_an_unknown_request_is_answered_method_not_found(service: Service) -> No
     service.start_session("u", "unknown")
     done = service.wait_state("u", "idle")
     answer = json.loads(done["last_message"].removeprefix("unknown: "))
-    assert answer["code"] == -32601
-    assert answer["message"] == "agent-runner doesn't implement fs/read_text_file"
+    assert answer["code"] == -32601 and answer["message"] == "Method not found"
+    assert answer["data"] == {"method": "fs/read_text_file"}
+    assert not kinds(service.events("u"), "error", "notification")
 
 
 def test_other_notifications_become_events(service: Service) -> None:
@@ -87,8 +91,9 @@ def test_answers_are_checked_against_the_request(service: Service) -> None:
     url = "/v1/sessions/p/requests/p1"
     for body, error in (
         ({"option_id": "maybe"}, "option_id must be one of allow, reject"),
-        ({"option_id": "allow", "extra": 1}, "extra: unknown field"),
-        ({"action": "accept"}, "action: unknown field"),
+        ({"option_id": "allow", "extra": 1}, "extra: Extra inputs are not permitted"),
+        ({"action": "accept"}, "action: Extra inputs are not permitted"),
+        ({"option_id": 3}, "option_id: Input should be a valid string"),
     ):
         with pytest.raises(ClientError, match=error) as e:
             service.call("POST", url, body)
@@ -100,10 +105,13 @@ def test_answers_are_checked_against_the_request(service: Service) -> None:
     assert [p["request_id"] for p in service.status("p")["pending"]] == ["p1"]
     service.call("POST", url, {"option_id": "reject"})
     done = service.wait_state("p", "idle")
-    assert (
-        done["last_message"]
-        == 'permission: {"outcome": "selected", "optionId": "reject"}'
-    )
+    said = done["last_message"].removeprefix("permission: ")
+    assert json.loads(said) == {"outcome": "selected", "optionId": "reject"}
+    [resolved] = kinds(service.events("p"), "resolved")
+    assert resolved["by"] == "client" and resolved["answer"] == {
+        "outcome": "selected",
+        "optionId": "reject",
+    }
 
 
 def test_a_question_needs_its_answer_in_form(service: Service) -> None:
@@ -112,13 +120,43 @@ def test_a_question_needs_its_answer_in_form(service: Service) -> None:
     url = "/v1/sessions/q/requests/q1"
     for body, error in (
         ({"action": "accept"}, "accept needs content"),
-        ({"action": "maybe"}, "action: must be one of accept, decline, cancel"),
-        ({"option_id": "allow"}, "option_id: unknown field"),
-        ({"action": "accept", "content": []}, "content: must be an object"),
+        (
+            {"action": "maybe"},
+            "action: Input should be 'accept', 'decline' or 'cancel'",
+        ),
+        ({"option_id": "allow"}, "option_id: Extra inputs are not permitted"),
+        (
+            {"action": "accept", "content": []},
+            "content: Input should be a valid dictionary",
+        ),
     ):
         with pytest.raises(ClientError, match=error):
             service.call("POST", url, body)
     service.call("POST", url, {"action": "accept", "content": {"colour": "red"}})
-    assert service.wait_state("q", "idle")["last_message"] == (
-        'question: {"action": "accept", "content": {"colour": "red"}}'
-    )
+    said = service.wait_state("q", "idle")["last_message"].removeprefix("question: ")
+    assert json.loads(said) == {"action": "accept", "content": {"colour": "red"}}
+
+
+def test_a_declined_question(service: Service) -> None:
+    service.start_session("d", "question")
+    service.wait_state("d", "waiting")
+    service.call("POST", "/v1/sessions/d/requests/q1", {"action": "decline"})
+    said = service.wait_state("d", "idle")["last_message"].removeprefix("question: ")
+    assert json.loads(said) == {"action": "decline"}
+
+
+def test_the_agents_words_come_before_the_end_of_its_turn(service: Service) -> None:
+    # The agent writes its text, then answers session/prompt: the SDK resolves the answer at once
+    # and queues notifications, so the inbox must take them in the read loop, ahead of it.
+    for n in range(5):
+        name = f"o{n}"
+        service.start_session(name, f"say word {n}")
+        done = service.wait_state(name, "idle")
+        assert done["last_message"] == f"word {n}"
+        kinds_ = [e["kind"] for e in service.events(name)]
+        last_update = max(i for i, k in enumerate(kinds_) if k == "update")
+        assert last_update < kinds_.index("turn_end")
+        assert service.call("GET", f"/v1/sessions/{name}/output?lines=2")["lines"] == [
+            f"word {n}",
+            "[turn ended: end_turn]",
+        ]

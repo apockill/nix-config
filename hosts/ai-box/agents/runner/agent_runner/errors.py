@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from .schema import SchemaError
+from pydantic import ValidationError
+
+from .base import describe
 
 
 class RunnerError(Exception):
@@ -13,6 +15,6 @@ class RunnerError(Exception):
         self.status = status
 
     @classmethod
-    def bad_request(cls, error: SchemaError) -> RunnerError:
-        """A request body that doesn't fit its schema: a 400 naming the field."""
-        return cls(str(error), 400)
+    def bad_request(cls, error: ValidationError) -> RunnerError:
+        """A request body that doesn't fit its model: a 400 naming the field."""
+        return cls(describe(error), 400)

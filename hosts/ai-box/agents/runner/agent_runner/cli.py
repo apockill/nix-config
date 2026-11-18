@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -15,10 +16,10 @@ from collections.abc import Sequence
 from typing import NoReturn
 
 from .api_types import SessionStatus
+from .base import JsonObject
 from .client import Client, ClientError, quote
 from .jobs import JobError, JobSpec, answer_body, read_task, start_request
 from .render import asked
-from .schema import JsonObject, encode
 from .wait import Waiting, wait
 
 
@@ -175,7 +176,7 @@ class Cli:
             case "status":
                 s = c.status(args.name)
                 if args.json:
-                    print(json.dumps(encode(s), indent=2))
+                    print(json.dumps(s.model_dump(mode="json"), indent=2))
                 else:
                     show(s)
             case "cancel":
@@ -193,7 +194,10 @@ class Cli:
                 for event in c.events(
                     f"{path}?since={args.since}&follow={int(args.follow)}"
                 ):
-                    print(json.dumps(encode(event), ensure_ascii=False), flush=True)
+                    print(
+                        json.dumps(event.model_dump(mode="json"), ensure_ascii=False),
+                        flush=True,
+                    )
             case "restart":
                 c.restart()
                 print("restarting; sessions resume on their next message")
@@ -223,7 +227,7 @@ class Cli:
     def list(self, as_json: bool) -> int:
         sessions = self.client.sessions().sessions
         if as_json:
-            print(json.dumps([encode(s) for s in sessions], indent=2))
+            print(json.dumps([s.model_dump(mode="json") for s in sessions], indent=2))
             return 0
         for s in sessions:
             since = time.strftime("%Y-%m-%d %H:%M", time.localtime(s.created_at))
@@ -251,6 +255,8 @@ def main(argv: Sequence[str], environ: dict[str, str], prog: str) -> int:
         print(f"{prog}: {e}", file=sys.stderr)
         return 1
     except BrokenPipeError:
+        # The reader went away (`| head`): quiet, including Python's flush of stdout at exit.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         return 0
     except KeyboardInterrupt:
         return 130

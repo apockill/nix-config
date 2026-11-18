@@ -12,6 +12,7 @@ import pytest
 from agent_runner.config import KEEP_ENDED_SECONDS
 from agent_runner.events import Event, Failed, StateChanged
 from agent_runner.store import Record, SessionFiles, Store, write_private
+from pydantic import ValidationError
 
 
 def record(name: str = "job", **extra: Any) -> Record:
@@ -32,6 +33,11 @@ def test_a_record_saves_and_loads(tmp_path: Path) -> None:
     rec = record(env={"A": "secret"}, session_meta={"x": [1]}, state="idle", turns=2)
     files.save(rec)
     assert files.load() == rec
+    with pytest.raises(ValidationError):
+        files.record.write_text(
+            files.record.read_text().replace('"turns": 2', '"turns": "2"')
+        )
+        files.load()
     on_disk = json.loads(files.record.read_text())
     assert on_disk["env"] == {"A": "secret"}  # the values are kept, for resumes
     assert stat.S_IMODE(os.stat(files.record).st_mode) == 0o600
@@ -61,18 +67,26 @@ def test_a_pre_split_record_loads(tmp_path: Path) -> None:
     files.record.write_text(json.dumps(old))
     loaded = files.load()
     assert loaded.agent_session_id == "9c32" and loaded.state == "offline"
+    files.save(
+        loaded
+    )  # written back field for field as the runner before the split wrote it
+    assert json.loads(files.record.read_text()) == old
+    assert list(json.loads(files.record.read_text())) == list(old)
 
 
 def test_the_event_log(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     files = SessionFiles(tmp_path / "job")
     assert list(files.read_events()) == []
     assert files.last_event() == (0, 0.0)
-    events = [Event(i, float(i), "job", StateChanged(state="idle")) for i in (1, 2, 3)]
+    events = [
+        Event(seq=i, ts=float(i), session="job", body=StateChanged(state="idle"))
+        for i in (1, 2, 3)
+    ]
     for event in events:
         files.append(event)
     with files.events.open("a") as f:
         f.write("not json\n")
-    files.append(Event(4, 4.0, "job", Failed(message="x")))
+    files.append(Event(seq=4, ts=4.0, session="job", body=Failed(message="x")))
     assert [e.seq for e in files.read_events()] == [1, 2, 3, 4]
     assert [e.seq for e in files.read_events(since=2)] == [3, 4]
     assert "events.jsonl:4: not an event" in capsys.readouterr().err
@@ -81,7 +95,7 @@ def test_the_event_log(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> No
 
 def test_last_event_skips_a_torn_last_line(tmp_path: Path) -> None:
     files = SessionFiles(tmp_path / "job")
-    files.append(Event(9, 9.5, "job", StateChanged(state="idle")))
+    files.append(Event(seq=9, ts=9.5, session="job", body=StateChanged(state="idle")))
     with files.events.open("a") as f:
         f.write('{"seq": 10, "ts"')
     assert files.last_event() == (9, 9.5)
@@ -92,7 +106,7 @@ def test_a_log_that_cannot_be_written_is_reported(
 ) -> None:
     (tmp_path / "file").write_text("")
     files = SessionFiles(tmp_path / "file" / "job")
-    files.append(Event(1, 1.0, "job", StateChanged(state="idle")))
+    files.append(Event(seq=1, ts=1.0, session="job", body=StateChanged(state="idle")))
     assert "can't log an event of job" in capsys.readouterr().err
 
 

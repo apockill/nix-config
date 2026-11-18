@@ -9,9 +9,10 @@ from pathlib import Path
 
 import pytest
 from agent_runner.client import Client
-from agent_runner.schema import SchemaError
+from agent_runner.config import RESTART_EXIT
 from agent_runner.server import SettingMissing, Settings, serve
 from conftest import fake_agent
+from pydantic import ValidationError
 
 ENV = {
     "AGENT_RUNNER_SOCKET": "/run/s",
@@ -61,9 +62,23 @@ def test_serve_until_stopped(tmp_path: Path) -> None:
     assert asyncio.run(go()) == 0
 
 
+def test_restart_exits_for_systemd(tmp_path: Path) -> None:
+    s = settings(tmp_path, {"default": "fake", "agents": {"fake": fake_agent()}})
+
+    async def go() -> int:
+        task = asyncio.create_task(serve(s, asyncio.Event()))
+        while not s.socket.is_socket():
+            await asyncio.sleep(0.02)
+        restarting = await asyncio.to_thread(Client(str(s.socket)).restart)
+        assert restarting.restarting is True
+        return await asyncio.wait_for(task, 10)
+
+    assert asyncio.run(go()) == RESTART_EXIT
+
+
 def test_a_bad_agents_file_stops_the_service(tmp_path: Path) -> None:
     s = settings(tmp_path, {"default": "fake", "agents": {"fake": {"cmd": ["x"]}}})
-    with pytest.raises(SchemaError, match="agents.fake.cmd: unknown field"):
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         asyncio.run(serve(s, asyncio.Event()))
     s = settings(tmp_path, {"default": "nobody", "agents": {"fake": fake_agent()}})
     with pytest.raises(ValueError, match="default agent 'nobody' isn't defined"):

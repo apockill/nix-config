@@ -13,10 +13,26 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .acp import SessionSetup, SetConfigOptionParams, SetModelParams
+from acp.meta import AGENT_METHODS
+from acp.schema import (
+    InitializeResponse,
+    LoadSessionResponse,
+    NewSessionResponse,
+    ResumeSessionResponse,
+    SessionConfigOptionSelect,
+    SetSessionConfigOptionResponse,
+    SetSessionConfigOptionSelectRequest,
+    SetSessionModelRequest,
+    SetSessionModelResponse,
+)
+from pydantic import BaseModel
+
+from .base import JsonObject, JsonValue
 from .errors import RunnerError
-from .schema import JsonValue
 from .store import write_private
+
+# Claude's extension: a message into the running turn.
+STEERING = "_session/steering"
 
 
 def trust_folder(conf: Path, folder: str) -> None:
@@ -49,25 +65,64 @@ def transcript_path(template: str | None, session_id: str, cwd: str) -> str | No
     )
 
 
+class _Steering(BaseModel):
+    supported: bool = False
+
+
+class _InitMeta(BaseModel):
+    steering: _Steering | None = None
+
+
+def steers(init: InitializeResponse) -> bool:
+    """Whether the agent takes a message into a running turn (Claude advertises it in `_meta`)."""
+    meta = _InitMeta.model_validate(init.field_meta or {})
+    return bool(meta.steering and meta.steering.supported)
+
+
+class SteeringResult(BaseModel):
+    outcome: str | None = None
+
+
+def steering(session_id: str, text: str) -> JsonObject:
+    """`_session/steering`'s params: the message, taken in only while a turn runs."""
+    return {
+        "sessionId": session_id,
+        "prompt": [{"type": "text", "text": text}],
+        "_meta": {"steering": {"idleBehavior": "promptRequired"}},
+    }
+
+
 @dataclass(frozen=True)
 class ModelChoice:
-    """The request that sets a session's model."""
+    """The request that sets a session's model, and the model of its answer."""
 
     method: str
-    params: SetConfigOptionParams | SetModelParams
+    params: SetSessionConfigOptionSelectRequest | SetSessionModelRequest
+    result: type[SetSessionConfigOptionResponse] | type[SetSessionModelResponse]
 
 
 def choose_model(
-    agent: str, setup: SessionSetup, session_id: str, model: str
+    agent: str,
+    setup: NewSessionResponse | ResumeSessionResponse | LoadSessionResponse,
+    session_id: str,
+    model: str,
 ) -> ModelChoice:
     """How to give this session `model`: by its config option (Claude) or its models (agy)."""
     option = next(
-        (o for o in setup.config_options or [] if o.category == "model"), None
+        (
+            o
+            for o in setup.config_options or []
+            if isinstance(o, SessionConfigOptionSelect) and o.category == "model"
+        ),
+        None,
     )
-    if option:
+    if option is not None:
         return ModelChoice(
-            "session/set_config_option",
-            SetConfigOptionParams(session_id, option.id, model),
+            AGENT_METHODS["session_set_config_option"],
+            SetSessionConfigOptionSelectRequest(
+                session_id=session_id, config_id=option.id, value=model
+            ),
+            SetSessionConfigOptionResponse,
         )
     if setup.models:
         available = [m.model_id for m in setup.models.available_models]
@@ -75,5 +130,9 @@ def choose_model(
             raise RunnerError(
                 f"{agent} has no model {model!r}; it has: {', '.join(available)}"
             )
-        return ModelChoice("session/set_model", SetModelParams(session_id, model))
+        return ModelChoice(
+            AGENT_METHODS["session_set_model"],
+            SetSessionModelRequest(session_id=session_id, model_id=model),
+            SetSessionModelResponse,
+        )
     raise RunnerError(f"{agent} offers no model choice over ACP")

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import typing
 
 import pytest
-from agent_runner.acp import ElicitationResponse, PermissionOption, PermissionOutcome
+from acp.schema import (
+    AcceptElicitationResponse,
+    AllowedOutcome,
+    PermissionOption,
+)
 from agent_runner.events import (
-    BODIES,
     AgentNotification,
     Body,
     Cancelled,
@@ -23,9 +27,10 @@ from agent_runner.events import (
     StateChanged,
     TurnEnded,
     Updated,
+    acp_json,
     decode_streamed,
 )
-from agent_runner.schema import SchemaError, encode
+from pydantic import ValidationError
 
 # Lines as the runner wrote them before the split into modules (runner.py's emit).
 PRE_SPLIT = [
@@ -47,19 +52,31 @@ PRE_SPLIT = [
 ]
 
 
+# The kinds whose lines hold an ACP object of the SDK's, which writes its keys in its own order.
+SDK_ORDER = {"permission", "resolved"}
+
+KINDS = {
+    typing.get_args(cls.model_fields["kind"].annotation)[0]
+    for cls in typing.get_args(typing.get_args(Body)[0])
+}
+
+
 @pytest.mark.parametrize("line", PRE_SPLIT)
 def test_lines_from_before_the_split_read_and_write_back_the_same(line: str) -> None:
-    event = Event.decode_json(json.loads(line))
-    assert json.dumps(event.encode_json(), ensure_ascii=False) == line
+    event = Event.model_validate_json(line)
+    again = json.dumps(event.model_dump(mode="json"), ensure_ascii=False)
+    assert json.loads(again) == json.loads(line)
+    if event.kind not in SDK_ORDER:
+        assert again == line
 
 
 def test_every_kind_is_covered_by_the_pre_split_lines() -> None:
     kinds = {json.loads(line)["kind"] for line in PRE_SPLIT}
-    assert kinds == set(BODIES)
+    assert kinds == KINDS
 
 
 def test_the_bodies_decode_to_their_types() -> None:
-    events = [Event.decode_json(json.loads(line)) for line in PRE_SPLIT]
+    events = [Event.model_validate_json(line) for line in PRE_SPLIT]
     bodies: list[Body] = [e.body for e in events]
     assert bodies[0] == StateChanged(state="starting")
     assert bodies[1] == SessionOpened(
@@ -73,18 +90,19 @@ def test_the_bodies_decode_to_their_types() -> None:
         request_id="p1",
         title="touch x",
         tool_call_id="t1",
-        options=[PermissionOption("allow", "Allow", "allow_once")],
+        options=[PermissionOption(option_id="allow", name="Allow", kind="allow_once")],
     )
     assert bodies[5] == Resolved(
         request_id="p1",
         by="client",
-        answer=PermissionOutcome(outcome="selected", option_id="allow"),
+        answer=AllowedOutcome(outcome="selected", option_id="allow"),
     )
     assert isinstance(bodies[6], QuestionAsked)
+    assert bodies[6].schema_ == {"type": "object"}
     assert bodies[7] == Resolved(
         request_id="q2",
         by="client",
-        answer=ElicitationResponse(action="accept", content={"c": "red"}),
+        answer=AcceptElicitationResponse(action="accept", content={"c": "red"}),
     )
     assert bodies[9] == Resolved(request_id="p4", by="runner", reason="stopped")
     assert bodies[10] == TurnEnded(stop_reason="end_turn")
@@ -98,8 +116,8 @@ def test_the_bodies_decode_to_their_types() -> None:
 
 
 def test_the_envelope_comes_first() -> None:
-    event = Event(7, 1.5, "s", StateChanged(state="idle"))
-    assert list(event.encode_json()) == [
+    event = Event(seq=7, ts=1.5, session="s", body=StateChanged(state="idle"))
+    assert list(event.model_dump(mode="json")) == [
         "seq",
         "ts",
         "session",
@@ -109,28 +127,54 @@ def test_the_envelope_comes_first() -> None:
     ]
 
 
+def test_resolved_gives_its_reason_only_when_the_runner_dropped_it() -> None:
+    by_client = Resolved(request_id="p1", by="client")
+    assert "reason" not in by_client.model_dump(mode="json")
+    dropped = Resolved(request_id="p1", by="runner", reason="stopped")
+    assert dropped.model_dump(mode="json")["reason"] == "stopped"
+
+
+def test_acp_objects_go_out_as_acp_json() -> None:
+    option = PermissionOption(option_id="a", name="A", kind="allow_once")
+    assert acp_json(option) == {"optionId": "a", "name": "A", "kind": "allow_once"}
+    asked = PermissionAsked(request_id="p1", options=[option])
+    assert asked.model_dump(mode="json")["options"] == [acp_json(option)]
+
+
+def test_an_update_reads_as_the_sdk_model_of_its_kind() -> None:
+    chunk = Updated(
+        update={
+            "sessionUpdate": "agent_message_chunk",
+            "content": {"type": "text", "text": "hi"},
+        }
+    )
+    assert type(chunk.parsed()).__name__ == "AgentMessageChunk"
+    assert Updated(update={"sessionUpdate": "a_kind_from_the_future"}).parsed() is None
+    assert (
+        Updated(update={"sessionUpdate": "tool_call"}).parsed() is None
+    )  # no toolCallId
+
+
 @pytest.mark.parametrize(
-    "data, error",
+    "data",
     [
-        ([1], "an event must be an object"),
-        ({"seq": 1, "ts": 0, "session": "s", "kind": "nope"}, "kind: unknown event"),
-        ({"ts": 0, "session": "s", "kind": "cancel"}, "seq: missing"),
-        ({"seq": 1, "ts": 0, "session": "s", "kind": "state"}, "state: missing"),
-        (
-            {"seq": 1, "ts": 0, "session": "s", "kind": "state", "state": "gone"},
-            "state: must be one of",
-        ),
-        ({"seq": 1, "ts": 0, "session": "s", "kind": "cancel", "x": 1}, "x: unknown"),
+        [1],
+        {"seq": 1, "ts": 0, "session": "s", "kind": "nope"},
+        {"ts": 0, "session": "s", "kind": "cancel"},
+        {"seq": 1, "ts": 0, "session": "s", "kind": "state"},
+        {"seq": 1, "ts": 0, "session": "s", "kind": "state", "state": "gone"},
+        {"seq": 1, "ts": 0, "session": "s", "kind": "cancel", "x": 1},
+        {"seq": "1", "ts": 0, "session": "s", "kind": "cancel"},
     ],
 )
-def test_events_that_do_not_fit(data: object, error: str) -> None:
-    with pytest.raises(SchemaError, match=error):
-        Event.decode_json(data)
+def test_events_that_do_not_fit(data: object) -> None:
+    with pytest.raises(ValidationError):
+        Event.model_validate(data)
 
 
 def test_heartbeats() -> None:
     beat = Heartbeat(ts=2.0, seq=5)
-    assert encode(beat) == {"kind": "heartbeat", "ts": 2.0, "seq": 5}
+    assert beat.model_dump(mode="json") == {"kind": "heartbeat", "ts": 2.0, "seq": 5}
     assert decode_streamed({"kind": "heartbeat", "ts": 2, "seq": 5}) == beat
     streamed = decode_streamed(json.loads(PRE_SPLIT[0]))
     assert isinstance(streamed, Event) and streamed.seq == 1

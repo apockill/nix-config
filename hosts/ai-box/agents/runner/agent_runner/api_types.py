@@ -1,23 +1,20 @@
 """The API's bodies (README.md): what clients send, checked strictly, and what the runner answers.
 
 Requests forbid unknown fields; `null` is the same as leaving an optional field out. The CLI reads
-answers with the same types.
+answers with the same models. The answer to a parked request is parking.PermissionAnswer or
+parking.QuestionAnswer, depending on the request.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TypedDict
-
+from .base import JsonObject, Strict
 from .events import Delivery, Event, State
-from .schema import JsonObject
 from .store import Record
 
 # --- Requests -----------------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, kw_only=True)
-class StartRequest:
+class StartRequest(Strict):
     """POST /v1/sessions."""
 
     name: str
@@ -32,76 +29,29 @@ class StartRequest:
     session_meta: JsonObject | None = None
 
 
-@dataclass(frozen=True, kw_only=True)
-class SendRequest:
+class SendRequest(Strict):
     """POST /v1/sessions/{name}/send."""
 
     text: str
 
 
-@dataclass(frozen=True, kw_only=True)
-class StopRequest:
+class StopRequest(Strict):
     """POST /v1/sessions/{name}/stop."""
 
     reason: str | None = None
 
 
-@dataclass(frozen=True, kw_only=True)
-class EmptyRequest:
+class EmptyRequest(Strict):
     """POST .../cancel and /v1/restart: no fields."""
 
-
-# The answer to a request (POST /v1/sessions/{name}/requests/{id}) is parking.PermissionAnswer or
-# parking.QuestionAnswer, depending on the request.
 
 # --- Answers ------------------------------------------------------------------------------------
 
 
-class PublicRecord(TypedDict):
-    """A session's record as the API reports it: `env` gives the names only."""
+class SessionFields(Strict):
+    """A session's record as the API reports it: `env` gives the names only (values may be
+    secret-ish, tokens a caller passed)."""
 
-    name: str
-    agent: str
-    dir: str
-    created_at: float
-    state: State
-    reason: str | None
-    model: str | None
-    mode: str | None
-    origin: str | None
-    env: list[str]
-    session_meta: JsonObject | None
-    agent_session_id: str | None
-    transcript: str | None
-    title: str | None
-    updated_at: float
-    turns: int
-
-
-def public(record: Record) -> PublicRecord:
-    return PublicRecord(
-        name=record.name,
-        agent=record.agent,
-        dir=record.dir,
-        created_at=record.created_at,
-        state=record.state,
-        reason=record.reason,
-        model=record.model,
-        mode=record.mode,
-        origin=record.origin,
-        # Values may be secret-ish (tokens a caller passed).
-        env=sorted(record.env),
-        session_meta=record.session_meta,
-        agent_session_id=record.agent_session_id,
-        transcript=record.transcript,
-        title=record.title,
-        updated_at=record.updated_at,
-        turns=record.turns,
-    )
-
-
-@dataclass(frozen=True, kw_only=True)
-class SessionFields:
     name: str
     agent: str
     dir: str
@@ -111,7 +61,7 @@ class SessionFields:
     model: str | None = None
     mode: str | None = None
     origin: str | None = None
-    env: list[str] = field(default_factory=list)
+    env: list[str] = []
     session_meta: JsonObject | None = None
     agent_session_id: str | None = None
     transcript: str | None = None
@@ -120,7 +70,11 @@ class SessionFields:
     turns: int = 0
 
 
-@dataclass(frozen=True, kw_only=True)
+def public(record: Record) -> dict[str, object]:
+    """A record's fields for SessionFields (validated there)."""
+    return {**record.model_dump(), "env": sorted(record.env)}
+
+
 class SessionSummary(SessionFields):
     """A session in GET /v1/sessions."""
 
@@ -129,7 +83,6 @@ class SessionSummary(SessionFields):
     last_event_at: float
 
 
-@dataclass(frozen=True, kw_only=True)
 class SessionStatus(SessionFields):
     """GET /v1/sessions/{name}, and what most POSTs on a session return."""
 
@@ -141,32 +94,26 @@ class SessionStatus(SessionFields):
     last_event_at: float
 
 
-@dataclass(frozen=True)
-class SessionList:
+class SessionList(Strict):
     sessions: list[SessionSummary]
 
 
-@dataclass(frozen=True)
-class AgentList:
+class AgentList(Strict):
     default: str
     agents: list[str]
 
 
-@dataclass(frozen=True)
-class Output:
+class Output(Strict):
     lines: list[str]
 
 
-@dataclass(frozen=True)
-class Sent:
+class Sent(Strict):
     delivery: Delivery
 
 
-@dataclass(frozen=True)
-class Restarting:
+class Restarting(Strict):
     restarting: bool = True
 
 
-@dataclass(frozen=True)
-class ErrorBody:
+class ErrorBody(Strict):
     error: str

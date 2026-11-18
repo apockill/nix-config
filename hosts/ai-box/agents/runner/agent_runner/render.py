@@ -4,6 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from acp.schema import (
+    AgentMessageChunk,
+    AgentPlanUpdate,
+    TextContentBlock,
+    ToolCallProgress,
+    ToolCallStart,
+)
+
+from .base import JsonObject
 from .events import (
     Event,
     Failed,
@@ -14,8 +23,6 @@ from .events import (
     TurnEnded,
     Updated,
 )
-from .schema import JsonValue
-from .updates import AgentMessageChunk, Plan, ToolCall, ToolCallUpdate, view
 
 
 def render(events: Iterable[Event]) -> list[str]:
@@ -32,19 +39,19 @@ def render(events: Iterable[Event]) -> list[str]:
     for event in events:
         body = event.body
         if isinstance(body, Updated):
-            v = view(body.update)
-            if isinstance(v, AgentMessageChunk):
-                if v.content.type == "text":
-                    text += v.content.text or ""
-            elif isinstance(v, ToolCall):
+            update = body.parsed()
+            if isinstance(update, AgentMessageChunk):
+                if isinstance(update.content, TextContentBlock):
+                    text += update.content.text
+            elif isinstance(update, ToolCallStart):
                 flush()
-                lines.append(f"[tool] {v.title or v.kind or '?'}")
-            elif isinstance(v, ToolCallUpdate) and v.status == "failed":
+                lines.append(f"[tool] {update.title or update.kind or '?'}")
+            elif isinstance(update, ToolCallProgress) and update.status == "failed":
                 flush()
-                lines.append(f"[tool failed] {v.title or v.tool_call_id}")
-            elif isinstance(v, Plan):
+                lines.append(f"[tool failed] {update.title or update.tool_call_id}")
+            elif isinstance(update, AgentPlanUpdate):
                 flush()
-                lines.extend(f"[plan {e.status}] {e.content}" for e in v.entries)
+                lines.extend(f"[plan {e.status}] {e.content}" for e in update.entries)
             continue
         flush()
         match body:
@@ -55,7 +62,7 @@ def render(events: Iterable[Event]) -> list[str]:
                 lines.append(f"[permission {body.request_id}] {body.title} ({options})")
             case QuestionAsked():
                 lines.append(f"[question {body.request_id}] {body.message}")
-                lines.extend(question_fields(body.schema))
+                lines.extend(question_fields(body.schema_))
             case TurnEnded():
                 lines.append(f"[turn ended: {body.stop_reason}]")
             case Failed():
@@ -66,9 +73,9 @@ def render(events: Iterable[Event]) -> list[str]:
     return lines
 
 
-def question_fields(schema: JsonValue) -> list[str]:
+def question_fields(schema: JsonObject | None) -> list[str]:
     """A form's fields, one line each, with their choices (`enum`, or `oneOf`/`anyOf` consts)."""
-    properties = schema.get("properties") if isinstance(schema, dict) else None
+    properties = schema.get("properties") if schema else None
     if not isinstance(properties, dict):
         return []
     lines = []

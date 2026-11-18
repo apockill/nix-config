@@ -11,11 +11,10 @@ import os
 import re
 import string
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
 
 from .api_types import StartRequest
-from .schema import JsonObject, JsonValue
+from .base import JsonObject, JsonValue, Strict
 
 # Everything a job gets of its starter's environment: the tools it sees, and its temp folder.
 PASSED_ENV = ("PATH", "TMPDIR")
@@ -40,8 +39,7 @@ def read_task(path: str) -> str:
         raise JobError(f"can't read the task file {path}: {e.strerror}") from e
 
 
-@dataclass(frozen=True, kw_only=True)
-class JobSpec:
+class JobSpec(Strict):
     """`agent start`'s arguments."""
 
     title: str

@@ -129,20 +129,24 @@ class Runner:
 
 
 def summary(session: Session) -> SessionSummary:
-    return SessionSummary(
-        **public(session.record),
-        pending=len(session.parking.open),
-        alive=session.alive,
-        last_event_at=session.last_event_at,
+    return SessionSummary.model_validate(
+        {
+            **public(session.record),
+            "pending": len(session.parking.open),
+            "alive": session.alive,
+            "last_event_at": session.last_event_at,
+        }
     )
 
 
 def status(session: Session) -> SessionStatus:
-    return SessionStatus(
-        **public(session.record),
-        pending=[p.event for p in session.parking.open.values()],
-        queued=list(session.queue),
-        last_message=session.last_text,
-        alive=session.alive,
-        last_event_at=session.last_event_at,
+    return SessionStatus.model_validate(
+        {
+            **public(session.record),
+            "pending": [p.event for p in session.parking.open.values()],
+            "queued": list(session.queue),
+            "last_message": session.last_text,
+            "alive": session.alive,
+            "last_event_at": session.last_event_at,
+        }
     )

@@ -8,11 +8,11 @@ trusted. The rest of the runner knows only ACP.
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
 from pathlib import Path
 
-from .schema import alias, decode
+from pydantic import Field, model_validator
+
+from .base import Strict
 
 # The version the runner reports to agents (initialize's clientInfo).
 VERSION = "1"
@@ -42,15 +42,14 @@ KEEP_ENDED_SECONDS = 30 * 24 * 3600
 NOTIFY_SECONDS = 60.0
 
 
-@dataclass(frozen=True, kw_only=True)
-class AgentSpec:
+class AgentSpec(Strict):
     """One agent of the agents file."""
 
     # Its ACP server, speaking ACP on stdio.
-    command: list[str]
-    env: dict[str, str] = field(default_factory=dict)
+    command: list[str] = Field(min_length=1)
+    env: dict[str, str] = {}
     # Variables passed through from the service's own environment (the subscription token).
-    pass_env: list[str] = field(default_factory=list)
+    pass_env: list[str] = []
     # The mode every new or resumed session is set to (session/set_mode); None keeps the agent's.
     mode: str | None = None
     # The agent's own transcript of a session; {session_id}, {cwd} and {cwd_slug} (the folder with
@@ -59,25 +58,22 @@ class AgentSpec:
     # Claude Code's .claude.json: the session's folder is marked trusted there before it starts.
     claude_trust_file: str | None = None
 
-    def __post_init__(self) -> None:
-        if not self.command:
-            raise ValueError("an agent's command can't be empty")
 
-
-@dataclass(frozen=True, kw_only=True)
-class Config:
+class Config(Strict):
     """The agents file: every agent the runner can start."""
 
     agents: dict[str, AgentSpec]
-    default_agent: str = field(metadata=alias("default"))
+    default_agent: str = Field(alias="default")
     # Never passed to an agent: they'd switch it from the subscription to metered billing.
-    refused_env: list[str] = field(default_factory=list)
+    refused_env: list[str] = []
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _default_is_defined(self) -> Config:
         if self.default_agent not in self.agents:
             raise ValueError(f"default agent {self.default_agent!r} isn't defined")
+        return self
 
     @classmethod
     def load(cls, path: Path) -> Config:
-        """The agents file; a file that doesn't fit stops the service (SchemaError, ValueError)."""
-        return decode(cls, json.loads(path.read_text()))
+        """The agents file; one that doesn't fit stops the service (ValidationError)."""
+        return cls.model_validate_json(path.read_text())

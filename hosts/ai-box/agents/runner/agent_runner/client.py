@@ -1,12 +1,14 @@
-"""The API's client, for the CLI: HTTP on the runner's unix socket, answers as typed bodies."""
+"""The API's client, for the CLI: httpx on the runner's unix socket, answers as the API's models."""
 
 from __future__ import annotations
 
-import http.client
 import json
-import socket
 import urllib.parse
 from collections.abc import Iterator
+from typing import Any
+
+import httpx
+from pydantic import BaseModel, ValidationError
 
 from .api_types import (
     AgentList,
@@ -17,8 +19,8 @@ from .api_types import (
     SessionStatus,
     StartRequest,
 )
+from .base import JsonObject
 from .events import Event, Heartbeat, decode_streamed
-from .schema import JsonObject, JsonValue, SchemaError, decode, encode_object
 
 
 class ClientError(Exception):
@@ -29,85 +31,85 @@ class ClientError(Exception):
         self.status = status
 
 
-class UnixHTTPConnection(http.client.HTTPConnection):
-    def __init__(self, path: str, timeout: float | None = None) -> None:
-        super().__init__("agent-runner", timeout=timeout)
-        self.socket_path = path
-
-    def connect(self) -> None:
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.settimeout(self.timeout)
-        self.sock.connect(self.socket_path)
-
-
 def quote(part: str) -> str:
     return urllib.parse.quote(part, safe="")
 
 
-class Client:
-    def __init__(self, socket_path: str) -> None:
-        self.socket_path = socket_path
+def error_of(response: httpx.Response) -> str:
+    try:
+        message = response.json().get("error")
+    except (ValueError, AttributeError):
+        message = None
+    return message if isinstance(message, str) else f"HTTP {response.status_code}"
 
-    def _open(
-        self,
-        method: str,
-        path: str,
-        body: JsonValue = None,
-        timeout: float | None = 600,
-    ) -> http.client.HTTPResponse:
-        conn = UnixHTTPConnection(self.socket_path, timeout=timeout)
-        data = json.dumps(body).encode() if body is not None else None
-        headers = {"Content-Type": "application/json"} if data is not None else {}
+
+class Client:
+    def __init__(self, socket_path: str, timeout: float | None = 600) -> None:
+        self.socket_path = socket_path
+        self.http = httpx.Client(
+            transport=httpx.HTTPTransport(uds=socket_path),
+            base_url="http://agent-runner",
+            timeout=timeout,
+        )
+
+    def _request(
+        self, method: str, path: str, body: JsonObject | None = None
+    ) -> httpx.Response:
         try:
-            conn.request(method, path, body=data, headers=headers)
-            return conn.getresponse()
-        except (FileNotFoundError, ConnectionRefusedError) as e:
-            raise ClientError(
-                f"the runner isn't running ({self.socket_path}: {e.strerror});"
-                " check: systemctl --user status agent-runner"
-            ) from e
-        except OSError as e:
+            return self.http.request(method, path, json=body)
+        except httpx.ConnectError as e:
+            raise self.unreachable(e) from e
+        except httpx.HTTPError as e:
             raise ClientError(
                 f"can't reach the runner at {self.socket_path}: {e}"
             ) from e
 
-    def call(self, method: str, path: str, body: JsonValue = None) -> JsonValue:
+    def unreachable(self, e: httpx.ConnectError) -> ClientError:
+        """No socket, or nobody listening on it: not running. Anything else is said as it is."""
+        cause: BaseException | None = e
+        while cause is not None and not isinstance(cause, OSError):
+            cause = (
+                cause.__context__
+            )  # httpx's error wraps httpcore's, which wraps the OSError
+        if isinstance(cause, FileNotFoundError | ConnectionRefusedError):
+            return ClientError(
+                f"the runner isn't running ({self.socket_path}: {cause.strerror});"
+                " check: systemctl --user status agent-runner"
+            )
+        return ClientError(f"can't reach the runner at {self.socket_path}: {e}")
+
+    def call(self, method: str, path: str, body: JsonObject | None = None) -> Any:
         """One call; its answer as JSON. ClientError with the runner's message if it refused."""
-        resp = self._open(method, path, body)
-        data = self._json(resp.read())
-        if resp.status >= 300:
-            raise ClientError(error_of(data, resp.status), resp.status)
-        return data
-
-    def typed[T](
-        self, cls: type[T], method: str, path: str, body: JsonValue = None
-    ) -> T:
-        data = self.call(method, path, body)
+        response = self._request(method, path, body)
+        if response.status_code >= 300:
+            raise ClientError(error_of(response), response.status_code)
         try:
-            return decode(cls, data)
-        except SchemaError as e:
-            raise ClientError(f"the runner's answer to {path} doesn't fit: {e}") from e
-
-    @staticmethod
-    def _json(raw: bytes) -> JsonValue:
-        try:
-            value: JsonValue = json.loads(raw or b"{}")
+            return response.json()
         except ValueError as e:
             raise ClientError(f"the runner's answer isn't JSON: {e}") from e
-        return value
+
+    def typed[M: BaseModel](
+        self, model: type[M], method: str, path: str, body: JsonObject | None = None
+    ) -> M:
+        data = self.call(method, path, body)
+        try:
+            return model.model_validate(data)
+        except ValidationError as e:
+            raise ClientError(f"the runner's answer to {path} doesn't fit: {e}") from e
 
     def events(self, path: str) -> Iterator[Event | Heartbeat]:
-        resp = self._open("GET", path, timeout=None)
-        if resp.status >= 300:
-            raise ClientError(
-                error_of(self._json(resp.read()), resp.status), resp.status
-            )
-        while line := resp.readline():
-            if line.strip():
-                try:
-                    yield decode_streamed(self._json(line))
-                except SchemaError as e:
-                    raise ClientError(f"the runner sent an odd event: {e}") from e
+        try:
+            with self.http.stream("GET", path, timeout=None) as response:
+                if response.status_code >= 300:
+                    response.read()
+                    raise ClientError(error_of(response), response.status_code)
+                for line in response.iter_lines():
+                    if line.strip():
+                        yield decode_streamed(json.loads(line))
+        except httpx.ConnectError as e:
+            raise self.unreachable(e) from e
+        except (ValueError, ValidationError) as e:
+            raise ClientError(f"the runner sent an odd event: {e}") from e
 
     # The calls (README.md)
     def agents(self) -> AgentList:
@@ -120,9 +122,7 @@ class Client:
         return self.typed(SessionStatus, "GET", f"/v1/sessions/{quote(name)}")
 
     def start(self, req: StartRequest) -> SessionStatus:
-        body: JsonObject = {
-            k: v for k, v in encode_object(req).items() if v is not None
-        }
+        body = req.model_dump(mode="json", exclude_none=True)
         return self.typed(SessionStatus, "POST", "/v1/sessions", body)
 
     def send(self, name: str, text: str) -> Sent:
@@ -152,8 +152,3 @@ class Client:
 
     def restart(self) -> Restarting:
         return self.typed(Restarting, "POST", "/v1/restart", {})
-
-
-def error_of(data: JsonValue, status: int) -> str:
-    message = data.get("error") if isinstance(data, dict) else None
-    return message if isinstance(message, str) else f"HTTP {status}"

@@ -113,7 +113,7 @@ class Service:
 
     def events(self, name: str) -> list[dict[str, Any]]:
         stream = self.client.events(f"/v1/sessions/{name}/events?since=0")
-        return [dict(e.encode_json()) for e in stream if isinstance(e, Event)]
+        return [e.model_dump(mode="json") for e in stream if isinstance(e, Event)]
 
     def agent_log(self) -> list[dict[str, Any]]:
         log = self.tmp / "fake.log"

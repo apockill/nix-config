@@ -159,13 +159,13 @@ def test_answers(service: Service, capsys: pytest.CaptureFixture[str]) -> None:
     assert agent("status", "p") == 0
     assert "pending permission p1: touch x" in capsys.readouterr().out
     assert agent("answer", "p", "p1", "allow") == 0
-    assert service.wait_state("p", "idle")["last_message"].endswith('"allow"}')
+    said = service.wait_state("p", "idle")["last_message"].removeprefix("permission: ")
+    assert json.loads(said) == {"outcome": "selected", "optionId": "allow"}
     service.start_session("q", "question")
     service.wait_state("q", "waiting")
     assert agent("answer", "q", "q1", '{"colour": "blue"}') == 0
-    assert service.wait_state("q", "idle")["last_message"] == (
-        'question: {"action": "accept", "content": {"colour": "blue"}}'
-    )
+    said = service.wait_state("q", "idle")["last_message"].removeprefix("question: ")
+    assert json.loads(said) == {"action": "accept", "content": {"colour": "blue"}}
     capsys.readouterr()
     assert agent("answer", "q", "x1", "y") == 1
     assert "isn't a request id" in capsys.readouterr().err

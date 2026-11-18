@@ -1,12 +1,17 @@
-"""api_types.py: the API's bodies, decoded strictly, and the record as the API reports it."""
+"""api_types.py: the API's bodies, validated strictly, and the record as the API reports it."""
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
-from agent_runner.acp import PermissionOption
+from acp.schema import PermissionOption
 from agent_runner.api_types import (
     AgentList,
     EmptyRequest,
+    ErrorBody,
+    Output,
+    Restarting,
     SendRequest,
     Sent,
     SessionList,
@@ -17,8 +22,8 @@ from agent_runner.api_types import (
     public,
 )
 from agent_runner.events import Event, PermissionAsked
-from agent_runner.schema import SchemaError, decode, encode
 from agent_runner.store import Record
+from pydantic import ValidationError
 
 
 def record() -> Record:
@@ -60,52 +65,64 @@ def test_public_reports_env_names_only() -> None:
     ]
 
 
+def refused(model: type[Any], data: dict[str, Any], error: str) -> None:
+    with pytest.raises(ValidationError) as e:
+        model.model_validate(data)
+    assert error in str(e.value), str(e.value)
+
+
 def test_start_request_is_strict() -> None:
-    req = decode(
-        StartRequest,
-        {"name": "a", "dir": "/w", "resume": None, "env": {"X": "1"}, "mode": None},
+    req = StartRequest.model_validate(
+        {"name": "a", "dir": "/w", "resume": None, "env": {"X": "1"}, "mode": None}
     )
     assert req.resume is None and req.env == {"X": "1"} and req.task is None
-    with pytest.raises(SchemaError, match="bogus: unknown field"):
-        decode(StartRequest, {"name": "a", "dir": "/w", "bogus": 1})
-    with pytest.raises(SchemaError, match="dir: missing"):
-        decode(StartRequest, {"name": "a"})
-    with pytest.raises(SchemaError, match="name: must be a string"):
-        decode(StartRequest, {"name": 3, "dir": "/w"})
-    with pytest.raises(SchemaError, match="env.X: must be a string"):
-        decode(StartRequest, {"name": "a", "dir": "/w", "env": {"X": 1}})
-    with pytest.raises(SchemaError, match="session_meta: must be an object"):
-        decode(StartRequest, {"name": "a", "dir": "/w", "session_meta": []})
+    refused(
+        StartRequest,
+        {"name": "a", "dir": "/w", "bogus": 1},
+        "Extra inputs are not permitted",
+    )
+    refused(StartRequest, {"name": "a"}, "dir\n  Field required")
+    refused(StartRequest, {"name": 3, "dir": "/w"}, "Input should be a valid string")
+    refused(StartRequest, {"name": "a", "dir": "/w", "env": {"X": 1}}, "env.X\n")
+    refused(
+        StartRequest,
+        {"name": "a", "dir": "/w", "session_meta": []},
+        "session_meta\n  Input should be a valid dictionary",
+    )
+    # Strict: no coercion of one type into another.
+    refused(StartRequest, {"name": "a", "dir": "/w", "task": 5}, "task\n")
 
 
 def test_small_requests() -> None:
-    assert decode(SendRequest, {"text": "hi"}).text == "hi"
-    with pytest.raises(SchemaError, match="text: missing"):
-        decode(SendRequest, {})
-    assert decode(StopRequest, {}).reason is None
-    assert decode(StopRequest, {"reason": None}).reason is None
-    decode(EmptyRequest, {})
-    with pytest.raises(SchemaError, match="x: unknown field"):
-        decode(EmptyRequest, {"x": 1})
+    assert SendRequest.model_validate({"text": "hi"}).text == "hi"
+    refused(SendRequest, {}, "text\n  Field required")
+    assert StopRequest.model_validate({}).reason is None
+    assert StopRequest.model_validate({"reason": None}).reason is None
+    EmptyRequest.model_validate({})
+    refused(EmptyRequest, {"x": 1}, "x\n  Extra inputs are not permitted")
 
 
-def test_status_round_trips_with_its_pending_events() -> None:
+def status() -> SessionStatus:
     asked = PermissionAsked(
         request_id="p1",
         title="touch x",
         tool_call_id="t1",
-        options=[PermissionOption("allow", "Allow", "allow_once")],
+        options=[PermissionOption(option_id="allow", name="Allow", kind="allow_once")],
     )
-    status = SessionStatus(
-        **public(record()),
-        pending=[Event(5, 2.0, "job", asked)],
-        queued=["next"],
-        last_message="hi",
-        alive=True,
-        last_event_at=2.0,
+    return SessionStatus.model_validate(
+        {
+            **public(record()),
+            "pending": [Event(seq=5, ts=2.0, session="job", body=asked)],
+            "queued": ["next"],
+            "last_message": "hi",
+            "alive": True,
+            "last_event_at": 2.0,
+        }
     )
-    data = encode(status)
-    assert isinstance(data, dict)
+
+
+def test_status_round_trips_with_its_pending_events() -> None:
+    data = status().model_dump(mode="json")
     assert data["pending"] == [
         {
             "seq": 5,
@@ -118,6 +135,7 @@ def test_status_round_trips_with_its_pending_events() -> None:
             "options": [{"optionId": "allow", "name": "Allow", "kind": "allow_once"}],
         }
     ]
+    assert data["env"] == ["A", "TOKEN"]
     assert list(data)[-5:] == [
         "pending",
         "queued",
@@ -125,19 +143,33 @@ def test_status_round_trips_with_its_pending_events() -> None:
         "alive",
         "last_event_at",
     ]
-    assert decode(SessionStatus, data) == status
+    assert SessionStatus.model_validate(data) == status()
 
 
 def test_lists_and_small_answers() -> None:
-    summary = SessionSummary(
-        **public(record()), pending=0, alive=False, last_event_at=0.0
+    summary = SessionSummary.model_validate(
+        {**public(record()), "pending": 0, "alive": False, "last_event_at": 0.0}
     )
-    data = encode(SessionList([summary]))
-    assert decode(SessionList, data) == SessionList([summary])
-    assert encode(AgentList("claude", ["antigravity", "claude"])) == {
+    data = SessionList(sessions=[summary]).model_dump(mode="json")
+    assert SessionList.model_validate(data) == SessionList(sessions=[summary])
+    assert AgentList(
+        default="claude", agents=["antigravity", "claude"]
+    ).model_dump() == {
         "default": "claude",
         "agents": ["antigravity", "claude"],
     }
-    assert decode(Sent, {"delivery": "steered"}).delivery == "steered"
-    with pytest.raises(SchemaError, match="delivery: must be one of"):
-        decode(Sent, {"delivery": "posted"})
+    assert Sent.model_validate({"delivery": "steered"}).delivery == "steered"
+    refused(
+        Sent, {"delivery": "posted"}, "Input should be 'sent', 'steered' or 'queued'"
+    )
+    assert Restarting().model_dump() == {"restarting": True}
+    assert Output(lines=["a"]).model_dump() == {"lines": ["a"]}
+    assert ErrorBody(error="x").model_dump() == {"error": "x"}
+
+
+def test_answers_refuse_what_they_dont_know() -> None:
+    data = status().model_dump(mode="json")
+    refused(
+        SessionStatus, {**data, "extra": 1}, "extra\n  Extra inputs are not permitted"
+    )
+    refused(SessionStatus, {**data, "state": "sleeping"}, "state\n")

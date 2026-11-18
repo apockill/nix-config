@@ -6,18 +6,41 @@ import json
 import os
 import stat
 from pathlib import Path
+from typing import Any
 
 import pytest
-from agent_runner.acp import (
-    ConfigOption,
-    ModelInfo,
-    SessionModelState,
-    SessionSetup,
-    SetConfigOptionParams,
-    SetModelParams,
+from acp.schema import (
+    InitializeResponse,
+    NewSessionResponse,
+    SetSessionConfigOptionResponse,
+    SetSessionConfigOptionSelectRequest,
+    SetSessionModelRequest,
+    SetSessionModelResponse,
 )
 from agent_runner.errors import RunnerError
-from agent_runner.vendors import choose_model, transcript_path, trust_folder
+from agent_runner.vendors import (
+    SteeringResult,
+    choose_model,
+    steering,
+    steers,
+    transcript_path,
+    trust_folder,
+)
+
+
+def option(config_id: str, category: str | None) -> dict[str, Any]:
+    return {
+        "id": config_id,
+        "name": config_id,
+        "category": category,
+        "type": "select",
+        "currentValue": "x",
+        "options": [{"value": "x", "name": "X"}],
+    }
+
+
+def setup(**fields: Any) -> NewSessionResponse:
+    return NewSessionResponse.model_validate({"sessionId": "s", **fields})
 
 
 def test_trust_folder_adds_the_folder_and_keeps_the_rest(tmp_path: Path) -> None:
@@ -69,27 +92,68 @@ def test_transcript_path() -> None:
 
 
 def test_claude_sets_its_model_as_a_config_option() -> None:
-    setup = SessionSetup(
-        config_options=[ConfigOption("mode", "mode"), ConfigOption("model", "model")]
+    choice = choose_model(
+        "claude",
+        setup(configOptions=[option("mode", "mode"), option("model", "model")]),
+        "s",
+        "haiku",
     )
-    choice = choose_model("claude", setup, "s", "haiku")
     assert choice.method == "session/set_config_option"
-    assert choice.params == SetConfigOptionParams("s", "model", "haiku")
+    assert choice.params == SetSessionConfigOptionSelectRequest(
+        session_id="s", config_id="model", value="haiku"
+    )
+    assert choice.result is SetSessionConfigOptionResponse
+
+
+def test_a_boolean_option_is_not_a_model_choice() -> None:
+    boolean = {
+        "id": "fast",
+        "name": "Fast",
+        "category": "model",
+        "type": "boolean",
+        "currentValue": False,
+    }
+    with pytest.raises(RunnerError, match="offers no model choice"):
+        choose_model("x", setup(configOptions=[boolean]), "s", "m")
 
 
 def test_agy_sets_one_of_its_models() -> None:
-    setup = SessionSetup(models=SessionModelState([ModelInfo("a"), ModelInfo("b")]))
-    choice = choose_model("antigravity", setup, "s", "b")
-    assert (choice.method, choice.params) == (
+    models = {
+        "currentModelId": "a",
+        "availableModels": [
+            {"modelId": "a", "name": "A"},
+            {"modelId": "b", "name": "B"},
+        ],
+    }
+    choice = choose_model("antigravity", setup(models=models), "s", "b")
+    assert (choice.method, choice.params, choice.result) == (
         "session/set_model",
-        SetModelParams("s", "b"),
+        SetSessionModelRequest(session_id="s", model_id="b"),
+        SetSessionModelResponse,
     )
     with pytest.raises(RunnerError, match="antigravity has no model 'c'; it has: a, b"):
-        choose_model("antigravity", setup, "s", "c")
+        choose_model("antigravity", setup(models=models), "s", "c")
 
 
 def test_an_agent_without_a_model_choice() -> None:
     with pytest.raises(RunnerError, match="x offers no model choice over ACP"):
-        choose_model(
-            "x", SessionSetup(config_options=[ConfigOption("m", "mode")]), "s", "m"
-        )
+        choose_model("x", setup(configOptions=[option("m", "mode")]), "s", "m")
+
+
+def test_steering_is_what_initialize_advertises() -> None:
+    def init(meta: Any) -> InitializeResponse:
+        return InitializeResponse.model_validate({"protocolVersion": 1, "_meta": meta})
+
+    assert steers(init({"steering": {"supported": True}}))
+    assert not steers(init({"steering": {"supported": False}}))
+    assert not steers(init(None))
+    assert not steers(init({"other": 1}))
+    assert steering("s", "hi") == {
+        "sessionId": "s",
+        "prompt": [{"type": "text", "text": "hi"}],
+        "_meta": {"steering": {"idleBehavior": "promptRequired"}},
+    }
+    assert (
+        SteeringResult.model_validate({"outcome": "injected", "x": 1}).outcome
+        == "injected"
+    )

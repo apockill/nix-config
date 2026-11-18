@@ -14,25 +14,23 @@ from agent_runner.errors import RunnerError
 from agent_runner.events import Event, Prompted, State
 from agent_runner.notify import Notifier
 from agent_runner.runner import Runner
-from agent_runner.schema import decode
 from agent_runner.store import Record, Store
 from conftest import Service, fake_agent
 
 
 def runner(tmp: Path) -> Runner:
-    config = decode(
-        Config,
+    config = Config.model_validate(
         {
             "default": "fake",
             "agents": {"fake": fake_agent(), "other": fake_agent()},
             "refused_env": ["ANTHROPIC_API_KEY"],
-        },
+        }
     )
     return Runner(config, Store(tmp / "state"), Notifier([]))
 
 
 def start(tmp: Path, **fields: Any) -> StartRequest:
-    return StartRequest(**{"name": "job", "dir": str(tmp), **fields})
+    return StartRequest.model_validate({"name": "job", "dir": str(tmp), **fields})
 
 
 def test_check_gives_the_agent(tmp_path: Path) -> None:
@@ -78,7 +76,8 @@ def on_disk(tmp: Path, name: str, state: State, updated_at: float, seq: int) -> 
             updated_at=updated_at,
         )
     )
-    files.append(Event(seq, updated_at, name, Prompted(text="x", delivery="sent")))
+    body = Prompted(text="x", delivery="sent")
+    files.append(Event(seq=seq, ts=updated_at, session=name, body=body))
 
 
 def test_load_puts_live_sessions_offline_and_continues_seq(tmp_path: Path) -> None:

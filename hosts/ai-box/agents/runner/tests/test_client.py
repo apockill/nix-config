@@ -6,6 +6,7 @@ import socket
 import threading
 from pathlib import Path
 
+import httpx
 import pytest
 from agent_runner.api_types import StartRequest
 from agent_runner.client import Client, ClientError, error_of, quote
@@ -98,8 +99,9 @@ def test_an_answer_that_isnt_json(tmp_path: Path) -> None:
 def test_an_answer_that_doesnt_fit(tmp_path: Path) -> None:
     stub = tmp_path / "stub.sock"
     Stub(stub, http(b'{"default": "claude"}'))
-    with pytest.raises(ClientError, match="answer to /v1/agents doesn't fit: agents"):
+    with pytest.raises(ClientError, match="answer to /v1/agents doesn't fit") as e:
         Client(str(stub)).agents()
+    assert "agents\n  Field required" in str(e.value)
 
 
 def test_an_error_without_a_message(tmp_path: Path) -> None:
@@ -121,13 +123,15 @@ def test_an_odd_event(tmp_path: Path) -> None:
 
 def test_helpers() -> None:
     assert quote("a b/c") == "a%20b%2Fc"
-    assert error_of({"error": "nope"}, 400) == "nope"
-    assert error_of({"error": 3}, 400) == "HTTP 400"
-    assert error_of("x", 500) == "HTTP 500"
+    assert error_of(httpx.Response(400, json={"error": "nope"})) == "nope"
+    assert error_of(httpx.Response(400, json={"error": 3})) == "HTTP 400"
+    assert error_of(httpx.Response(500, json="x")) == "HTTP 500"
+    assert error_of(httpx.Response(502, content=b"<html>")) == "HTTP 502"
 
 
 def test_a_socket_it_cant_reach_is_a_client_error(tmp_path: Path) -> None:
     # Longer than a unix socket's path may be (108 bytes).
     client = Client(str(tmp_path / ("x" * 120) / "sock"))
-    with pytest.raises(ClientError, match="can't reach the runner at"):
+    with pytest.raises(ClientError, match="AF_UNIX path too long") as e:
         client.agents()
+    assert e.value.status == 0

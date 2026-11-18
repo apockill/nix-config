@@ -5,13 +5,23 @@ from __future__ import annotations
 import asyncio
 import os
 import time
-from collections import deque
+from collections import defaultdict, deque
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import acp
+from acp.exceptions import RequestError
+from acp.schema import InitializeResponse
+
+from .agent import (
+    AUTH_REQUIRED,
+    AgentExited,
+    AgentProcess,
+    Wanted,
+    agent_env,
+    open_session,
+)
 from .bus import EventBus
 from .config import SETUP_SECONDS, AgentSpec, Config
 from .errors import RunnerError
@@ -28,16 +38,12 @@ from .events import (
     State,
     StateChanged,
     TurnEnded,
-    Updated,
 )
-from .handshake import Wanted, agent_env, handshake
 from .inbox import Inbox
 from .notify import Notifier, Outcome
 from .parking import Parking
-from .rpc import AgentExited, Connection, RpcError
 from .store import Record, SessionFiles
-from .updates import message_text
-from .vendors import trust_folder
+from .vendors import STEERING, SteeringResult, steering, steers, trust_folder
 
 
 @dataclass(frozen=True)
@@ -54,9 +60,10 @@ class Session(Inbox):
         self.services = services
         self.record = record
         self.files = files
-        self.conn: Connection | None = None
-        self.init = acp.InitializeResult()
+        self.agent: AgentProcess | None = None
+        self.init: InitializeResponse | None = None
         self.parking = Parking()
+        self.waiting = defaultdict(deque)
         self.queue: deque[str] = deque()
         self.turn: asyncio.Task[None] | None = None
         self.open_lock = asyncio.Lock()
@@ -77,7 +84,7 @@ class Session(Inbox):
 
     @property
     def alive(self) -> bool:
-        return bool(self.conn and self.conn.running)
+        return bool(self.agent and self.agent.running)
 
     @property
     def agent_session(self) -> str:
@@ -90,8 +97,6 @@ class Session(Inbox):
 
     def emit(self, body: Body) -> Event:
         event = self.services.bus.publish(self.name, self.files, body)
-        if isinstance(body, Updated):
-            self.last_text += message_text(body.update)
         self.last_event_at = event.ts
         return event
 
@@ -128,20 +133,20 @@ class Session(Inbox):
             f"agent-runner: session {self.name} ({self.record.agent}) failed: {reason}",
             self.notified,
         )
-        if self.conn:
-            await self.conn.terminate()
+        if self.agent:
+            await self.agent.terminate()
 
     def notified(self, message: str, outcome: Outcome) -> None:
         self.emit(Notified(message=message, ok=outcome.ok, error=outcome.error))
 
     def explain(self, error: BaseException, doing: str) -> str:
-        if isinstance(error, RpcError) and error.code == acp.AUTH_REQUIRED:
+        if isinstance(error, RequestError) and error.code == AUTH_REQUIRED:
             said = self.last_text.strip()
             hint = f" ({said[:300]})" if said else ""
             return (
                 f"the {self.record.agent} sign-in is missing or expired: {error}{hint}"
             )
-        tail = self.conn.stderr_tail() if self.conn else ""
+        tail = self.agent.stderr_tail() if self.agent else ""
         return f"{doing}: {error}" + (f" (agent stderr: {tail})" if tail else "")
 
     # Connecting
@@ -153,7 +158,7 @@ class Session(Inbox):
             self.set_state("starting")
             try:
                 await self._open(resume)
-            except (RpcError, RunnerError, AgentExited, OSError, ValueError) as e:
+            except (RequestError, RunnerError, AgentExited, OSError, ValueError) as e:
                 await self.fail(self.explain(e, "the agent couldn't start"))
                 raise RunnerError(self.record.reason or str(e), 502) from e
             self.settle_state()
@@ -164,11 +169,11 @@ class Session(Inbox):
             trust_folder(Path(spec.claude_trust_file), rec.dir)
         self.files.folder.mkdir(parents=True, exist_ok=True)
         env = agent_env(rec.agent, spec, rec.env, config.refused_env, os.environ)
-        self.conn = conn = await Connection.spawn(
-            spec.command, rec.dir, env, self.files.agent_log
+        self.waiting.clear()
+        self.agent = agent = await AgentProcess.spawn(
+            spec.command, rec.dir, env, self.files.agent_log, self
         )
-        conn.on_message = self.on_message
-        self.spawn(self.watch(conn))
+        self.spawn(self.watch(agent))
         wanted = Wanted(
             agent=rec.agent,
             dir=rec.dir,
@@ -177,14 +182,19 @@ class Session(Inbox):
             model=rec.model,
             meta=rec.session_meta,
         )
-        opened = await handshake(conn, spec, wanted, self.mute, self.created)
+        opened = await open_session(agent, spec, wanted, self.mute, self.created)
         self.init = opened.init
         self.save()
+        info = opened.init.agent_info
         self.emit(
             SessionOpened(
                 agent_session_id=opened.session_id,
                 transcript=opened.transcript,
-                agent_info=opened.init.agent_info,
+                agent_info=(
+                    info.model_dump(mode="json", by_alias=True, exclude_none=True)
+                    if info
+                    else None
+                ),
             )
         )
 
@@ -195,16 +205,16 @@ class Session(Inbox):
         self.record.agent_session_id = session_id
         self.record.transcript = transcript
 
-    async def watch(self, conn: Connection) -> None:
-        code = await conn.closed
-        if conn is not self.conn:
+    async def watch(self, agent: AgentProcess) -> None:
+        code = await agent.closed
+        if agent is not self.agent:
             return
         self.drop_pending("the agent exited")
         if self.stopping or self.record.state in ENDED:
             return
         if self.record.state == "starting":
             return  # open() reports it
-        tail = f"(agent stderr: {conn.stderr_tail()})" if conn.stderr else ""
+        tail = f"(agent stderr: {agent.stderr_tail()})" if agent.stderr else ""
         await self.fail(f"the agent exited (code {code}) {tail}")
 
     # Prompts
@@ -218,16 +228,13 @@ class Session(Inbox):
                     f"{self.name} never started, so there's nothing to resume", 409
                 )
             await self.open(resume=self.record.agent_session_id)
-        assert self.conn
+        assert self.agent and self.init
         if self.turn and not self.turn.done():
-            if self.init.steering:
-                steered = await self.conn.request(
-                    acp.SteeringResult,
-                    "_session/steering",
-                    acp.SteeringParams(self.agent_session, [acp.TextBlock(text)]),
-                    SETUP_SECONDS,
+            if steers(self.init):
+                raw = await self.agent.extension(
+                    STEERING, steering(self.agent_session, text), SETUP_SECONDS
                 )
-                if steered.outcome == "injected":
+                if SteeringResult.model_validate(raw or {}).outcome == "injected":
                     self.emit(Prompted(text=text, delivery="steered"))
                     return "steered"
             if self.turn and not self.turn.done():
@@ -239,23 +246,20 @@ class Session(Inbox):
         return "sent"
 
     async def run_turn(self, text: str) -> None:
-        assert self.conn
+        assert self.agent
         self.emit(Prompted(text=text, delivery="sent"))
         self.last_text = ""
         self.record.turns += 1
         self.settle_state()
         try:
-            result = await self.conn.request(
-                acp.PromptResult,
-                "session/prompt",
-                acp.PromptParams(self.agent_session, [acp.TextBlock(text)]),
-                None,
-            )
+            result = await self.agent.prompt(self.agent_session, text)
             self.emit(TurnEnded(stop_reason=result.stop_reason))
-        except RpcError as e:
-            if e.code == acp.AUTH_REQUIRED:
+        except RequestError as e:
+            if e.code == AUTH_REQUIRED:
                 await self.fail(self.explain(e, "the turn failed"))
                 return
+            self.emit(Failed(message=f"the turn failed: {e}"))
+        except RunnerError as e:
             self.emit(Failed(message=f"the turn failed: {e}"))
         except AgentExited:
             return  # watch() reports it
@@ -271,26 +275,24 @@ class Session(Inbox):
         """End the turn, cancel open requests, drop the queue; the agent stays up."""
         self.queue.clear()
         for request_id in list(self.parking.open):
-            self.deliver(request_id, self.parking.cancel(request_id))
-        if self.alive and self.record.agent_session_id:
-            assert self.conn
-            self.conn.notify("session/cancel", acp.CancelParams(self.agent_session))
+            self.resolved(request_id, self.parking.cancel(request_id))
+        if self.agent and self.alive and self.record.agent_session_id:
+            await self.agent.cancel(self.agent_session)
             self.emit(Cancelled())
 
     async def stop(self, reason: str) -> None:
         self.stopping = True
         self.queue.clear()
         self.drop_pending("stopped")
-        if self.conn:
-            await self.conn.terminate()
+        if self.agent:
+            await self.agent.terminate()
         self.set_state("stopped", reason)
 
     async def go_offline(self, reason: str) -> None:
         """The runner stops: the agent ends, the session stays resumable."""
-        if not self.alive:
+        if not self.agent or not self.alive:
             return
-        assert self.conn
         self.stopping = True
-        await self.conn.terminate()
+        await self.agent.terminate()
         if self.record.state not in ENDED:
             self.set_state("offline", reason)
