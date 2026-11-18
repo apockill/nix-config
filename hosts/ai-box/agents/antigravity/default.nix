@@ -52,6 +52,23 @@ in
     aiBox.agents.antigravity.cli = agy;
     services.hermes-agent.extraPackages = [ agy ];
 
+    # Sessions through the runner (../runner). Over ACP agy starts in its "default" mode, whose
+    # system prompt and tools differ from the TUI's; in "auto" they're the TUI's byte for byte.
+    # It ignores its settings.json permission rules over ACP (accepted for now, the spike's
+    # findings): don't rely on them.
+    aiBox.agents.runner.agents.antigravity = {
+      command = [
+        "${agy}/bin/agy"
+        "acp"
+      ];
+      mode = "auto";
+      refusedEnv = [
+        "GEMINI_API_KEY"
+        "GOOGLE_API_KEY"
+      ];
+      transcript = "${home}/.gemini/antigravity-cli/brain/{session_id}/.system_generated/logs/transcript.jsonl";
+    };
+
     # agy reads AGENTS.md in a repository and .agents/skills there natively; at user level it
     # reads ~/.gemini/AGENTS.md and ~/.gemini/config/skills.
     aiBox.agents.links = {

@@ -1,0 +1,167 @@
+# The agent runner: every coding agent session on ai-box, over the Agent Client Protocol (ACP).
+#
+# One service holds every session: it starts the agent's own ACP server for each one
+# (claude-agent-acp, `agy acp`) and serves a local API on a unix socket, with `agent-runner` as
+# its CLI (`cc` is a thin layer on it). The API is in ./README.md, the code in ./runner.py (stdlib
+# Python; tests in ./test_runner.py against ./fake_acp_agent.py, run by `just test`).
+#
+# It's a user service of the agent's user, not part of the Hermes gateway, so a gateway restart
+# (every switch that touches it) leaves sessions running. A switch doesn't restart it either
+# (keep-old); `agent-runner restart` applies a new runner (the service exits with 75, and systemd
+# starts the current version). A restart or a boot ends the agents' processes, not their
+# sessions: the records stay, and the next message resumes the agent's own session
+# (session/resume).
+#
+# Each vendor directory declares its agent here (aiBox.agents.runner.agents.<name>): command,
+# environment, mode, transcript path. The runner itself knows only ACP.
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  cfg = config.services.hermes-agent;
+  runnerCfg = config.aiBox.agents.runner;
+  state = "${cfg.stateDir}/agent-runner";
+  secretsEnv = "/run/hermes-secrets/env";
+
+  agentsFile = pkgs.writeText "agent-runner-agents.json" (
+    builtins.toJSON {
+      default = runnerCfg.default;
+      agents = lib.mapAttrs (_: a: {
+        inherit (a)
+          command
+          env
+          mode
+          transcript
+          ;
+        pass_env = a.passEnv;
+        claude_trust_file = a.claudeTrustFile;
+      }) runnerCfg.agents;
+      refused_env = lib.unique (lib.concatMap (a: a.refusedEnv) (lib.attrValues runnerCfg.agents));
+    }
+  );
+
+  agentRunner = pkgs.writers.writePython3Bin "agent-runner" {
+    flakeIgnore = [
+      "E501"
+      "W503"
+      "E203"
+    ];
+    makeWrapperArgs = [
+      "--set-default"
+      "AGENT_RUNNER_SOCKET"
+      runnerCfg.socket
+      "--set-default"
+      "AGENT_RUNNER_STATE"
+      state
+      "--set-default"
+      "AGENT_RUNNER_AGENTS"
+      "${agentsFile}"
+      "--set-default"
+      "AGENT_RUNNER_NOTIFY"
+      "notify-alex"
+    ];
+  } (builtins.readFile ./runner.py);
+
+  # The service gets only the secrets its agents pass through (the subscription token), read from
+  # the secrets file, which may not be there yet at boot: user services can't wait for
+  # hermes-secrets, a system unit.
+  passEnv = lib.unique (lib.concatMap (a: a.passEnv) (lib.attrValues runnerCfg.agents));
+  serve = pkgs.writeShellScript "agent-runner-serve" ''
+    for _ in $(seq 60); do [ -r ${secretsEnv} ] && break; sleep 5; done
+    set -a
+    eval "$(${pkgs.gnugrep}/bin/grep -E '^(${lib.concatStringsSep "|" passEnv})=' ${secretsEnv})"
+    set +a
+    exec ${agentRunner}/bin/agent-runner serve
+  '';
+in
+{
+  options.aiBox.agents.runner = {
+    default = lib.mkOption {
+      type = lib.types.str;
+      default = "claude";
+      description = "The agent a session gets when `start` names none.";
+    };
+    socket = lib.mkOption {
+      type = lib.types.str;
+      readOnly = true;
+      default = "${state}/sock";
+      description = "The runner's API (README.md): HTTP on a unix socket, the agent's user only.";
+    };
+    agents = lib.mkOption {
+      description = "The agents the runner can start, one per vendor directory.";
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            command = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              description = "The agent's ACP server, speaking ACP on stdio.";
+            };
+            env = lib.mkOption {
+              type = lib.types.attrsOf lib.types.str;
+              default = { };
+            };
+            passEnv = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              description = "Variables from the secrets file the agent gets (its sign-in); a session fails if one is missing.";
+            };
+            refusedEnv = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              description = "Variables no session may get: they'd switch it from the subscription to metered billing.";
+            };
+            mode = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = "The mode every session is set to (session/set_mode); null keeps the agent's default.";
+            };
+            transcript = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = "Where the agent writes a session's transcript: {session_id}, {cwd}, {cwd_slug}.";
+            };
+            claudeTrustFile = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = "Claude Code's .claude.json, where each session's folder is marked trusted.";
+            };
+          };
+        }
+      );
+    };
+  };
+
+  config = {
+    services.hermes-agent.extraPackages = [ agentRunner ];
+
+    aiBox.state.paths.${state} = {
+      backup = "cache";
+      why = "The agent runner's session records and event logs (agents/runner): the index from a session's name to the agent's own session and transcript, so a session resumes after a reboot. Transcripts themselves live with each agent (~/.claude, ~/.gemini).";
+    };
+
+    home-manager.users.${cfg.user}.systemd.user.services.agent-runner = {
+      Unit = {
+        Description = "The coding agents' sessions over ACP (agent-runner)";
+        After = [ "network-online.target" ];
+        # A switch mustn't end running sessions; the new runner applies on the next start.
+        X-SwitchMethod = "keep-old";
+      };
+      Service = {
+        ExecStart = "${serve}";
+        Environment = [
+          "PATH=/run/wrappers/bin:/etc/profiles/per-user/${cfg.user}/bin:/run/current-system/sw/bin"
+          "LANG=C.UTF-8"
+        ];
+        WorkingDirectory = cfg.stateDir;
+        Restart = "on-failure";
+        RestartSec = 5;
+        # Stopping ends every agent (they run in the service's cgroup); sessions stay resumable.
+        TimeoutStopSec = 30;
+      };
+      Install.WantedBy = [ "default.target" ];
+    };
+  };
+}

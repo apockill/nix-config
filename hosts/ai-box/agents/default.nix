@@ -3,6 +3,7 @@
 # permissions, auth, models, hooks); everything outside them talks about "the agent".
 #   claude/       Claude Code (Anthropic)
 #   antigravity/  the Antigravity CLI, agy (Google)
+#   runner/       the agent runner: every session over ACP, with a local API (runner/README.md)
 #   AGENTS.md     machine-wide instructions for every agent session
 #
 # Shared by every vendor, in ~/.agents (vendors link their own file names to these):
@@ -29,6 +30,7 @@ in
   imports = [
     ./claude
     ./antigravity
+    ./runner
   ];
 
   options.aiBox.agents = {
