@@ -38,9 +38,10 @@
         where it is or dock it.
       - `arm:` left STUCK or unknown: one short line on where it is now (e.g. "The arm is back:
         released at its rest at 02:14.").
-      - With an alert active, `arm:` went to released or powered at its rest from out of its
-        rest: one short line on what the recovery did (e.g. "Recovered: the arm docked itself
-        at its rest and powered off at 02:12.").
+      - With a servo_dropout alert (its kind or under `later also`) or the gripper servo
+        silent, `arm:` went to released or powered at its rest from out of its rest: one short
+        line on what the recovery did (e.g. "Recovered: the arm docked itself at its rest and
+        powered off at 02:12."). Under other alerts that is just someone working: silent.
       - Anything else - the alert going to `none` (someone cleared it), the arm moving in and
         out of its rest with no alert, the baseline with `alert: none` and the arm not STUCK:
         answer exactly [SILENT].
