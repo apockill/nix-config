@@ -75,6 +75,7 @@ We chose this over patching orca-slicer-api (nix-config #96). A profile copy can
   - fixed: clean.
 
   This tree gives the fixed retraction (3 mm, Bowden Standard), with 02.08.00.01 and with 02.08.00.06 alike.
+- **The pin is what the app installs** (2026-11-18): a fresh Bambu Studio 02.08.00.50 HOME (ai-box-apps' golden regeneration, display :97) went through the first-run wizard and was offered "BBL 2.8.0.6"; after OK, its `system/BBL.json` and `system/BBL/` (2517 files) were byte-identical to this pin's package (`diff -r`, `cmp`), and so was the download it kept in `ota/presets/`.
 - **The slice uses the pinned package** (2026-11-18): through a private orca-slicer-api on its own port, given this tree and the presets Bambuddy sends (stubs naming the stock presets), traced with `strace -f`:
   - towers-right-plabasic (white PLA Basic on the right nozzle) sends `M620.17 T1 S220 L0` where the 02.08.00.01 tree sent `L-1`;
   - pair-petg-left (PETG Basic and PETG HF on the left nozzle) sets `M142 P1 R50 S55 U0 V0.5 O55` at its layer changes where the 02.08.00.01 tree set `R35 S50`;
