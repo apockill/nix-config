@@ -10,6 +10,8 @@ import httpx
 import pytest
 from agent_runner import api
 from agent_runner.client import ClientError
+from agent_runner.errors import RunnerError
+from agent_runner.runner import Runner
 from conftest import Service
 
 
@@ -244,3 +246,84 @@ def test_a_500_leaves_the_connection_usable(
     for _ in range(3):
         assert refused(service, "GET", "/v1/sessions/s/output").status == 500
         assert service.client.status("s").name == "s"
+
+
+def test_the_schema_lists_every_route_with_its_models(service: Service) -> None:
+    with http(service) as c:
+        schema = c.get("/v1/openapi.json").json()
+        assert c.get("/docs").status_code == 404
+        assert c.get("/redoc").status_code == 404
+
+    def model(content: dict[str, Any]) -> str:
+        """The model a body or answer names, else its media type."""
+        for media, of in content.items():
+            ref: str = of.get("schema", {}).get("$ref", media)
+            return ref.removeprefix("#/components/schemas/")
+        return "-"
+
+    routes = {}
+    for path, operations in schema["paths"].items():
+        for method, op in operations.items():
+            sent = model(op.get("requestBody", {}).get("content", {}))
+            ok = next(code for code in op["responses"] if code.startswith("2"))
+            answer = model(op["responses"][ok].get("content", {}))
+            routes[f"{method.upper()} {path}"] = (sent, f"{ok} {answer}")
+            for code, response in op["responses"].items():
+                if not code.startswith("2"):
+                    assert model(response["content"]) == "ErrorBody", (path, code)
+            assert "422" not in op["responses"], path
+    assert routes == {
+        "POST /v1/restart": ("RestartRequest", "200 Restarting"),
+        "GET /v1/agents": ("-", "200 AgentList"),
+        "GET /v1/sessions": ("-", "200 SessionList"),
+        "POST /v1/sessions": ("StartRequest", "201 SessionStatus"),
+        "GET /v1/events": ("-", "200 application/x-ndjson"),
+        "GET /v1/sessions/{name}": ("-", "200 SessionStatus"),
+        "GET /v1/sessions/{name}/output": ("-", "200 Output"),
+        "GET /v1/sessions/{name}/events": ("-", "200 application/x-ndjson"),
+        "POST /v1/sessions/{name}/send": ("SendRequest", "200 Sent"),
+        "POST /v1/sessions/{name}/cancel": ("EmptyRequest", "200 SessionStatus"),
+        "POST /v1/sessions/{name}/stop": ("StopRequest", "200 SessionStatus"),
+        "POST /v1/sessions/{name}/requests/{request_id}": (
+            "JsonObject",
+            "200 SessionStatus",
+        ),
+    }
+    lines = schema["paths"]["/v1/sessions/{name}/output"]["get"]["parameters"][1]
+    assert lines["schema"] == {
+        "type": "integer",
+        "minimum": 0,
+        "default": 40,
+        "title": "Lines",
+    }
+
+
+def test_a_caller_is_refused_before_its_body_is_read(
+    service: Service, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(*_: Any) -> None:
+        raise RunnerError("inside session x, which may not use the runner", 403)
+
+    monkeypatch.setattr(Runner, "admit", refuse)
+    with http(service) as c:
+        for path in ("/v1/sessions", "/v1/sessions/ghost/send", "/v1/restart"):
+            r = c.post(path, content=b"{name")
+            assert (r.status_code, r.json()) == (
+                403,
+                {"error": "inside session x, which may not use the runner"},
+            ), path
+        # The schema isn't behind it: it says nothing api_types.py doesn't.
+        assert c.get("/v1/openapi.json").status_code == 200
+
+
+def test_a_body_is_json_whatever_its_content_type(service: Service) -> None:
+    # curl -d sends application/x-www-form-urlencoded; the CLI's bodiless POSTs send none.
+    service.start_session("s")
+    with http(service) as c:
+        for kind in ("application/x-www-form-urlencoded", "text/plain"):
+            r = c.post(
+                "/v1/sessions/s/stop",
+                content=b'{"reason": "done"}',
+                headers={"Content-Type": kind},
+            )
+            assert (r.status_code, r.json()["reason"]) == (200, "done"), kind
