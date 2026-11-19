@@ -19,6 +19,7 @@ http://runner/v1/sessions` (the host is ignored). The routes (api.py):
                                                     and a heartbeat every 15 s; /v1/events keeps
                                                     the last 20,000 of all sessions
   POST /v1/restart                              RestartRequest -> Restarting
+  GET  /v1/openapi.json                         the OpenAPI schema of all of these
 
 Requests forbid unknown fields; `null` is the same as leaving an optional field out. The CLI reads
 answers with the same models. An error is ErrorBody with its status:

@@ -6,7 +6,7 @@
 # first message). ./README.md says what it is and how it behaves; the API is in
 # ./agent_runner/api_types.py and the CLI in `agent --help`. The code is the typed package
 # ./agent_runner (one concern per module, listed in its __init__.py), on the ACP Python SDK,
-# pydantic, Starlette and uvicorn; ./tests has a test module per source module, the end-to-end
+# pydantic, FastAPI and uvicorn; ./tests has a test module per source module, the end-to-end
 # tests against ./tests/fake_acp_agent.py, and live smoke tests that skip without a sign-in. The
 # package's build runs `mypy --strict` and the tests, so a type error or a failing test fails the
 # system build.

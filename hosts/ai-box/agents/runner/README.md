@@ -9,7 +9,7 @@ starts, watches, steers and stops it. Sessions outlive their callers: Hermes and
 jobs, and Alex watches and steers them in the live view.
 
 - **Use it** with `agent` (`agent --help`), the only way to run a coding job. The API's routes,
-  bodies and statuses are in `agent_runner/api_types.py`, its events in `agent_runner/events.py`.
+  bodies and statuses: `agent_runner/api_types.py` (`GET /v1/openapi.json`); events: `events.py`.
 - **Service:** `agent-runner.service`, a *user* service apart from the Hermes gateway, so a gateway
   restart leaves sessions running. A switch doesn't restart it; `agent restart` does.
 - **State:** `/var/lib/hermes/agent-runner/sessions/<name>/`: `session.json`, `events.jsonl`,
