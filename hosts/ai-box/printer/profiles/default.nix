@@ -16,11 +16,17 @@
 #    app's default filament preset is copied from. Preset::filament_options() and the override
 #    keys PresetBundle sets to nil are plain string lists, read from the same version's source
 #    (nixpkgs' patches to it only touch the build).
-# 3. The output: the merged BBL/ and BBL.json, premerge-report.json (per template, what was
-#    applied and what was left to the parent), bambu-studio-defaults.json, bbl-version, the
-#    profiles' version for anything that reads this tree, and bbl-package, the unmerged package
-#    (ai-box-apps' golden regeneration seeds the Bambu Studio app's HOME with it). The name carries both versions, the
-#    CLI's and the profiles': bambu-studio-profiles-premerged-<bambu-studio>-bbl-<profiles>.
+# 3. The root of the filament chains (fdm_filament_common) also gets every filament setting at
+#    that default, below its own keys: the app starts each preset from the default preset, while
+#    the CLI copies only the keys a filament's file holds and pads a short list with the first
+#    filament's value (pre_start_fan_time, which only Bambu PLA Pure sets, spread to every
+#    filament).
+# 4. The output: the merged BBL/ and BBL.json, premerge-report.json (per template, what was
+#    applied and what was left to the parent; per root, the defaults it was given),
+#    bambu-studio-defaults.json, bbl-version, the profiles' version for anything that reads this
+#    tree, and bbl-package, the unmerged package (ai-box-apps' golden regeneration seeds the
+#    Bambu Studio app's HOME with it). The name carries both versions, the CLI's and the
+#    profiles': bambu-studio-profiles-premerged-<bambu-studio>-bbl-<profiles>.
 {
   lib,
   bambu-studio,

@@ -39,6 +39,17 @@ EXPORTED = {
     "filament_retract_length_nc": ["10"],
     "wall_loops": "2",  # a process key: not part of the filament defaults
 }
+# The filament defaults (EXPORTED on the filament options, override keys nil) a chain's root takes;
+# filament_settings_id, also in the default preset, is the preset's identity and stays out.
+ROOT_DEFAULTS = {
+    "filament_type": ["PLA"],
+    "filament_retraction_length": ["nil"],
+    "filament_retract_length_nc": ["nil"],
+    "long_retractions_when_ec": ["0"],
+    "filament_extruder_variant": ["Direct Drive Standard"],
+    "slow_down_min_speed": ["10"],
+    "filament_notes": [""],
+}
 
 
 def write_tree(
@@ -169,6 +180,7 @@ def test_template_merged_below_own_keys(tmp_path: Path) -> None:
     assert merged["filament_retraction_length"] == ["nil", "nil"]
     assert "instantiation" not in merged
     assert load(bbl, "PLA @base") == {
+        **ROOT_DEFAULTS,
         "name": "PLA @base",
         "type": "filament",
         "inherits": "",
@@ -258,6 +270,69 @@ def test_keys_outside_the_filament_options_are_dropped(tmp_path: Path) -> None:
     assert report["templates"]["fdm_filament_template_direct_dual"][
         "not_a_filament_option"
     ] == ["wall_loops"]
+
+
+def resolve(bbl: Path, name: str) -> dict[str, Any]:
+    """orca-slicer-api's inherits walk (profile-resolver.js resolveProfile): parent below child."""
+    files = {p.stem: p for p in (bbl / "filament").rglob("*.json")}
+    current: dict[str, Any] = json.loads(files[name].read_text())
+    while current.get("inherits"):
+        parent = json.loads(files[current["inherits"]].read_text())
+        current = {**parent, **current, "inherits": parent.get("inherits", "")}
+    return current
+
+
+def test_a_chains_root_carries_every_filament_setting_at_its_default(
+    tmp_path: Path,
+) -> None:
+    bbl, report = run(
+        tmp_path,
+        {
+            "fdm_filament_template_direct_dual": TEMPLATE,
+            "fdm_filament_common": {"instantiation": "false", "filament_type": ["ABS"]},
+            "PLA Pure @base": {
+                "inherits": "fdm_filament_common",
+                "filament_notes": ["pure"],
+            },
+            "PLA Pure": {
+                "inherits": "PLA Pure @base",
+                "include": ["fdm_filament_template_direct_dual"],
+            },
+            "PLA Basic": {"inherits": "fdm_filament_common"},
+        },
+    )
+    # Below the root's own keys; identity keys aren't settings and stay out.
+    assert load(bbl, "fdm_filament_common") == {
+        **ROOT_DEFAULTS,
+        "name": "fdm_filament_common",
+        "type": "filament",
+        "instantiation": "false",
+        "filament_type": ["ABS"],
+    }
+    # Only the root: the other files still hold just what they declare.
+    assert load(bbl, "PLA Basic") == {
+        "name": "PLA Basic",
+        "type": "filament",
+        "inherits": "fdm_filament_common",
+    }
+    assert load(bbl, "fdm_filament_template_direct_dual") == {
+        "name": "fdm_filament_template_direct_dual",
+        "type": "filament",
+        **TEMPLATE,
+    }
+    # The key only one chain sets reaches the other filament's file at its default, so the CLI
+    # gets a value for every filament instead of padding with the first one's.
+    assert resolve(bbl, "PLA Pure")["filament_notes"] == ["pure"]
+    assert resolve(bbl, "PLA Basic")["filament_notes"] == [""]
+    # A chain's own and template values still win over the root's defaults.
+    assert (
+        resolve(bbl, "PLA Pure")["filament_extruder_variant"]
+        == TEMPLATE["filament_extruder_variant"]
+    )
+    assert resolve(bbl, "PLA Basic")["filament_type"] == ["ABS"]
+    assert report["roots_given_defaults"] == {
+        "fdm_filament_common": sorted(set(ROOT_DEFAULTS) - {"filament_type"})
+    }
 
 
 @pytest.mark.parametrize(
