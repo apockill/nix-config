@@ -1,4 +1,4 @@
-"""The API (README.md) as a Starlette app: each request body checked by its model, each answer a
+"""The API (api_types.py) as a Starlette app: each request body checked by its model, each answer a
 model, every error `{"error": ...}` with its status, events as NDJSON."""
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from .render import render
 from .runner import Runner, status
 from .session import Session
 
-DOCS = "see agents/runner/README.md"
+DOCS = "see agents/runner/agent_runner/api_types.py"
 # Where server.py's protocol puts the calling process's pid (the socket's SO_PEERCRED).
 PEER_PID = "agent_runner.peer_pid"
 

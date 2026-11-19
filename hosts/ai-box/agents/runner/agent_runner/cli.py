@@ -1,4 +1,4 @@
-"""`agent`: the coding agents' sessions and jobs, from a shell (README.md, "CLI").
+"""`agent`: the coding agents' sessions and jobs, from a shell (`agent --help`).
 
 Each verb is a call or two of the API, plus the job layer (jobs.py): names from titles, the task
 file as the first message, and `wait`.
@@ -15,13 +15,14 @@ import time
 from collections.abc import Sequence
 from typing import NoReturn
 
+from . import wait as wait_module
 from .api_types import SessionStatus
 from .base import JsonObject
 from .client import Client, ClientError, quote
 from .jobs import JobError, JobSpec, answer_body, read_task, start_request
 from .limits import describe
 from .render import asked
-from .wait import Waiting, wait
+from .wait import DEFAULT_MARKER, Waiting, wait
 
 
 class Parser(argparse.ArgumentParser):
@@ -47,48 +48,131 @@ def meta_arg(value: str) -> JsonObject:
     return meta
 
 
+START = """\
+The session is named after the title (lowercase letters, digits and dashes: "Sites: gate speed 2"
+is sites-gate-speed-2), works in DIR, and gets the starter's PATH and TMPDIR. Its first message is
+the task file or --task; with neither it starts idle. A name whose session isn't stopped or
+failed is refused.
+
+The call returns once the agent has shown signs of life, so a rejected sign-in or model fails the
+start itself. Then it prints `session: <name>` first (tools parse that line) and the session. A
+failed start prints the runner's error instead (and `resets_at: <Unix seconds>` at the usage
+limit: the session stays, limited) and exits 1.
+
+The vendor's defaults apply unless an option says otherwise; give one only for a reason you can
+state (hermes/AGENTS.md).
+"""
+
+SEND = """\
+sent: a new turn. steered: a turn was running and the agent took the message into it (Claude).
+queued: a turn was running and the agent can't be steered (Antigravity); it goes when the turn
+ends, survives a runner restart, and goes before a newer message. An offline session (or a failed
+one that had started) is resumed first. A stopped session refuses it, and a limited one until the
+reset.
+"""
+
+ANSWER = """\
+The ids come from `agent status` (pending) or the permission and question events.
+  p1 OPTION_ID     allow or reject a tool call with one of the request's options; or --cancel
+  q1 '{"f": ...}'  answer a question (Claude's AskUserQuestion) with the form's fields as JSON;
+                   or --decline, --cancel
+"""
+
+PEEK = """\
+A plain-text rendering of the session's events: prompts as `> ...`, the agent's text, `[tool]
+<title>`, `[permission p1] ...`, `[question q1] ...` with each field and its choices, `[turn ended:
+<reason>]`, state changes.
+"""
+
+RESTART = """\
+Every agent process ends and the sessions go offline; systemd starts the service again as its
+current version (how a new runner from a switch takes effect), and each session resumes on its
+next message. Refused while a turn runs or a request waits, naming the sessions; with --force their
+turns are lost (Alex is told which) and their queued messages kept.
+"""
+
+
 def parser(prog: str) -> Parser:
     p = Parser(
-        prog=prog, description="The coding agents' sessions (agents/runner/README.md)."
+        prog=prog,
+        description="The coding agents' sessions on the agent runner"
+        " (agents/runner/README.md). `agent <verb> --help` for each verb.",
     )
     sub = p.add_subparsers(dest="verb", required=True, parser_class=Parser)
-    sub.add_parser("serve", help="run the service (agent-runner.service)")
-    s = sub.add_parser("start", help="start a job: a session named after its title")
+
+    def verb(name: str, about: str, epilog: str | None = None) -> Parser:
+        return sub.add_parser(
+            name,
+            help=about,
+            description=about,
+            epilog=epilog,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+
+    verb("serve", "run the service (agent-runner.service)")
+    s = verb("start", "start a job: a session named after its title", START)
     s.add_argument("title", help="the job's title; the session's name is made from it")
-    s.add_argument("dir", help="the folder it works in")
+    s.add_argument("dir", help="the folder it works in (it must exist)")
     s.add_argument("task_file", nargs="?", help="its first message, from this file")
     s.add_argument("--task", help="its first message (instead of a task file)")
     s.add_argument("--agent", help="claude (the default) or antigravity")
-    s.add_argument("--model")
-    s.add_argument("--mode", help="the agent's permission mode (default: its own)")
     s.add_argument(
-        "--resume", metavar="AGENT_SESSION_ID", help="continue that agent session"
+        "--model",
+        help="one the agent offers: Claude's aliases (haiku, sonnet, opus) or a full model id;"
+        " an Antigravity id (gemini-3.8-flash-low is the cheapest). Default: the agent's own",
     )
     s.add_argument(
-        "--env", type=env_arg, action="append", default=[], metavar="NAME=VALUE"
+        "--mode",
+        help="the agent's permission mode. Claude: default, acceptEdits, plan, auto,"
+        " bypassPermissions (default: auto, claude-agent-acp's own). Antigravity: auto unless"
+        " this says otherwise (its own default mode changes its prompt and tools over ACP)",
+    )
+    s.add_argument(
+        "--resume",
+        metavar="AGENT_SESSION_ID",
+        help="continue that agent session (an earlier session's agent_session_id)",
+    )
+    s.add_argument(
+        "--env",
+        type=env_arg,
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="extra environment for the agent; variables that would move it off its"
+        " subscription (ANTHROPIC_API_KEY, GEMINI_API_KEY, ...) are refused."
+        " CLAUDE_CODE_AUTO_COMPACT_WINDOW=<tokens> sets Claude's compaction window;"
+        " ENABLE_CLAUDEAI_MCP_SERVERS=false leaves out the account's claude.ai connectors",
     )
     s.add_argument(
         "--origin", help="who starts it, shown in lists (default: job: <title>)"
     )
     s.add_argument(
-        "--session-meta", type=meta_arg, metavar="JSON", help="vendor options"
+        "--session-meta",
+        type=meta_arg,
+        metavar="JSON",
+        help="vendor options, as session/new's _meta (kept for resumes). Claude:"
+        ' {"claudeCode": {"options": {"disallowedTools": [...]}}} takes Claude Agent SDK'
+        " options (disallowedTools is merged with the adapter's own)",
     )
     s.add_argument(
         "--allow-runner",
         action="store_true",
-        help="let the session's own processes use the runner (start, answer, stop sessions)",
+        help="let the session's own processes use the runner (start, answer, stop sessions);"
+        " without it they get 403. Only for a job that must start jobs itself",
     )
-    s = sub.add_parser(
-        "send", help="a message: a new turn, steered into the running one, or queued"
+    s = verb(
+        "send", "a message: a new turn, steered into the running one, or queued", SEND
     )
     s.add_argument("--file", help="the message, from a file")
     s.add_argument("name")
     s.add_argument("message", nargs=argparse.REMAINDER)
-    s = sub.add_parser("peek", help="the session's latest output as text")
+    s = verb("peek", "the session's latest output as text", PEEK)
     s.add_argument("name")
     s.add_argument("lines", nargs="?", type=int, default=40)
-    s = sub.add_parser(
-        "answer", help="answer a permission (p1: an option id) or a question (q1: JSON)"
+    s = verb(
+        "answer",
+        "answer a permission (p1: an option id) or a question (q1: JSON)",
+        ANSWER,
     )
     s.add_argument("name")
     s.add_argument("request_id")
@@ -96,41 +180,76 @@ def parser(prog: str) -> Parser:
     choice = s.add_mutually_exclusive_group()
     choice.add_argument("--decline", action="store_true", help="decline a question")
     choice.add_argument("--cancel", action="store_true")
-    s = sub.add_parser(
-        "wait", help="block until the job prints a marker, waits, goes quiet or ends"
+    s = verb(
+        "wait",
+        "block until the job prints a marker, waits, hits a limit, goes quiet or ends",
+        wait_doc(),
     )
     s.add_argument("name")
     s.add_argument(
-        "--marker", help="a regular expression for done lines (default: <X>-DONE ...)"
+        "--marker",
+        help=f"a regular expression for done lines (default: {DEFAULT_MARKER})",
     )
-    s.add_argument("--timeout", type=float, default=Waiting.timeout, metavar="SECONDS")
-    s.add_argument("--idle", type=float, default=Waiting.idle, metavar="SECONDS")
-    s.add_argument("--every", type=float, default=Waiting.every, metavar="SECONDS")
-    for verb, about in (
+    s.add_argument(
+        "--timeout",
+        type=float,
+        default=Waiting.timeout,
+        metavar="SECONDS",
+        help="default: %(default).0f (4 h)",
+    )
+    s.add_argument(
+        "--idle",
+        type=float,
+        default=Waiting.idle,
+        metavar="SECONDS",
+        help="quiet this long with no turn running (default: %(default).0f)",
+    )
+    s.add_argument(
+        "--every",
+        type=float,
+        default=Waiting.every,
+        metavar="SECONDS",
+        help="how often it looks (default: %(default).0f)",
+    )
+    for name, about in (
         ("status", "the session"),
-        ("stop", "end the session (it stays on record)"),
-        ("cancel", "end the running turn; the session stays up"),
-        ("transcript", "the agent's own transcript file"),
+        (
+            "stop",
+            "end the session (it stays on record until its name is reused, or 30 days)",
+        ),
+        (
+            "cancel",
+            "end the running turn, its open requests and queued messages; it stays up",
+        ),
+        (
+            "transcript",
+            "the agent's own transcript file: the session's complete record",
+        ),
     ):
-        s = sub.add_parser(verb, help=about)
+        s = verb(name, about)
         s.add_argument("name")
-        if verb == "status":
+        if name == "status":
             s.add_argument("--json", action="store_true")
-        if verb == "stop":
+        if name == "stop":
             s.add_argument("--reason")
-    s = sub.add_parser("list", help="the sessions, oldest first")
+    s = verb("list", "the sessions, oldest first")
     s.add_argument("--json", action="store_true")
-    s = sub.add_parser("events", help="events as JSON lines")
-    s.add_argument("name", nargs="?")
-    s.add_argument("--since", type=int, default=0)
-    s.add_argument("--follow", "-f", action="store_true")
-    s = sub.add_parser("restart", help="restart the service as its current version")
+    s = verb("events", "events as JSON lines (agent_runner/events.py)")
+    s.add_argument("name", nargs="?", help="one session's (default: every session's)")
+    s.add_argument("--since", type=int, default=0, metavar="SEQ")
+    s.add_argument("--follow", "-f", action="store_true", help="then the live ones")
+    s = verb("restart", "restart the service as its current version", RESTART)
     s.add_argument(
         "--force",
         action="store_true",
         help="even if turns run or requests wait (they're lost)",
     )
     return p
+
+
+def wait_doc() -> str:
+    """wait.py's docstring (what each outcome prints) as the epilog of `agent wait --help`."""
+    return (wait_module.__doc__ or "").split("\n", 1)[1].strip("\n") + "\n"
 
 
 def show(s: SessionStatus) -> None:

@@ -141,7 +141,7 @@ class Session(Turns):
 
     def notified(self, message: str, outcome: Outcome) -> None:
         self.emit(Notified(message=message, ok=outcome.ok, error=outcome.error))
-        # A failure to tell stays in the record, where `agent list` and the daily digest see it.
+        # A failure to tell stays in the record, where `agent list` shows it.
         self.record.notify_error = None if outcome.ok else f"{outcome.error}"
         self.save()
 

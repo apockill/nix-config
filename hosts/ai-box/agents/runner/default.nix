@@ -3,12 +3,13 @@
 # One service holds every session: it starts the agent's own ACP server for each one
 # (claude-agent-acp, `agy acp`) and serves a local API on a unix socket. `agent` is its CLI and
 # the service (`agent serve`): sessions, and jobs (a session named after a title, its task file the
-# first message). The API is in ./README.md; the code is the typed package ./agent_runner (one
-# concern per module, listed in its __init__.py), on the ACP Python SDK, pydantic, Starlette and
-# uvicorn; ./tests has a test module per
-# source module, the end-to-end tests against ./tests/fake_acp_agent.py, and live smoke tests that
-# skip without a sign-in. The package's build runs `mypy --strict` and the tests, so a type error or
-# a failing test fails the system build.
+# first message). ./README.md says what it is and how it behaves; the API is in
+# ./agent_runner/api_types.py and the CLI in `agent --help`. The code is the typed package
+# ./agent_runner (one concern per module, listed in its __init__.py), on the ACP Python SDK,
+# pydantic, Starlette and uvicorn; ./tests has a test module per source module, the end-to-end
+# tests against ./tests/fake_acp_agent.py, and live smoke tests that skip without a sign-in. The
+# package's build runs `mypy --strict` and the tests, so a type error or a failing test fails the
+# system build.
 #
 # It's a user service of the agent's user, not part of the Hermes gateway, so a gateway restart
 # (every switch that touches it) leaves sessions running. A switch doesn't restart it either
@@ -135,7 +136,7 @@ in
       type = lib.types.str;
       readOnly = true;
       default = "${state}/sock";
-      description = "The runner's API (README.md): HTTP on a unix socket (0600), the agent's user only; from inside a session only if it was started with allow_runner.";
+      description = "The runner's API (agent_runner/api_types.py): HTTP on a unix socket (0600), the agent's user only; from inside a session only if it was started with allow_runner.";
     };
     notifyUnansweredAfter = lib.mkOption {
       type = lib.types.ints.positive;

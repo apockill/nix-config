@@ -54,7 +54,7 @@ BASE_ENV = ("PATH", "HOME", "USER", "LANG", "TMPDIR", "TZ")
 CAPABILITIES = ClientCapabilities(
     fs=FileSystemCapabilities(read_text_file=False, write_text_file=False),
     terminal=False,
-    # AskUserQuestion reaches the runner as a form (README.md, "Questions").
+    # AskUserQuestion reaches the runner as a form (a `question` event; parking.QuestionAnswer).
     elicitation=ElicitationCapabilities(form=ElicitationFormCapabilities()),
 )
 

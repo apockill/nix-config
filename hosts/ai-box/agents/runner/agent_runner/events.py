@@ -1,8 +1,16 @@
-"""A session's events: what the event log stores and the API streams (README.md, "Events").
+"""A session's events: what the event log stores and the API streams.
 
-An `Event` is the envelope (`seq`, increasing across all sessions; `ts`; `session`) and a body
-whose `kind` says which. On the wire the two are one flat object:
+An `Event` is the envelope (`seq`, increasing across all sessions, so a client resumes with
+`since=<the last seq it saw>`; `ts`; `session`) and a body whose `kind` says which. On the wire
+the two are one flat object:
 `{"seq": 1, "ts": ..., "session": "job", "kind": "state", "state": "idle", "reason": null}`.
+
+An `update` carries the agent's ACP session/update unchanged; its `sessionUpdate` says which
+(agentclientprotocol.com, "Prompt Turn" and "Tool Calls", has the shapes). A UI that only shows
+text and tool calls needs `agent_message_chunk` (concatenate consecutive chunks), `tool_call` and
+`tool_call_update`. A subagent's tool calls arrive too; Claude marks them with
+`_meta.claudeCode.parentToolUseId`. Updates can arrive while a session is idle (Antigravity
+finishing subagent work after end_turn).
 """
 
 from __future__ import annotations
@@ -30,7 +38,7 @@ from pydantic import (
 
 from .base import JsonObject, JsonValue, Strict
 
-# Session states (README.md, "States").
+# Session states (README.md, "States", says what each means).
 State = Literal[
     "starting",
     "running",
@@ -104,6 +112,9 @@ class TurnEnded(Strict):
 
 
 class PermissionAsked(Strict):
+    """The agent asks to run a tool. `request_id` is p<n>; answer with one of `options` (ACP's
+    optionId, name, kind: allow_once, allow_always, reject_once, reject_always)."""
+
     kind: Literal["permission"] = "permission"
     request_id: str
     title: str | None = None
@@ -116,6 +127,11 @@ class PermissionAsked(Strict):
 
 
 class QuestionAsked(Strict):
+    """The agent asks the user (ACP form elicitation; how Claude's AskUserQuestion reaches a UI).
+    `request_id` is q<n>; `schema` is a JSON Schema object whose `properties` are the fields, their
+    choices `enum` or `oneOf`/`anyOf` of {const, title}. Answer with parking.QuestionAnswer.
+    """
+
     kind: Literal["question"] = "question"
     request_id: str
     message: str | None = None

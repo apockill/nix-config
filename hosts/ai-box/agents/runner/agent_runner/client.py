@@ -126,7 +126,7 @@ class Client:
         except (ValueError, ValidationError) as e:
             raise ClientError(f"the runner sent an odd event: {e}") from e
 
-    # The calls (README.md)
+    # The calls (api_types.py)
     def agents(self) -> AgentList:
         return self.typed(AgentList, "GET", "/v1/agents")
 

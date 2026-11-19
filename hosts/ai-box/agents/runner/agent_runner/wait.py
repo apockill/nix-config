@@ -19,7 +19,7 @@ It returns (and the CLI exits 0, so a background waiter wakes its owner) when th
 The first word is the outcome. A marker counts from the session's last prompt (a message sent or
 steered in), so one printed before the waiter started counts, and one from an earlier turn
 doesn't; prompts themselves are never searched. The runner restarting doesn't end the waiter: it
-reconnects for up to RECONNECT_SECONDS.
+reconnects for up to 120 s (RECONNECT_SECONDS).
 """
 
 from __future__ import annotations

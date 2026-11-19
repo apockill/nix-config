@@ -1,7 +1,7 @@
-# The version skew check (SKEPTIC.md, "Drift"): claude-agent-acp bundles the Claude Agent SDK built
-# for one Claude Code release, but runs the claude of ./claude-code.nix, which the claude-code-nix
-# input moves on every lock update. A mismatch fails the system build, at PR time, rather than
-# sessions at run time.
+# The version skew check: claude-agent-acp bundles the Claude Agent SDK built for one Claude Code
+# release, but runs the claude of ./claude-code.nix, which the claude-code-nix input moves on every
+# lock update. A mismatch fails the system build, at PR time, rather than sessions at run time. It
+# is a build-time check only: it reads two package.json files and runs no agent.
 { config, pkgs, ... }:
 let
   inherit (config.aiBox.agents.claude) acp cli;
