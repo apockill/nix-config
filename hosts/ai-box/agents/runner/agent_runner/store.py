@@ -208,8 +208,10 @@ class Unreadable:
 
 
 def private(folder: Path) -> None:
-    """A folder and the files in it: their owner's only."""
-    with contextlib.suppress(OSError):
+    """A folder and the files in it: their owner's only. A file that can't be made so stops the
+    runner (the README promises its user only); one gone meanwhile is no matter."""
+    with contextlib.suppress(FileNotFoundError):
         folder.chmod(0o700)
         for path in folder.iterdir():
-            path.chmod(0o700 if path.is_dir() else 0o600)
+            with contextlib.suppress(FileNotFoundError):
+                path.chmod(0o700 if path.is_dir() else 0o600)

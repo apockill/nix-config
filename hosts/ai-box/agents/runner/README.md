@@ -55,9 +55,10 @@ usage digest, `../drift`, reports it).
 
 HTTP/1.1 on the unix socket `/var/lib/hermes/agent-runner/sock` (nix: `aiBox.agents.runner.socket`),
 mode `0600`: the agent's user (`hermes`) only. The service runs with `UMask=0077`, so its records
-and event logs (which hold tool outputs and file contents) are that user's only too; the agents
-themselves keep a user service's `0022` (they write files in repositories that others read). A
-service that runs as another user, or a page in a browser, needs a bridge of its own.
+and event logs (which hold tool outputs and file contents) are that user's only too (older ones
+are made so at start, and one that can't be stops the runner); the agents themselves keep a
+user service's `0022` (they write files in repositories that others read). A service that runs
+as another user, or a page in a browser, needs a bridge of its own.
 
 **From inside a session**, the API is refused (`403`) unless the session was started with
 `allow_runner`. Every session runs as the same user, so the runner tells a session's processes

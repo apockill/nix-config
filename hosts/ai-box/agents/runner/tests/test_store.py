@@ -169,3 +169,21 @@ def test_load_makes_old_files_private(tmp_path: Path) -> None:
     store.load(0.0)
     assert stat.S_IMODE(files.events.stat().st_mode) == 0o600
     assert stat.S_IMODE(files.folder.stat().st_mode) == 0o700
+
+
+def test_a_file_that_cant_be_made_private_stops_the_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = Store(tmp_path)
+    files = store.files("job")
+    files.save(record("job"))
+    chmod = Path.chmod
+
+    def refuse(path: Path, mode: int) -> None:
+        if path == files.record:
+            raise PermissionError(1, "Operation not permitted", str(path))
+        chmod(path, mode)
+
+    monkeypatch.setattr(Path, "chmod", refuse)
+    with pytest.raises(PermissionError):
+        store.load(0.0)
