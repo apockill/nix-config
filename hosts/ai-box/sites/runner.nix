@@ -67,8 +67,7 @@ in
       RuntimeDirectory = "sites";
       RuntimeDirectoryMode = "0755";
       RuntimeDirectoryPreserve = "yes";
-      # Zenoh's shared memory for camera frames is mlocked; 8 MiB is too little.
-      LimitMEMLOCK = "infinity";
+      # LimitMEMLOCK, for the bus's shared memory: ./bus.nix.
       # On stop, systemd signals the runner alone (KillMode mixed: SIGTERM to the main process,
       # SIGKILL to the rest only at the timeout), so the runner's orderly stop runs: it asks
       # process-compose to stop the project, which stops the instances with their 10 s grace

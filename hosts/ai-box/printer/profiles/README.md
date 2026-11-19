@@ -32,6 +32,10 @@ The build fails instead of guessing when:
 - a value's shape doesn't match its default's;
 - Bambu changes how the nil override keys are defined.
 
+It also gives the root of the filament chains, `fdm_filament_common`, every filament setting at the default, below its own keys. The app starts every preset from the default filament preset, so a setting nothing in a chain sets is the default. The CLI starts from nothing: it copies into the slice only the keys each filament's file holds (`src/BambuStudio.cpp`, the filament loop), and when a list ends early, a filament past its end reads the first filament's value (`ConfigOptionVector::set_at`/`get_at` in `src/libslic3r/Config.hpp`). Found on 2026-11-18 by the app goldens:
+- **Pre-start fan:** only Bambu PLA Pure's presets set `pre_start_fan_time` (2 s). With PLA Pure first, every other filament on the plate got its part fan 2 s early (door-sock two-colour); with it second, the slice's list stopped at it (`0,2` where the app has `0,2,0,0`).
+- **The same fault in other keys:** `fdm_filament_common` lacked 12 filament settings. No BBL preset sets 8 of them, so every filament already sliced with the default and only the list's length changes. The other 4 are set by some chains only, so a mixed plate could hit the same fault: `pre_start_fan_time`, `first_x_layer_fan_speed` (40 in 128 X2D presets, unset in 58), `filament_adhesiveness_category` and `filament_change_length_nc`. `premerge-report.json` lists the 12 under `roots_given_defaults`.
+
 Machine presets also use `include`, for their G-code templates. orca-slicer-api already applies those by name, so they're copied unchanged. Process presets have no includes.
 
 We chose this over patching orca-slicer-api (nix-config #96). A profile copy can't conflict with a wrapper update, and it rebuilds by itself when Bambu Studio updates.

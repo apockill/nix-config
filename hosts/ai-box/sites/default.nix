@@ -7,6 +7,8 @@
 #   runner.nix  runs the repo's apps runner (tools/runner, over process-compose)
 #               as the one service for the apps, and alerts Alex when an
 #               instance fails (monitor.py).
+#   bus.nix     the locked memory the bus's shared memory needs, for every
+#               service that runs bus clients.
 #   below       the `box` CLI for the agent, and the state this feature keeps:
 #               the repo checkout and the instances' state root,
 #               /var/lib/hermes/sites-instances.
@@ -27,6 +29,7 @@ let
 in
 {
   imports = [
+    ./bus.nix
     ./caddy.nix
     ./runner.nix
   ];
