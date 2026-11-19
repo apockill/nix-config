@@ -1,0 +1,217 @@
+"""Sessions on disk: AGENT_RUNNER_STATE/sessions/<name>/{session.json,events.jsonl,agent.log}.
+
+`session.json` is the session's record (what the API reports and what a resume needs),
+`events.jsonl` every event of the session, one per line, `agent.log` the agent's stderr.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import os
+import shutil
+import sys
+import tempfile
+from collections.abc import Iterator
+from dataclasses import dataclass
+from pathlib import Path
+
+from pydantic import ValidationError
+
+from .base import JsonObject, Strict, StrictMutable
+from .config import KEEP_ENDED_SECONDS
+from .events import ENDED, Event, State
+
+# How much of events.jsonl is read back at a time to find its last event.
+TAIL_CHUNK = 65536
+
+
+class Limit(Strict):
+    """A usage limit the agent hit: when it resets (Unix seconds; None if it didn't say) and
+    which (the agent's own name for it, e.g. Claude's five_hour or seven_day)."""
+
+    resets_at: float | None = None
+    kind: str | None = None
+
+
+class Record(StrictMutable):
+    """A session's record (session.json)."""
+
+    name: str
+    agent: str
+    dir: str
+    created_at: float
+    state: State = "starting"
+    # Why the session is in its state, for failed, offline and stopped.
+    reason: str | None = None
+    model: str | None = None
+    mode: str | None = None
+    # Who started it: free text such as "job: <title>", "sculpt: <project>".
+    origin: str | None = None
+    # Extra environment for the agent, as given to `start` (kept for resumes).
+    env: dict[str, str] = {}
+    # `_meta` for session/new (vendor options, e.g. Claude's disallowed tools); kept for resumes.
+    session_meta: JsonObject | None = None
+    # The agent's own session id (resume with it) and its transcript of the session.
+    agent_session_id: str | None = None
+    transcript: str | None = None
+    title: str | None = None
+    updated_at: float = 0.0
+    turns: int = 0
+    # Messages sent while a turn ran, not yet taken in: they survive a runner restart.
+    queued: list[str] = []
+    # The usage limit the last turn hit; cleared by a turn that ends well.
+    limit: Limit | None = None
+    # The context window the agent compacts at (its compact_window_env), when it has one.
+    compact_window: int | None = None
+    # Whether the session's own processes may use the runner's API (start or answer sessions).
+    allow_runner: bool = False
+    # Turns that failed in a row; messages from the agent that didn't fit ACP.
+    failed_turns: int = 0
+    misfits: int = 0
+    # The last time telling Alex failed, and why (cleared when telling succeeds).
+    notify_error: str | None = None
+
+
+def write_private(path: Path, text: str) -> None:
+    """Replace a file in one step, readable by its owner only."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+@dataclass(frozen=True)
+class SessionFiles:
+    """One session's folder."""
+
+    folder: Path
+
+    @property
+    def record(self) -> Path:
+        return self.folder / "session.json"
+
+    @property
+    def events(self) -> Path:
+        return self.folder / "events.jsonl"
+
+    @property
+    def agent_log(self) -> Path:
+        return self.folder / "agent.log"
+
+    def save(self, record: Record) -> None:
+        write_private(self.record, record.model_dump_json(indent=2) + "\n")
+
+    def load(self) -> Record:
+        """The record; OSError, or ValidationError (not JSON, or doesn't fit)."""
+        return Record.model_validate_json(self.record.read_text())
+
+    def append(self, event: Event) -> None:
+        """Log an event; a failure is reported, not raised (the event still goes out live)."""
+        line = json.dumps(event.model_dump(mode="json"), ensure_ascii=False) + "\n"
+        try:
+            self.folder.mkdir(parents=True, exist_ok=True)
+            with self.events.open("a") as f:
+                f.write(line)
+        except OSError as e:
+            print(
+                f"agent-runner: can't log an event of {event.session}: {e}",
+                file=sys.stderr,
+            )
+
+    def read_events(self, since: int = 0) -> Iterator[Event]:
+        """The logged events after `since`; a line that isn't an event is reported and skipped."""
+        try:
+            with self.events.open() as f:
+                for number, line in enumerate(f, 1):
+                    try:
+                        event = Event.model_validate_json(line)
+                    except ValidationError as e:
+                        print(
+                            f"agent-runner: {self.events}:{number}: not an event: {e}",
+                            file=sys.stderr,
+                        )
+                        continue
+                    if event.seq > since:
+                        yield event
+        except FileNotFoundError:
+            return
+
+    def last_event(self) -> tuple[int, float]:
+        """The seq and time of the last logged event ((0, 0.0) if none). Read back from the end
+        a chunk at a time until a whole line is an event: a last line can be megabytes (a
+        tool's whole output), and a line cut short by a crash isn't one."""
+        try:
+            with self.events.open("rb") as f:
+                end = f.seek(0, os.SEEK_END)
+                carry = b""  # a line whose start is further back
+                while end > 0:
+                    start = max(0, end - TAIL_CHUNK)
+                    f.seek(start)
+                    lines = (f.read(end - start) + carry).split(b"\n")
+                    end = start
+                    carry = lines.pop(0) if start else b""
+                    for line in reversed(lines):
+                        with contextlib.suppress(ValidationError):
+                            event = Event.model_validate_json(line)
+                            return event.seq, event.ts
+        except OSError:
+            pass
+        return 0, 0.0
+        return 0, 0.0
+
+
+@dataclass(frozen=True)
+class Store:
+    """The state folder (AGENT_RUNNER_STATE)."""
+
+    root: Path
+
+    def files(self, name: str) -> SessionFiles:
+        return SessionFiles(self.root / "sessions" / name)
+
+    def remove(self, name: str) -> None:
+        shutil.rmtree(self.files(name).folder, ignore_errors=True)
+
+    def load(self, now: float) -> tuple[list[Record], list[Unreadable]]:
+        """Every record on disk, oldest name first (ended ones past retention are deleted), and
+        the sessions whose record can't be read. Files from before the service's UMask 0077 are
+        made its user's only."""
+        sessions = self.root / "sessions"
+        if not sessions.is_dir():
+            return [], []
+        private(self.root)
+        records, unreadable = [], []
+        for path in sorted(sessions.glob("*/session.json")):
+            files = SessionFiles(path.parent)
+            private(files.folder)
+            try:
+                record = files.load()
+            except (OSError, ValidationError) as e:
+                print(f"agent-runner: can't read {path}: {e}", file=sys.stderr)
+                unreadable.append(Unreadable(path.parent.name, str(e).splitlines()[0]))
+                continue
+            if record.state in ENDED and now - record.updated_at > KEEP_ENDED_SECONDS:
+                shutil.rmtree(files.folder, ignore_errors=True)
+                continue
+            records.append(record)
+        return records, unreadable
+
+
+@dataclass(frozen=True)
+class Unreadable:
+    """A session folder whose session.json doesn't parse: kept as a failed session."""
+
+    name: str
+    error: str
+
+
+def private(folder: Path) -> None:
+    """A folder and the files in it: their owner's only. A file that can't be made so stops the
+    runner (the README promises its user only); one gone meanwhile is no matter."""
+    with contextlib.suppress(FileNotFoundError):
+        folder.chmod(0o700)
+        for path in folder.iterdir():
+            with contextlib.suppress(FileNotFoundError):
+                path.chmod(0o700 if path.is_dir() else 0o600)

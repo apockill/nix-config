@@ -23,6 +23,7 @@
     ./watchdog.nix # a hung restart resets itself (Tegra WDT); system logs for the agent
     ./robotics
     ./projects
+    ./agents # the coding agents (Claude Code, Antigravity CLI), one directory per vendor
     ./hermes
     ../../hardware/jetson-agx-orin
     ../../modules/nixos/common

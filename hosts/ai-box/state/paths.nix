@@ -92,7 +92,7 @@ in
     };
     "/var/lib/hermes-instructions" = {
       backup = "cache";
-      why = "Stamps for installing SOUL/AGENTS/CLAUDE.md; if lost, the repo versions are reinstalled.";
+      why = "Stamps for installing SOUL.md and the AGENTS.md files (hermes/default.nix); if lost, the repo versions are reinstalled.";
     };
     "/var/lib/private/llama-cpp" = {
       backup = "cache";
@@ -230,10 +230,6 @@ in
       backup = "cache";
       why = "nix, Go and tool caches.";
     };
-    "${hermes}/.claude" = {
-      backup = "cache";
-      why = "Claude Code session history and its claude.ai login (Remote Control; hermes/cc); handy across reboots, not needed on a new box (sign in again).";
-    };
     "${hermes}/.hermes/cache" = {
       backup = "cache";
       why = "Scratch and web caches.";
@@ -256,7 +252,7 @@ in
     };
     "${hermes}/worktrees" = {
       backup = "cache";
-      why = "Git worktrees of in-flight changes (sites, nix-config) that cc jobs run in. Commits live in each repo's own .git; kept so jobs and their .brief/ files survive a reboot.";
+      why = "Git worktrees of in-flight changes (sites, nix-config) that agent jobs run in. Commits live in each repo's own .git; kept so jobs and their .brief/ files survive a reboot.";
     };
     # Generated or transient files inside ~/.hermes (restic): kept with it,
     # but not backed up.
@@ -297,11 +293,6 @@ in
     "${hermes}/Downloads" = {
       backup = "ephemeral";
       why = "Browser downloads; scratch.";
-    };
-    "${hermes}/.claude.json" = {
-      file = true;
-      backup = "ephemeral";
-      why = "Stale Claude Code config from before CLAUDE_CONFIG_DIR moved it into ~/.claude (hermes/cc/default.nix).";
     };
     "${hermes}/sites-ops-scratch" = {
       backup = "ephemeral";

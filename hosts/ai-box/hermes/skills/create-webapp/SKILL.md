@@ -26,9 +26,9 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 
 ## Core Rules
 
-1. **Delegate Coding to Claude Code CLI:**
-   Hermes is an orchestrator. Delegate coding and UI creation to Claude Code CLI (`claude -p "..."`) using **`--model claude-opus-5-5`** with max turns (`--max-turns 30`). Claude Code's agentic coding loop does a better job than Hermes's for real code changes, so prefer it for any non-trivial edit.
-   Claude Code runs on the agent's own Claude subscription (flat rate, no per-token API billing). `CLAUDE_CODE_OAUTH_TOKEN` is already in the environment; never set `ANTHROPIC_API_KEY`, which would switch it to metered API billing.
+1. **Delegate Coding to a coding agent with `agent`:**
+   Hermes is an orchestrator. Delegate coding and UI creation to a coding agent: `agent start "<app>: <job>" <dir> <task-file>` (Claude Code by default; `--agent antigravity` switches, `--model` picks the model). Its agentic coding loop does a better job than Hermes's for real code changes, so prefer it for any non-trivial edit. Wait on it with `agent wait`, follow it with `agent peek`, steer with `agent send`, end it with `agent stop`.
+   The agents run on the agent's own subscriptions (flat rate, no per-token API billing); never set `ANTHROPIC_API_KEY` or a Gemini API key, which would switch to metered billing.
 2. **Start from Templates:**
    Scaffold from existing templates in `/var/lib/hermes/sites/templates/` rather than starting from scratch:
    - Full-stack modern apps (React 19 + Vite + Tailwind + Lucide + FastAPI): see [`templates/backend/README.md`](/var/lib/hermes/sites/templates/backend/README.md).
@@ -58,15 +58,10 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
    box template new <app-name> --template <template>
    # then add `  <app-name>: {app: <app-name>}` under instances: in namespaces/default.yaml
    ```
-2. Delegate implementation to Claude Code CLI:
+2. Delegate the implementation to a coding agent:
    ```bash
-   # Auth: CLAUDE_CODE_OAUTH_TOKEN (Claude subscription) is already set; no API key.
-   cd /var/lib/hermes/sites/apps/<app-name>
-
-   claude -p "Your detailed prompt describing requirements..." \
-     --model claude-opus-5-5 \
-     --allowedTools "Read,Edit,Write,Bash" \
-     --max-turns 30
+   agent start "<app-name>: initial implementation" /var/lib/hermes/sites/apps/<app-name> <task-file>
+   agent wait <session>   # until it reports done (or needs you); agent peek <session> shows its output
    ```
 3. Verify live operation:
    - For backends: verify the instance is up (`box ns list`) and `curl -s --unix-socket /run/sites/<address>/app.sock http://localhost/` returns 200.
@@ -77,13 +72,13 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 ### Modifying an Existing App
 
 1. Inspect existing files in `/var/lib/hermes/sites/apps/<app-name>/`.
-2. Dispatch Claude Code CLI with targeted instructions.
+2. Hand a coding agent targeted instructions (`agent start`).
 3. If the backend process was modified, restart the process to clear in-memory caches.
 4. Verify endpoints over the Unix domain socket and inspect the rendered visual state in Chromium before committing.
 
 ### Repo-wide changes (several apps, shared tooling)
 
-1. Develop on a branch in a git worktree (`git worktree add -b <branch> <scratch-dir> main`), never in the live checkout; delegate to Claude Code with a brief that forbids restarting apps, touching the live checkout, non-GET requests to live sockets (Vector moves a physical robot) and pushing.
+1. Develop on a branch in a git worktree (`git worktree add -b <branch> <scratch-dir> main`), never in the live checkout; delegate to a coding agent (`agent start`) with a brief that forbids restarting apps, touching the live checkout, non-GET requests to live sockets (Vector moves a physical robot) and pushing.
 2. Before merging, `box snapshot <app> -o <dir>/<app>.json` for each app (status, content type and JSON keys of every GET endpoint; GET only, so it's safe on hardware apps). Run `box diff <app> <file>` against the still-old apps once, to prove the comparison itself is clean before restarting anything.
 3. `git merge --ff-only <branch>` into the live checkout (a merge doesn't trigger the push hook), then `box restart <app>` one app at a time (it waits for a new PID and `up`). Check `hermes kanban list --status running` first for apps a worker is using. After each: `box diff <app> <file>`, `box lint <app>`, and one or two read-only `box <app> ...` commands.
 4. Only when every app passes: `git push origin main`, then remove the worktree and branch.

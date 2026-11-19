@@ -21,8 +21,9 @@
   Alex on Discord, and `ai-box-reboot` refuses while any exist.
 - `restic` paths are backed up nightly to the agent's Google Drive
   (`hosts/ai-box/backups`), with a weekly restore drill.
-- Your home directory's config (git, gh, Claude Code settings) comes from
-  home-manager in `hosts/ai-box/hermes/home.nix`; don't configure it by hand.
+- Your home directory's config (git, gh) comes from home-manager in
+  `hosts/ai-box/hermes/home.nix`, and the coding agents' (Claude Code,
+  Antigravity) from `hosts/ai-box/agents/`; don't configure them by hand.
 
 ## Installing tools
 
@@ -87,7 +88,24 @@ about the change.
   token). No per-token billing; never set `ANTHROPIC_API_KEY`, which switches
   to metered billing. Claude Code uses the same subscription and is the
   preferred harness for coding work.
-- **Run Claude Code jobs with `cc`**, not `claude -p`: `cc start "<project>: <job>" <dir> <task-file>` starts an interactive Remote Control session in tmux, which Alex can watch and steer from claude.ai/code or the Claude app. Follow it with `cc peek`, steer with `cc send`, end it with `cc stop`. Remote Control needs the full `claude auth login` (Alex signs in once in the live view); if it has lapsed, tell Alex and fall back to `claude -p`, which uses the token.
+- **Run coding jobs with `agent`**, not `claude -p`: `agent start "<project>: <job>" <dir>
+  <task-file>` starts the job as a session on the agent runner (`hosts/ai-box/agents/runner`;
+  `agent --help` has every verb): Claude Code by default, the Antigravity CLI with `--agent
+  antigravity` (`--model` picks the model). Wait on it with `agent wait <session>` (a background
+  process with notify: it wakes you on a done marker printed since its last prompt, a question, a
+  usage limit (`LIMITED <resets_at>`), a quiet job or its end; on `TIMEOUT` the job still runs, so
+  wait again or stop it), follow it with `agent peek`, steer with `agent send`, answer a
+  permission request or question it shows with `agent answer`, end it with `agent stop` once it
+  is done. It runs outside the gateway, so your restarts don't touch it; after a reboot `agent
+  send` resumes it. If the agent can't start or its sign-in has expired, `agent start` fails with
+  the reason and Alex gets a Discord note: tell him what you were starting, never fall back to
+  another route. Jobs run with the vendor's defaults (Alex: the best agentic experience, the same
+  for every agent): don't give a job a model, effort, mode, compaction window or tool fence of
+  your own unless Alex asked for it or there is an engineering reason, and say which in the
+  brief (Sculpt's builders are the example: a 200k compaction window). A change that could cost
+  agent quality goes to Alex for review first. A job's own processes can't use `agent` (the
+  runner refuses them) unless it was started with `--allow-runner`; give that only to a job that
+  must start jobs itself.
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions by default. They can't use the terminal, files, or browser unless
   Alex explicitly asks for that job (then create it with its own tool list and
