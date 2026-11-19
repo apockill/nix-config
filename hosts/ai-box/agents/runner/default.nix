@@ -71,6 +71,7 @@ let
     dependencies = [
       py.agent-client-protocol
       py.pydantic
+      py.fastapi
       py.starlette
       py.uvicorn
       py.httpx
