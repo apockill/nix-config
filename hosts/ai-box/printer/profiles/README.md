@@ -1,6 +1,6 @@
 # Pre-merged slicer profiles
 
-This directory builds a copy of Bambu Studio's stock BBL profiles. In the copy, each filament preset already contains the settings of the templates it `include`s, merged the way the Bambu Studio app merges them. `../slicer.nix` points the slicer service (orca-slicer-api, which Bambuddy slices through) at this copy with `BUNDLED_PROFILES_PATH`.
+This directory builds a copy of Bambu's updated BBL profiles (the package the Bambu Studio app installs when it accepts its profile update; see The pin). In the copy, each filament preset already contains the settings of the templates it `include`s, merged the way the Bambu Studio app merges them. `../slicer.nix` points the slicer service (orca-slicer-api, which Bambuddy slices through) at this copy with `BUNDLED_PROFILES_PATH`.
 
 ## The problem it fixes
 
@@ -58,6 +58,22 @@ We chose this over patching orca-slicer-api (nix-config #96). A profile copy can
   This tree gives the fixed retraction (3 mm, Bowden Standard).
 - **App goldens:** slices made in the real Bambu Studio app and committed in ai-box-apps (`apps/printer/tests/goldens/`, `test_slice_goldens.py`). The same cases sliced through our stack with this tree have to match them. Anything that doesn't is a finding.
 
-## When Bambu Studio updates
+## The pin
 
-Nothing to do by hand. The derivation reruns against the new package, and its tests and fail-loud checks run in the build. Then rerun the golden suite, and regenerate the app goldens with its `regen/` scripts if the app's output changed.
+We slice with the BBL profiles the Bambu Studio app updates itself to, not the older set bundled with it (Alex, 2026-11-18). On start, the app asks Bambu which package goes with its version (its version with the last two parts zeroed):
+
+```
+curl 'https://api.bambulab.com/v1/iot-service/api/slicer/resource?slicer/settings/bbl=02.08.00.00'
+```
+
+The answer names a `version` and a zip `url`; `default.nix` pins that zip (`bblVersion`, the URL, the hash). On 2026-11-18 it was 02.08.00.06, which among other things stops the X2D start sequence sending `M620.17 T1 S220 L-1` to an unused nozzle. The output's name carries both versions (`...-premerged-02.08.00.50-bbl-02.08.00.06`); `bbl-version` and `bbl-package` (the unmerged zip) sit beside `BBL/`.
+
+## When Bambu Studio or its profiles update
+
+Bumping the pin is a manual step:
+
+1. Ask the endpoint (above) with the app's version. If it names a newer package, or the build fails because bambu-studio's major.minor no longer matches the pin, set `bblVersion` and the URL from the answer, set `hash = lib.fakeHash`, build, and paste the hash the build reports.
+2. The build checks that `BBL.json` is that version and that the CLI's own `BBL/cli_config.json` matches the package's; the tests and fail-loud checks above run too.
+3. Rerun the golden suite in ai-box-apps, and regenerate the app goldens with its `regen/` scripts if the output changed.
+
+A Bambu Studio update within the same major.minor needs nothing: the derivation reruns against the new binary.

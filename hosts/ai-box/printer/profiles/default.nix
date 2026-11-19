@@ -1,4 +1,5 @@
-# Bambu Studio's stock BBL profiles with each filament preset's `include` templates merged into
+# Bambu's updated BBL profiles (the package the Bambu Studio app installs when it accepts its
+# profile update; README.md, The pin) with each filament preset's `include` templates merged into
 # the preset, the way the Bambu Studio app applies them (./premerge.py has the rule and the
 # source lines). ../slicer.nix points orca-slicer-api's BUNDLED_PROFILES_PATH here: its resolver
 # walks `inherits` only, and the CLI doesn't apply includes in a preset file it's given, so
@@ -20,10 +21,23 @@
 {
   lib,
   bambu-studio,
+  fetchzip,
   python3,
   runCommand,
 }:
-runCommand "bambu-studio-profiles-premerged-${bambu-studio.version}"
+let
+  # Bumped by hand: README.md, The pin.
+  bblVersion = "02.08.00.06";
+  bbl = fetchzip {
+    url = "https://public-cdn.bblmw.com/upgrade/studio/settings/BBL/${bblVersion}/9d40efa30a/${bblVersion}.zip";
+    stripRoot = false; # BBL.json and BBL/, like the app's bundled profiles dir
+    hash = "sha256-BsDthPJtqaLl0idoa62XBDWTFY37rtwyIA8cx7nR+8o=";
+  };
+in
+assert lib.assertMsg
+  (lib.versions.majorMinor bambu-studio.version == lib.versions.majorMinor bblVersion)
+  "bambu-studio ${bambu-studio.version} installs only its own major.minor's profiles: re-pin (profiles/README.md)";
+runCommand "bambu-studio-profiles-premerged-${bambu-studio.version}-bbl-${bblVersion}"
   {
     nativeBuildInputs = [ (python3.withPackages (ps: [ ps.pytest ])) ];
   }
@@ -37,11 +51,17 @@ runCommand "bambu-studio-profiles-premerged-${bambu-studio.version}"
       || { cat export.log; exit 1; }
     grep -q '"return_code": 0' result.json || { cat result.json export.log; exit 1; }
 
+    grep -q '"version": "${bblVersion}"' ${bbl}/BBL.json || { echo "BBL.json isn't ${bblVersion}"; exit 1; }
+    # The one profile file the CLI reads from its own install: it must match the package's.
+    cmp ${bambu-studio}/share/BambuStudio/profiles/BBL/cli_config.json ${bbl}/BBL/cli_config.json
+
     python3 premerge.py \
-      --profiles ${bambu-studio}/share/BambuStudio/profiles \
+      --profiles ${bbl} \
       --defaults defaults.json \
       --preset-cpp ${bambu-studio.src}/src/libslic3r/Preset.cpp \
       --print-config-cpp ${bambu-studio.src}/src/libslic3r/PrintConfig.cpp \
       --out $out > /dev/null
     cp defaults.json $out/bambu-studio-defaults.json
+    echo ${bblVersion} > $out/bbl-version
+    ln -s ${bbl} $out/bbl-package # unmerged; ai-box-apps' golden regeneration seeds the app with it
   ''
