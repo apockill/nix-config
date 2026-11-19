@@ -2,6 +2,7 @@
 #   bambuddy.nix      Bambuddy on 127.0.0.1:8070, and bambuddy.alexthiele.io for lab-printer's frame
 #   slicer.nix        the native Bambu Studio CLI behind orca-slicer-api on 127.0.0.1:3001
 #   profiles/         the slicer's profiles (the app's updated BBL package), filament templates merged
+#   profile-canary/   reports what Bambu's newer BBL profiles would change in our slices (daily)
 #   printer-add/      adds the X2D to Bambuddy, with its access code from 1Password
 #
 # Bambuddy and Bambu Studio come from nixpkgs-unstable (a flake input used only here): the
@@ -26,6 +27,7 @@ in
   imports = [
     ./bambuddy.nix
     ./slicer.nix
+    ./profile-canary
     ./printer-add
   ];
 

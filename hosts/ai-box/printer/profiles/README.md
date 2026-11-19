@@ -85,6 +85,6 @@ We chose this over patching orca-slicer-api (nix-config #96). A profile copy can
 
 - **Bambu Studio, same major.minor** (02.08.00.50 to 02.08.01.x): the app asks the endpoint the same question, so the pin stays. The derivation reruns against the new binary and source, with its tests and fail-loud checks.
 - **Bambu Studio, new major.minor:** the build fails until the pin is moved. Ask the endpoint with the new version (the query above), pin the zip it names (`bblVersion`, the URL and the hash in `default.nix`), and build.
-- **A newer package for the same app:** pin it the same way.
+- **A newer package for the same app:** pin it the same way. `../profile-canary/` watches for one: daily it asks the endpoint the app's question and, once per newer version, slices a towered and a one-filament case with that package and with the pinned one through a private orca-slicer-api, and reports the difference to Alex (template and program lines, print time, filament). It switches nothing.
 
 Then rerun the golden suite in ai-box-apps, and regenerate the app goldens with its `regen/` scripts, the app's HOME taking the same package.
