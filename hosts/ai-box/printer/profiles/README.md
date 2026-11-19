@@ -18,7 +18,7 @@ The query is the app's version with its last two parts zeroed. The answer names 
 
 **The name.** The output is `bambu-studio-profiles-premerged-<bambu-studio version>-bbl-<profiles version>`, for example `bambu-studio-profiles-premerged-02.08.00.50-bbl-02.08.00.06`: the CLI that slices and the profiles it slices with have separate versions, and both change what a slice holds. The profiles' version is also in the output as `bbl-version` (the BBL.json `version`) and on the derivation as `bblVersion`; the unmerged package is the derivation's `bbl` and the output's `bbl-package` link.
 
-**Bambu's GitHub source** is not the pin. The bambulab/BambuStudio repository's `release/20260929` branch set BBL.json to 02.08.00.06 in commit 8945dc4c7c (2026-08-26) and has since moved on to 02.08.00.09, which the endpoint doesn't offer the 02.08.00.50 app. The app installs the endpoint's zip, so that is what we pin.
+**Bambu's GitHub source** is not the pin. The bambulab/BambuStudio repository's `release/20260929` branch set BBL.json to 02.08.00.06 in commit 8945dc4c7c (2026-08-26) and has since moved on to 02.08.00.09, which the endpoint doesn't offer the 02.08.00.50 app. Nor is that commit the zip: compared by git blob hashes, BBL.json is the same but 20 of BBL/'s 2516 files differ, among them the X2D filament-change template, whose first line the source comments and the zip doesn't. The app installs the endpoint's zip, so that is what we pin.
 
 ## The problem it fixes
 
