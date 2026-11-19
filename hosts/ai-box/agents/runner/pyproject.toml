@@ -12,7 +12,7 @@ name = "agent-runner"
 version = "1"
 description = "The coding agents' sessions on ai-box, over the Agent Client Protocol"
 requires-python = ">=3.13"
-dependencies = ["agent-client-protocol", "pydantic", "starlette", "uvicorn", "httpx"]
+dependencies = ["agent-client-protocol", "pydantic", "fastapi", "starlette", "uvicorn", "httpx"]
 
 [project.scripts]
 agent = "agent_runner.__main__:main"

@@ -9,7 +9,7 @@ events.py the events, and `agent --help` the CLI.
 
 It is built on libraries for everything they cover: the ACP Python SDK (agent-client-protocol:
 the JSON-RPC connection, the protocol's pydantic models), pydantic for the runner's own records,
-Starlette and uvicorn for the API, httpx for the CLI's calls. What is the runner's own: sessions
+FastAPI and uvicorn for the API, httpx for the CLI's calls. What is the runner's own: sessions
 that outlive their callers, the event log and its fan-out, parking requests until someone answers,
 jobs and `wait`, the vendors' differences, notifying Alex, and the CLI.
 
@@ -24,6 +24,6 @@ The modules, from the bottom up:
   inbox       what its agent sends a session; turns: its turns, failures and queue; session: one
               session, its process and state
   runner      every session, by name; peers: who calls (from inside a session or not)
-  api_types, api, server   the API (Starlette) and the service (uvicorn)
+  api_types, api, server   the API (FastAPI) and the service (uvicorn)
   client, render, jobs, wait, cli   the CLI
 """

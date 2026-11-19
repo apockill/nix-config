@@ -1,5 +1,6 @@
-"""The API (api_types.py) as a Starlette app: each request body checked by its model, each answer a
-model, every error `{"error": ...}` with its status, events as NDJSON."""
+"""The API (api_types.py) as a FastAPI app: each route declared with its body, parameters and
+answer models (GET /v1/openapi.json describes them), every error `{"error": ...}` with its status,
+events as NDJSON. `guarded` keeps the runner's own answers where FastAPI's differ."""
 
 from __future__ import annotations
 
@@ -7,15 +8,18 @@ import asyncio
 import json
 import sys
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable, Coroutine
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ValidationError
-from starlette.applications import Starlette
+from fastapi import Body, FastAPI, Query
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
+from pydantic import BeforeValidator
+from pydantic_core import PydanticCustomError, PydanticUseDefault
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
-from starlette.routing import Route, request_response
-from starlette.types import ASGIApp
+from starlette.types import Message
 
 from .api_types import (
     AgentList,
@@ -27,6 +31,7 @@ from .api_types import (
     SendRequest,
     Sent,
     SessionList,
+    SessionStatus,
     StartRequest,
     StopRequest,
 )
@@ -43,46 +48,46 @@ DOCS = "see agents/runner/agent_runner/api_types.py"
 PEER_PID = "agent_runner.peer_pid"
 
 
-def answer(model: BaseModel, code: int = 200) -> Response:
-    return JSONResponse(model.model_dump(mode="json", by_alias=True), code)
-
-
 def error(message: str, code: int, resets_at: float | None = None) -> Response:
     body = ErrorBody(error=message, resets_at=resets_at)
     return JSONResponse(body.model_dump(exclude_none=True), code)
 
 
-async def body_of(request: Request) -> JsonObject:
-    raw = await request.body()
-    try:
-        body = json.loads(raw) if raw else {}
-    except ValueError as e:
-        raise RunnerError(f"the body isn't JSON: {e}") from e
-    if not isinstance(body, dict):
-        raise RunnerError("the body must be a JSON object")
-    return body
+def _whole(value: object) -> object:
+    if value == "":
+        raise PydanticUseDefault()
+    if isinstance(value, str) and not (value.isascii() and value.isdigit()):
+        raise PydanticCustomError(
+            "whole_number", "a whole number, not {value}", {"value": repr(value)}
+        )
+    return value
 
 
-async def body_as[M: BaseModel](request: Request, model: type[M]) -> M:
-    try:
-        return model.model_validate(await body_of(request))
-    except ValidationError as e:
-        raise RunnerError.bad_request(e) from e
+# Query parameters: a whole number (empty is the default), and a flag that is on as 1, true or yes.
+Whole = Annotated[int, Query(ge=0), BeforeValidator(_whole)]
+Flag = Annotated[bool, BeforeValidator(lambda v: v in ("1", "true", "yes"))]
 
 
-def number(request: Request, name: str, default: int) -> int:
-    value = request.query_params.get(name)
-    if value in (None, ""):
-        return default
-    assert value is not None
-    if not value.isdigit():
-        raise RunnerError(f"{name}: a whole number, not {value!r}")
-    return int(value)
+def fails(*codes: int, streams: bool = False) -> dict[int | str, dict[str, Any]]:
+    """A route's error answers for the schema: its own statuses, 403 (`admit`), and the rest."""
+    # A stream's errors are JSON too (FastAPI would list a model under the route's media type).
+    json_ref = {"schema": {"$ref": "#/components/schemas/ErrorBody"}}
+    err: dict[str, Any] = (
+        {"content": {"application/json": json_ref}} if streams else {"model": ErrorBody}
+    )
+    return {
+        **(
+            {200: {"description": "NDJSON: an Event per line, and heartbeats"}}
+            if streams
+            else {}
+        ),
+        **{code: err for code in (*codes, 403)},
+        "default": {**err, "description": "a 500, or the agent's 429, 502, 504"},
+    }
 
 
-def name_of(request: Request) -> str:
-    name: str = request.path_params["name"]
-    return name
+class Ndjson(StreamingResponse):
+    media_type = "application/x-ndjson"
 
 
 class Api:
@@ -92,12 +97,25 @@ class Api:
         self.stop = stop
         self.restart_requested = False
 
-    def app(self) -> Starlette:
+    def app(self) -> FastAPI:
         r = self.runner
+        # The schema is open to every caller (it says nothing a caller couldn't read in
+        # api_types.py), so it isn't a guarded route; no /docs or /redoc: no browser reads a unix
+        # socket, and their pages load from a CDN.
+        app = FastAPI(
+            title="agent runner",
+            description=DOCS,
+            openapi_url="/v1/openapi.json",
+            docs_url=None,
+            redoc_url=None,
+            # The router's own 404 and 405; a route's failures are answered by `guarded`.
+            exception_handlers={HTTPException: self.http_error},
+        )
+        app.router.route_class = guarded(self.admit)
 
-        async def restart(request: Request) -> Response:
-            force = (await body_as(request, RestartRequest)).force
-            if (busy := r.busy()) and not force:
+        @app.post("/v1/restart", responses=fails(400, 409))
+        async def restart(body: RestartRequest) -> Restarting:
+            if (busy := r.busy()) and not body.force:
                 raise RunnerError(
                     f"{', '.join(busy)} would lose their running turn or open request;"
                     " wait for them, or restart with force (`agent restart --force`)",
@@ -105,83 +123,78 @@ class Api:
                 )
             self.restart_requested = True
             asyncio.get_running_loop().call_later(0.2, self.stop.set)
-            return answer(Restarting())
+            return Restarting()
 
-        async def agents(request: Request) -> Response:
-            return answer(
-                AgentList(
-                    default=r.config.default_agent, agents=sorted(r.config.agents)
-                )
+        @app.get("/v1/agents", responses=fails())
+        async def agents() -> AgentList:
+            return AgentList(
+                default=r.config.default_agent, agents=sorted(r.config.agents)
             )
 
-        async def sessions(request: Request) -> Response:
-            return answer(SessionList(sessions=r.summaries()))
+        @app.get("/v1/sessions", responses=fails())
+        async def sessions() -> SessionList:
+            return SessionList(sessions=r.summaries())
 
-        async def start(request: Request) -> Response:
-            return answer(
-                status(await r.start(await body_as(request, StartRequest))), 201
-            )
+        @app.post("/v1/sessions", status_code=201, responses=fails(400, 409))
+        async def start(body: StartRequest) -> SessionStatus:
+            return status(await r.start(body))
 
-        async def one(request: Request) -> Response:
-            return answer(status(r.get(name_of(request))))
+        @app.get(
+            "/v1/events", response_class=Ndjson, responses=fails(400, streams=True)
+        )
+        async def events(since: Whole = 0, follow: Flag = False) -> Ndjson:
+            return Ndjson(self.events(None, since, follow))
 
-        async def output(request: Request) -> Response:
-            lines = number(request, "lines", 40)
-            rendered = render(r.get(name_of(request)).files.read_events())
-            return answer(Output(lines=rendered[-lines:] if lines else []))
+        @app.get("/v1/sessions/{name}", responses=fails(404))
+        async def one(name: str) -> SessionStatus:
+            return status(r.get(name))
 
-        async def send(request: Request) -> Response:
-            text = (await body_as(request, SendRequest)).text
-            if not text.strip():
+        @app.get("/v1/sessions/{name}/output", responses=fails(400, 404))
+        async def output(name: str, lines: Whole = 40) -> Output:
+            rendered = render(r.get(name).files.read_events())
+            return Output(lines=rendered[-lines:] if lines else [])
+
+        @app.get(
+            "/v1/sessions/{name}/events",
+            response_class=Ndjson,
+            responses=fails(400, 404, streams=True),
+        )
+        async def session_events(
+            name: str, since: Whole = 0, follow: Flag = False
+        ) -> Ndjson:
+            # An unknown session is a 404, not a stream.
+            return Ndjson(self.events(r.get(name), since, follow))
+
+        @app.post("/v1/sessions/{name}/send", responses=fails(400, 404, 409))
+        async def send(name: str, body: SendRequest) -> Sent:
+            if not body.text.strip():
                 raise RunnerError("text: the message")
-            return answer(Sent(delivery=await r.get(name_of(request)).send(text)))
+            return Sent(delivery=await r.get(name).send(body.text))
 
-        async def cancel(request: Request) -> Response:
-            await body_as(request, EmptyRequest)
-            await r.get(name_of(request)).cancel()
-            return answer(status(r.get(name_of(request))))
+        @app.post("/v1/sessions/{name}/cancel", responses=fails(400, 404))
+        async def cancel(name: str, body: EmptyRequest) -> SessionStatus:
+            await r.get(name).cancel()
+            return status(r.get(name))
 
-        async def stop(request: Request) -> Response:
-            reason = (await body_as(request, StopRequest)).reason
-            await r.get(name_of(request)).stop(reason or "stopped")
-            return answer(status(r.get(name_of(request))))
+        @app.post("/v1/sessions/{name}/stop", responses=fails(400, 404))
+        async def stop(name: str, body: StopRequest) -> SessionStatus:
+            await r.get(name).stop(body.reason or "stopped")
+            return status(r.get(name))
 
-        async def reply(request: Request) -> Response:
-            session = r.get(name_of(request))
-            session.answer(request.path_params["request_id"], await body_of(request))
-            return answer(status(session))
+        @app.post(
+            "/v1/sessions/{name}/requests/{request_id}", responses=fails(400, 404)
+        )
+        async def reply(
+            name: str,
+            request_id: str,
+            # parking.PermissionAnswer or QuestionAnswer, checked by the session.
+            body: Annotated[JsonObject, Body()],
+        ) -> SessionStatus:
+            session = r.get(name)
+            session.answer(request_id, body)
+            return status(session)
 
-        async def events(request: Request) -> Response:
-            only = request.path_params.get("name")
-            session = (
-                r.get(only) if only else None
-            )  # an unknown one is a 404, not a stream
-            since = number(request, "since", 0)
-            follow = request.query_params.get("follow") in ("1", "true", "yes")
-            stream = self.events(session, since, follow)
-            return StreamingResponse(stream, media_type="application/x-ndjson")
-
-        routes = [
-            Route("/v1/restart", restart, methods=["POST"]),
-            Route("/v1/agents", agents, methods=["GET"]),
-            Route("/v1/sessions", sessions, methods=["GET"]),
-            Route("/v1/sessions", start, methods=["POST"]),
-            Route("/v1/events", events, methods=["GET"]),
-            Route("/v1/sessions/{name}", one, methods=["GET"]),
-            Route("/v1/sessions/{name}/output", output, methods=["GET"]),
-            Route("/v1/sessions/{name}/events", events, methods=["GET"]),
-            Route("/v1/sessions/{name}/send", send, methods=["POST"]),
-            Route("/v1/sessions/{name}/cancel", cancel, methods=["POST"]),
-            Route("/v1/sessions/{name}/stop", stop, methods=["POST"]),
-            Route("/v1/sessions/{name}/requests/{request_id}", reply, methods=["POST"]),
-        ]
-        # The router's own 404 and 405; an endpoint's failures are answered by `guarded`.
-        handlers: dict[
-            type[Exception] | int, Callable[[Request, Exception], Awaitable[Response]]
-        ] = {HTTPException: self.http_error}
-        for route in routes:
-            route.app = guarded(route.endpoint, self.admit)
-        return Starlette(routes=routes, exception_handlers=handlers)
+        return app
 
     def admit(self, request: Request) -> None:
         """RunnerError 403 for a caller inside a session that may not use the runner."""
@@ -223,29 +236,73 @@ class Api:
         )
 
 
-Endpoint = Callable[[Request], Awaitable[Response]]
+Handler = Callable[[Request], Coroutine[Any, Any, Response]]
 
 
-def guarded(endpoint: Endpoint, admit: Callable[[Request], None]) -> ASGIApp:
-    """An endpoint for callers `admit` lets in, whose failures are answers: RunnerError with its
-    status, anything else a 500 (logged). Answered here rather than by an exception handler,
-    which Starlette re-raises after, closing the connection (a client's next call on it was
+def guarded(admit: Callable[[Request], None]) -> type[APIRoute]:
+    """Routes for callers `admit` lets in (before their body is read), whose failures are
+    answers: RunnerError with its status, a body or parameter that doesn't fit a 400 naming the
+    field, anything else a 500 (logged). Answered here rather than by an exception handler, which
+    Starlette re-raises after for a 500, closing the connection (a client's next call on it was
     reset)."""
 
-    async def run(request: Request) -> Response:
-        try:
-            admit(request)
-            return await endpoint(request)
-        except RunnerError as e:
-            return error(str(e), e.status, e.resets_at)
-        except Exception as e:  # one bad request mustn't end the service
-            print(
-                f"agent-runner: {request.method} {request.url.path}: {e!r}",
-                file=sys.stderr,
-            )
-            return error(f"internal error: {e!r}", 500)
+    class Guarded(APIRoute):
+        def get_route_handler(self) -> Handler:
+            handler = super().get_route_handler()
+            reads_body = self.body_field is not None
 
-    return request_response(run)
+            async def run(request: Request) -> Response:
+                try:
+                    admit(request)
+                    return await handler(
+                        await as_json(request) if reads_body else request
+                    )
+                except RequestValidationError as e:
+                    return error(described(e), 400)
+                except RunnerError as e:
+                    return error(str(e), e.status, e.resets_at)
+                except Exception as e:  # one bad request mustn't end the service
+                    print(
+                        f"agent-runner: {request.method} {request.url.path}: {e!r}",
+                        file=sys.stderr,
+                    )
+                    return error(f"internal error: {e!r}", 500)
+
+            return run
+
+    return Guarded
+
+
+async def as_json(request: Request) -> Request:
+    """The request, its body a JSON object (an empty body `{}`) and said to be one whatever its
+    Content-Type: FastAPI would read only application/json and answer bad JSON its own way.
+    """
+    raw = await request.body()
+    try:
+        body = json.loads(raw) if raw else {}
+    except ValueError as e:
+        raise RunnerError(f"the body isn't JSON: {e}") from e
+    if not isinstance(body, dict):
+        raise RunnerError("the body must be a JSON object")
+    headers = [(k, v) for k, v in request.scope["headers"] if k != b"content-type"]
+    scope = {
+        **request.scope,
+        "headers": [*headers, (b"content-type", b"application/json")],
+    }
+
+    async def receive() -> Message:
+        return {"type": "http.request", "body": raw or b"{}", "more_body": False}
+
+    return Request(scope, receive)
+
+
+def described(e: RequestValidationError) -> str:
+    """`base.describe`'s line for FastAPI's errors: each field without the `body.` or `query.`."""
+    parts = []
+    for err in e.errors():
+        where = ".".join(str(p) for p in err["loc"][1:])
+        parts.append(f"{where}: {err['msg']}" if where else err["msg"])
+    return "; ".join(parts)
 
 
 def line(item: Event | Heartbeat) -> bytes:
