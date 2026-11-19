@@ -29,12 +29,12 @@ Machine presets also use `include`, for their G-code companions (`<preset> templ
 machine_start_gcode` and so on); the resolver already applies those by name, so they're copied as
 they are. Process presets have no includes.
 
-Fails, rather than slicing on a guess, on: a template that isn't in the manifest, a template that
-itself inherits or includes, a template key whose default isn't known, and a value whose shape
-(list or scalar) differs from its default's.
+Fails, rather than slicing on a guess, on: a manifest whose version isn't the one expected, a
+template that isn't in the manifest, a template that itself inherits or includes, a template key
+whose default isn't known, and a value whose shape (list or scalar) differs from its default's.
 
-usage: premerge.py --profiles DIR --defaults defaults.json --preset-cpp Preset.cpp
-                   --print-config-cpp PrintConfig.cpp --out DIR
+usage: premerge.py --profiles DIR [--expect-version VERSION] --defaults defaults.json
+                   --preset-cpp Preset.cpp --print-config-cpp PrintConfig.cpp --out DIR
 """
 
 from __future__ import annotations
@@ -215,10 +215,16 @@ def premerge(
     options: set[str],
     text_keys: set[str],
     out: Path,
+    expect_version: str | None = None,
 ) -> Report:
     """Write the merged tree to `out`; return the report."""
     src = profiles / VENDOR
     manifest_file = profiles / f"{VENDOR}.json"
+    manifest = json.loads(manifest_file.read_text())
+    if expect_version is not None and manifest.get("version") != expect_version:
+        raise PremergeError(
+            f"{VENDOR}.json is version {manifest.get('version')!r}, not {expect_version!r}"
+        )
     if out.exists():
         shutil.rmtree(out)
     shutil.copytree(src, out / VENDOR, copy_function=shutil.copyfile)
@@ -228,7 +234,6 @@ def premerge(
             0o755
         )  # the store copy is read-only; copyfile already leaves files writable
 
-    manifest = json.loads(manifest_file.read_text())
     files = {e["name"]: e["sub_path"] for e in manifest["filament_list"]}
     cache: dict[str, Contribution] = {}
     merged_presets = 0
@@ -274,6 +279,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Bambu Studio's profiles dir (holding BBL.json)",
     )
     ap.add_argument(
+        "--expect-version",
+        help="fail unless BBL.json's version is this one (the pinned package's)",
+    )
+    ap.add_argument(
         "--defaults",
         type=Path,
         required=True,
@@ -305,7 +314,12 @@ def main(argv: list[str] | None = None) -> None:
     overrides.add("filament_retract_length_nc")
     defaults = filament_defaults(json.loads(a.defaults.read_text()), options, overrides)
     report = premerge(
-        a.profiles, defaults, set(options), string_typed_keys(print_config), a.out
+        a.profiles,
+        defaults,
+        set(options),
+        string_typed_keys(print_config),
+        a.out,
+        a.expect_version,
     )
     (a.out / "premerge-report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
