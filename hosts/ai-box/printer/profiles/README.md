@@ -1,24 +1,6 @@
 # Pre-merged slicer profiles
 
-This directory builds a copy of Bambu's BBL profiles: the updated package the Bambu Studio app installs when it accepts its profile update, not the older set bundled with the app. In the copy, each filament preset already contains the settings of the templates it `include`s, merged the way the Bambu Studio app merges them. `../slicer.nix` points the slicer service (orca-slicer-api, which Bambuddy slices through) at this copy with `BUNDLED_PROFILES_PATH`.
-
-## The profiles
-
-**Which ones.** The app ships with a set of profiles (02.08.00.01 in Bambu Studio 02.08.00.50) and, on start, asks Bambu which newer package goes with its version. A person who accepts the offer slices with the newer package, so that is the one we pin (Alex, 2026-11-18). Among its changes over the bundled set:
-- the X2D machine start sequence no longer sends `M620.17 T1 S220 L-1` for an unused nozzle;
-- the X2D filament-change and layer-change templates set new chamber auto-cooling thresholds (`M142`), for example PETG on a 0.4 nozzle `R50 S55 … O55` where the bundled set had `R35 S50 … O55`.
-
-**How the app asks** (Bambu Studio 02.08.00.50, `PresetUpdater::priv::sync_config` and `sync_resources` in `src/slic3r/Utils/PresetUpdater.cpp`, the URL from `GUI_App::get_http_url`):
-```
-GET https://api.bambulab.com/v1/iot-service/api/slicer/resource?slicer/settings/bbl=02.08.00.00
-```
-The query is the app's version with its last two parts zeroed. The answer names the package's `version` and `url`; the app downloads the zip only if that version shares the app's major.minor and is newer than what it has, unzips it into its HOME's `ota/`, and on acceptance copies it into `system/` as `BBL.json` and `BBL/`.
-
-**The pin.** `default.nix` fetches that zip with `fetchzip` and a fixed hash, so nothing is downloaded at runtime and the tree is reproducible. Its top level is `BBL.json` and `BBL/`, the same layout as the profiles directory the app bundles. On 2026-11-18 the endpoint answered 02.08.00.06 (`.../settings/BBL/02.08.00.06/9d40efa30a/02.08.00.06.zip`); no newer package exists for 02.08.
-
-**The name.** The output is `bambu-studio-profiles-premerged-<bambu-studio version>-bbl-<profiles version>`, for example `bambu-studio-profiles-premerged-02.08.00.50-bbl-02.08.00.06`: the CLI that slices and the profiles it slices with have separate versions, and both change what a slice holds. The profiles' version is also in the output as `bbl-version` (the BBL.json `version`) and on the derivation as `bblVersion`; the unmerged package is the derivation's `bbl` and the output's `bbl-package` link.
-
-**Bambu's GitHub source** is not the pin. The bambulab/BambuStudio repository's `release/20260929` branch set BBL.json to 02.08.00.06 in commit 8945dc4c7c (2026-08-26) and has since moved on to 02.08.00.09, which the endpoint doesn't offer the 02.08.00.50 app. Nor is that commit the zip: compared by git blob hashes, BBL.json is the same but 20 of BBL/'s 2516 files differ, among them the X2D filament-change template, whose first line the source comments and the zip doesn't. The app installs the endpoint's zip, so that is what we pin.
+This directory builds a copy of Bambu's updated BBL profiles (the package the Bambu Studio app installs when it accepts its profile update; see The pin). In the copy, each filament preset already contains the settings of the templates it `include`s, merged the way the Bambu Studio app merges them. `../slicer.nix` points the slicer service (orca-slicer-api, which Bambuddy slices through) at this copy with `BUNDLED_PROFILES_PATH`.
 
 ## The problem it fixes
 
@@ -41,12 +23,9 @@ It copies the app's rule exactly. A template key is applied only if it differs f
 - **Key list and nil overrides:** read from the same version's source (`Preset.cpp`, `PrintConfig.cpp`).
 - **Equality:** follows `ConfigOption::operator==`.
 
-For the 02.08.00.06 profiles with Bambu Studio 02.08.00.50's defaults, every template key differs from its default, so every key is applied: 1500 filament presets merged from four templates (`fdm_filament_template_direct_bowden`, `..._direct_dual` and their `_e3d` variants, 37 or 39 keys each). `premerge-report.json` in the output lists, per template, what was applied and what was skipped and why.
+For 02.08.00.50, every template key differs from its default, so every key is applied. `premerge-report.json` in the output lists, per template, what was applied and what was skipped and why.
 
 The build fails instead of guessing when:
-- the package's BBL.json isn't the pinned version;
-- bambu-studio's major.minor differs from the pinned package's (the app would install another package);
-- the CLI's own `BBL/cli_config.json` differs from the package's (below);
 - a template is missing;
 - a template itself inherits or includes;
 - a default is unknown;
@@ -55,13 +34,11 @@ The build fails instead of guessing when:
 
 It also gives the root of the filament chains, `fdm_filament_common`, every filament setting at the default, below its own keys. The app starts every preset from the default filament preset, so a setting nothing in a chain sets is the default. The CLI starts from nothing: it copies into the slice only the keys each filament's file holds (`src/BambuStudio.cpp`, the filament loop), and when a list ends early, a filament past its end reads the first filament's value (`ConfigOptionVector::set_at`/`get_at` in `src/libslic3r/Config.hpp`). Found on 2026-11-18 by the app goldens:
 - **Pre-start fan:** only Bambu PLA Pure's presets set `pre_start_fan_time` (2 s). With PLA Pure first, every other filament on the plate got its part fan 2 s early (door-sock two-colour); with it second, the slice's list stopped at it (`0,2` where the app has `0,2,0,0`).
-- **The same fault in other keys:** `fdm_filament_common` lacked 12 filament settings. No BBL preset sets 8 of them, so every filament already sliced with the default and only the list's length changes. The other 4 are set by some chains only, so a mixed plate could hit the same fault: `pre_start_fan_time`, `first_x_layer_fan_speed` (40 in 128 X2D presets, unset in 58), `filament_adhesiveness_category` and `filament_change_length_nc`. `premerge-report.json` lists the 12 under `roots_given_defaults`. With 02.08.00.06 it's the same 12; of the 4, some X2D chains set `pre_start_fan_time` (6 of 207 X2D presets), `first_x_layer_fan_speed` (145), `filament_adhesiveness_category` (195) and `filament_change_length_nc` (4).
+- **The same fault in other keys:** `fdm_filament_common` lacked 12 filament settings. No BBL preset sets 8 of them, so every filament already sliced with the default and only the list's length changes. The other 4 are set by some chains only, so a mixed plate could hit the same fault: `pre_start_fan_time`, `first_x_layer_fan_speed` (40 in 128 X2D presets, unset in 58), `filament_adhesiveness_category` and `filament_change_length_nc`. `premerge-report.json` lists the 12 under `roots_given_defaults`.
 
 Machine presets also use `include`, for their G-code templates. orca-slicer-api already applies those by name, so they're copied unchanged. Process presets have no includes.
 
-**What the CLI reads from its own install.** orca-slicer-api hands the CLI every printer, process and filament preset, resolved from this tree. The one profile file the CLI still opens from its own `share/BambuStudio/profiles` is `BBL/cli_config.json`, the CLI-only caps on machine limits; 02.08.00.06's copy is byte-identical to the bundled one, and the build checks that it stays so. Its `machine_full/`, `filament_full/` and `process_full/` lookups are for files the package doesn't contain, so they never apply.
-
-We chose this over patching orca-slicer-api (nix-config #96). A profile copy can't conflict with a wrapper update, and it rebuilds by itself when Bambu Studio or the pinned package changes.
+We chose this over patching orca-slicer-api (nix-config #96). A profile copy can't conflict with a wrapper update, and it rebuilds by itself when Bambu Studio updates.
 
 ## How we know it works
 
@@ -73,23 +50,30 @@ We chose this over patching orca-slicer-api (nix-config #96). A profile copy can
   - every fail-loud case.
 
   Replacing the rule with "apply every key" fails a test.
-- **Every preset resolves like the patched resolver** (02.08.00.01, 2026-11-16): all 1873 BBL filament presets resolve identically through #96's patched resolver on the stock tree and through the unpatched resolver on this tree. The control, unpatched on the stock tree, differs on 1364 of them.
+- **Every preset resolves like the patched resolver:** all 1873 BBL filament presets resolve identically through #96's patched resolver on the stock tree and through the unpatched resolver on this tree. The control, unpatched on the stock tree, differs on 1364 of them.
 - **A/B print** (2026-11-16, `workspace/prints/ab-bowden/` on ai-box). Two thin towers in white PLA on the right nozzle:
   - unfixed: a dense web of strings;
   - fixed: clean.
 
-  This tree gives the fixed retraction (3 mm, Bowden Standard), with 02.08.00.01 and with 02.08.00.06 alike.
-- **The pin is what the app installs** (2026-11-18): a fresh Bambu Studio 02.08.00.50 HOME (ai-box-apps' golden regeneration, display :97) went through the first-run wizard and was offered "BBL 2.8.0.6"; after OK, its `system/BBL.json` and `system/BBL/` (2517 files) were byte-identical to this pin's package (`diff -r`, `cmp`), and so was the download it kept in `ota/presets/`.
-- **The slice uses the pinned package** (2026-11-18): through a private orca-slicer-api on its own port, given this tree and the presets Bambuddy sends (stubs naming the stock presets), traced with `strace -f`:
-  - towers-right-plabasic (white PLA Basic on the right nozzle) sends `M620.17 T1 S220 L0` where the 02.08.00.01 tree sent `L-1`;
-  - pair-petg-left (PETG Basic and PETG HF on the left nozzle) sets `M142 P1 R50 S55 U0 V0.5 O55` at its layer changes where the 02.08.00.01 tree set `R35 S50`;
-  - the CLI opened nothing under its own `share/BambuStudio/profiles` but `BBL/cli_config.json` (above).
+  This tree gives the fixed retraction (3 mm, Bowden Standard).
 - **App goldens:** slices made in the real Bambu Studio app and committed in ai-box-apps (`apps/printer/tests/goldens/`, `test_slice_goldens.py`). The same cases sliced through our stack with this tree have to match them. Anything that doesn't is a finding.
+
+## The pin
+
+We slice with the BBL profiles the Bambu Studio app updates itself to, not the older set bundled with it (Alex, 2026-11-18). On start, the app asks Bambu which package goes with its version (its version with the last two parts zeroed):
+
+```
+curl 'https://api.bambulab.com/v1/iot-service/api/slicer/resource?slicer/settings/bbl=02.08.00.00'
+```
+
+The answer names a `version` and a zip `url`; `default.nix` pins that zip (`bblVersion`, the URL, the hash). On 2026-11-18 it was 02.08.00.06, which among other things stops the X2D start sequence sending `M620.17 T1 S220 L-1` to an unused nozzle. The output's name carries both versions (`...-premerged-02.08.00.50-bbl-02.08.00.06`); `bbl-version` and `bbl-package` (the unmerged zip) sit beside `BBL/`.
 
 ## When Bambu Studio or its profiles update
 
-- **Bambu Studio, same major.minor** (02.08.00.50 to 02.08.01.x): the app asks the endpoint the same question, so the pin stays. The derivation reruns against the new binary and source, with its tests and fail-loud checks.
-- **Bambu Studio, new major.minor:** the build fails until the pin is moved. Ask the endpoint with the new version (the query above), pin the zip it names (`bblVersion`, the URL and the hash in `default.nix`), and build.
-- **A newer package for the same app:** pin it the same way. `../profile-canary/` watches for one: daily it asks the endpoint the app's question and, once per newer version, slices a towered and a one-filament case with that package and with the pinned one through a private orca-slicer-api, and reports the difference to Alex (template and program lines, print time, filament). It switches nothing.
+Bumping the pin is a manual step:
 
-Then rerun the golden suite in ai-box-apps, and regenerate the app goldens with its `regen/` scripts, the app's HOME taking the same package.
+1. Ask the endpoint (above) with the app's version. If it names a newer package, or the build fails because bambu-studio's major.minor no longer matches the pin, set `bblVersion` and the URL from the answer, set `hash = lib.fakeHash`, build, and paste the hash the build reports.
+2. The build checks that `BBL.json` is that version and that the CLI's own `BBL/cli_config.json` matches the package's; the tests and fail-loud checks above run too.
+3. Rerun the golden suite in ai-box-apps, and regenerate the app goldens with its `regen/` scripts if the output changed.
+
+A Bambu Studio update within the same major.minor needs nothing: the derivation reruns against the new binary.

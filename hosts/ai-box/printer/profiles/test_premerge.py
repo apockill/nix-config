@@ -104,11 +104,6 @@ def run(
     args = [
         "--profiles",
         str(profiles),
-        *(
-            ["--expect-version", kw.pop("expect_version")]
-            if "expect_version" in kw
-            else []
-        ),
         "--defaults",
         str(tmp_path / "defaults.json"),
         "--out",
@@ -376,10 +371,3 @@ def test_fails_loudly(
     exported = {k: v for k, v in EXPORTED.items() if k != "filament_notes"}
     with pytest.raises(premerge.PremergeError, match=message):
         run(tmp_path, filaments, exported=exported)
-
-
-def test_the_manifest_must_be_the_expected_version(tmp_path: Path) -> None:
-    filaments = {"PLA": {"filament_type": ["PLA"]}}
-    run(tmp_path / "same", filaments, expect_version="1")
-    with pytest.raises(premerge.PremergeError, match="version '1', not '2'"):
-        run(tmp_path / "other", filaments, expect_version="2")
