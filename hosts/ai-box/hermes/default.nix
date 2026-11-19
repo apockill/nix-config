@@ -79,8 +79,10 @@ in
     ./system-commands.nix # ai-box-switch / ai-box-test / ai-box-reboot
     ./cron-jobs.nix # aiBox.hermesCron: declarative monitor-mode cron jobs
     ./desk-idle # the desk's hourly sleep check (aiBox.hermesCron.desk-idle)
+    ./board-keeper # keeps in-flight work from being forgotten (aiBox.hermesCron.board-keeper)
     ./usage-alert # disk and memory over 95%: Discord report (aiBox.hermesCron.usage-alert)
     ./home.nix # home-manager: git, gh (the coding agents: ../agents)
+    ./arm-alert # the desk arm's alerts and an arm stuck out of its rest: Discord report
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
     ./github # GitHub as the ailex-bot App: gh, git identity, gh-app-token
     {

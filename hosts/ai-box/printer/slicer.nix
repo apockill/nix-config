@@ -2,8 +2,8 @@
 # wrapper Bambuddy's slicer sidecar images run, with nixpkgs' native aarch64 Bambu Studio
 # CLI as its slicer. Bambuddy (./bambuddy.nix) posts the model and the preset JSONs to
 # POST /slice; the wrapper flattens each preset's `inherits` chain from Bambu Studio's
-# stock profiles (BUNDLED_PROFILES_PATH) and runs the CLI in a temporary directory.
-# Those profiles are ./profiles: the stock ones with each filament preset's `include`
+# BBL profiles (BUNDLED_PROFILES_PATH) and runs the CLI in a temporary directory.
+# Those profiles are ./profiles: Bambu's updated ones with each filament preset's `include`
 # templates merged in as the Bambu Studio app does, since the wrapper walks `inherits` only.
 #
 # Loopback only, and the sandbox allows no other network traffic: slicing needs none.
