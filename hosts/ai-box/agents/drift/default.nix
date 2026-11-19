@@ -127,9 +127,9 @@ in
         - Every line `ok`, as before: answer exactly [SILENT].
         - An alert started: tell Alex in under 120 words which alert started and what crossed which
           line (the line says), and that `agents-usage-digest --details` gives the numbers. For
-          big-context, the likely cause is sessions running without a compaction window
-          (workspace/designs/acp-daemons/SKEPTIC.md, finding 2); for notify, notify-alex itself is
-          failing, so say so plainly.
+          notify, notify-alex itself is failing, so say so plainly.
+        - Never suggest a smaller compaction window or anything else that trades agent quality
+          for quota: those changes need Alex's own review.
         - An alert ended: one line saying so.
         Don't stop or message any session yourself.
       '';

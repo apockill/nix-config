@@ -104,8 +104,13 @@ about the change.
   is done. It runs outside the gateway, so your restarts don't touch it; after a reboot `agent
   send` resumes it. If the agent can't start or its sign-in has expired, `agent start` fails with
   the reason and Alex gets a Discord note: tell him what you were starting, never fall back to
-  another route. A job's own processes can't use `agent` (the runner refuses them) unless it was
-  started with `--allow-runner`; give that only to a job that must start jobs itself.
+  another route. Jobs run with the vendor's defaults (Alex: the best agentic experience, the same
+  for every agent): don't give a job a model, effort, mode, compaction window or tool fence of
+  your own unless Alex asked for it or there is an engineering reason, and say which in the
+  brief (Sculpt's builders are the example: a 200k compaction window). A change that could cost
+  agent quality goes to Alex for review first. A job's own processes can't use `agent` (the
+  runner refuses them) unless it was started with `--allow-runner`; give that only to a job that
+  must start jobs itself.
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions by default. They can't use the terminal, files, or browser unless
   Alex explicitly asks for that job (then create it with its own tool list and

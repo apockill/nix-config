@@ -24,6 +24,18 @@ transcript are unchanged, and the runner only starts, watches, steers and stops 
 - State: `/var/lib/hermes/agent-runner/sessions/<name>/`: `session.json` (the record),
   `events.jsonl` (every event), `agent.log` (the agent's stderr).
 
+**Vendor defaults.** Alex: "I just want the agent behavior to be the same for all agents...
+Claude Code is optimized for the best agentic experience. I want the best agentic experience, and
+only when we want to change from the defaults because we have an engineering reason, such as in
+Sculpt, do we diverge from that." So the runner applies no behaviour overrides of its own: no
+compaction window, model, effort, mode or tool changes. A session gets the vendor's defaults
+unless its caller sets something for an engineering reason it states (Sculpt's builders: a 200k
+compaction window, SCBUILD-15; their tool fence). The few things the vendor directories set are
+each there for a stated reason (Antigravity's `auto` mode: over ACP its default mode has a
+different prompt and tools from its own terminal UI; Claude's folder trust: what accepting its
+trust dialog does). Anything that would compromise agent quality needs Alex's skeptical review
+first.
+
 No fallbacks: if an agent can't start, or its sign-in is missing or expired, the session goes to
 `failed` with the reason, the call that started it fails with that reason, and Alex gets a Discord
 message (`notify-alex`). The same happens when an agent process dies unexpectedly. Alex is also
@@ -111,7 +123,7 @@ session takes its name, or for 30 days.
   "model": "haiku",
   "mode": null,
   "origin": "job: Runner smoke test",
-  "env": ["CLAUDE_CODE_AUTO_COMPACT_WINDOW"],
+  "env": ["PATH", "TMPDIR"],
   "session_meta": null,
   "agent_session_id": "9c329bf9-1172-4864-828c-67b80f906603",
   "transcript": "/var/lib/hermes/.claude/projects/-var-lib-hermes-worktrees-nix-config-runner/9c329bf9-1172-4864-828c-67b80f906603.jsonl",
@@ -124,7 +136,7 @@ session takes its name, or for 30 days.
   "pending": [],
   "queued": [],
   "limit": null,
-  "compact_window": 200000,
+  "compact_window": null,
   "allow_runner": false,
   "failed_turns": 0,
   "misfits": 0,
@@ -145,9 +157,9 @@ session takes its name, or for 30 days.
   the record, so a runner restart keeps them, and they go before a newer message.
 - `limit`: the usage limit the last turn hit, `{"resets_at": <Unix seconds or null>, "kind":
   "five_hour"}`; cleared by a turn that ends well.
-- `compact_window`: the context size (tokens) at which the agent compacts the conversation
-  (Claude: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, 200,000 unless the start's `env` sets it; null for an
-  agent without one).
+- `compact_window`: the context size (tokens) at which the agent compacts the conversation, when
+  the start's `env` set one (Claude: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`); null means the agent's own
+  default.
 - `allow_runner`: whether the session's own processes may use this API.
 - `failed_turns`: turns that failed in a row; `misfits`: messages from the agent that didn't fit
   ACP (each also an `error` event); `notify_error`: why telling Alex last failed, if it did.
@@ -198,7 +210,7 @@ Only `name` and `dir` (an existing folder, absolute) are required.
   `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`,
   `CLAUDE_CODE_USE_FOUNDRY`; Antigravity's `GEMINI_API_KEY`, `GOOGLE_API_KEY`. The agent's sign-in
   comes from the runner (Claude: the subscription token). `CLAUDE_CODE_AUTO_COMPACT_WINDOW` here
-  replaces the 200,000 default (a whole number). `ENABLE_CLAUDEAI_MCP_SERVERS=false` leaves out the
+  sets the session's compaction window (a whole number of tokens; without it, Claude Code's own). `ENABLE_CLAUDEAI_MCP_SERVERS=false` leaves out the
   account's claude.ai connectors (Behaviour).
 - `allow_runner`: let the session's own processes use this API (start, send to, answer, stop
   sessions). Off by default; give it only to sessions that start jobs of their own.
@@ -349,9 +361,10 @@ A UI that only shows text and tool calls needs `agent_message_chunk`, `tool_call
   `offline` and the next `send` resumes them (session/resume, same transcript). A turn that was
   running is lost, and Alex is told which; queued messages are kept. The event logs keep their
   history.
-- **Compaction**: Claude sessions compact at 200,000 tokens of context
-  (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, set by `../claude`), not near the 1M window: every request
-  re-reads the whole context from cache, so a big context is what uses up the quota.
+- **Compaction**: the runner sets no compaction window, so Claude sessions compact at Claude
+  Code's own default, near the model's full window. A caller may set one per session (`env`
+  `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; Sculpt's builders use 200,000, SCBUILD-15). A smaller window
+  costs agent quality (the summary loses detail), so a default one needs Alex's review.
 - **claude.ai connectors**: a Claude session gets the account's claude.ai connectors as deferred
   MCP tools (`mcp__claude_ai_Gmail__*`, `..._Google_Calendar__*`, `..._Google_Drive__*`,
   `..._Claude_Docs__*`: reading and sending mail drafts, trashing messages, creating and deleting

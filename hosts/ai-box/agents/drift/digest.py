@@ -8,13 +8,16 @@ model only when an alert starts or ends. `--details` adds the numbers (for whoev
 
 The alerts (SKEPTIC.md, "Drift", point 3):
 - cache-hit: cache reads under 95% of all input, i.e. the prompt cache stopped working.
-- big-context: over 30% of cache reads from requests whose context was above 400k tokens.
 - api-errors: Claude Code's own error messages (model `<synthetic>`, `isApiErrorMessage`):
   any with `error: rate_limit` (a usage limit), or 20 or more of any kind (a retry loop, as on
   2026-11-15). Read from those fields, never from the message's wording.
 - idle-sessions: runner sessions with their agent up and nothing for 24 h.
 - notify: runner sessions whose last notice to Alex failed (`notify_error`: notify-alex itself
   broke, so nothing else would say so).
+
+Big contexts are no alert: how much of the reads come from contexts above 400k tokens is only in
+`--details`, as a number. Context size is what the agents need; a smaller compaction window to
+cut it costs agent quality, and that needs Alex's skeptical review, not a nudge from a cron.
 """
 
 from __future__ import annotations
@@ -34,7 +37,6 @@ from typing import Any
 DAY = 24 * 3600.0
 HIT_RATIO = 0.95
 BIG_CONTEXT = 400_000
-BIG_SHARE = 0.30
 ERROR_LOOP = 20
 IDLE_SECONDS = DAY
 
@@ -143,19 +145,12 @@ def alerts(
     lines = []
     if not t.requests:
         lines.append("ok cache-hit: no requests")
-        lines.append("ok big-context: no requests")
     else:
         hit = t.reads / t.total_input if t.total_input else 1.0
         lines.append(
             "ok cache-hit: at least 95% of input read from cache"
             if hit >= HIT_RATIO
             else "ALERT cache-hit: under 95% of input read from cache"
-        )
-        share = t.big_reads / t.reads if t.reads else 0.0
-        lines.append(
-            "ok big-context: at most 30% of cache reads above 400k tokens"
-            if share <= BIG_SHARE
-            else "ALERT big-context: over 30% of cache reads from contexts above 400k tokens"
         )
     limits, total = t.errors.get("rate_limit", 0), sum(t.errors.values())
     if limits:

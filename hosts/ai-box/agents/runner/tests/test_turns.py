@@ -135,10 +135,12 @@ def test_queued_messages_survive_a_runner_restart_and_go_first(
 
 
 def test_the_compaction_window_is_recorded(service: Service) -> None:
+    # None set: the agent's own default, and nothing recorded.
     service.start_session("w", agent="windowed")
-    assert service.status("w")["compact_window"] == 200000
-    service.start_session("v", agent="windowed", env={"WINDOW": "300000"})
-    assert service.status("v")["compact_window"] == 300000
+    assert service.status("w")["compact_window"] is None
+    # The caller's (Sculpt's builders set 200k).
+    service.start_session("v", agent="windowed", env={"WINDOW": "200000"})
+    assert service.status("v")["compact_window"] == 200000
     service.start_session("n")
     assert service.status("n")["compact_window"] is None
 

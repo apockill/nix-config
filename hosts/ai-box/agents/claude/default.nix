@@ -31,12 +31,11 @@ in
     env = {
       CLAUDE_CONFIG_DIR = claudeDir;
       CLAUDE_CODE_EXECUTABLE = "${config.aiBox.agents.claude.cli}/bin/claude";
-      # Compact at 200k tokens rather than near the 1M window: every request re-reads the whole
-      # context from cache, and on 11-18 62% of the cache reads came from contexts over 400k
-      # (workspace designs/acp-daemons/SKEPTIC.md, finding 2). Sculpt's builders use 200k too
-      # (SCBUILD-15). A session's --env CLAUDE_CODE_AUTO_COMPACT_WINDOW=... overrides it.
-      CLAUDE_CODE_AUTO_COMPACT_WINDOW = "200000";
     };
+    # No compaction window by default: Claude Code's own, near the model's full window. A smaller
+    # one trades agent quality for quota, which needs Alex's skeptical review (11-18: "200k
+    # seems low"). A caller sets one per session (--env CLAUDE_CODE_AUTO_COMPACT_WINDOW=...;
+    # Sculpt's builders use 200k, SCBUILD-15), and the session records it.
     compactWindowEnv = "CLAUDE_CODE_AUTO_COMPACT_WINDOW";
     passEnv = [ "CLAUDE_CODE_OAUTH_TOKEN" ];
     # Each would move the session off the subscription: to metered API billing (a key or token),

@@ -49,18 +49,18 @@ def test_requests_count_once_and_only_from_the_last_day() -> None:
 def test_a_healthy_day() -> None:
     assert digest.alerts(tally(request("a", 10, 990)), []) == [
         "ok cache-hit: at least 95% of input read from cache",
-        "ok big-context: at most 30% of cache reads above 400k tokens",
         "ok api-errors: no usage limit, no error loop",
         "ok idle-sessions: none idle over 24 h",
     ]
 
 
-def test_cache_misses_and_big_contexts_alert() -> None:
-    lines = digest.alerts(
-        tally(request("a", 500_000, 0), request("b", 1000, 450_000)), []
-    )
+def test_cache_misses_alert_and_big_contexts_dont() -> None:
+    t = tally(request("a", 500_000, 0), request("b", 1000, 450_000))
+    lines = digest.alerts(t, [])
     assert lines[0].startswith("ALERT cache-hit")
-    assert lines[1].startswith("ALERT big-context")
+    # Big contexts are what the agents need: a number in the details, never an alert.
+    assert not any("big" in line or "400k" in line for line in lines)
+    assert "reads above 400k: 100.0%" in digest.details(t)[1]
 
 
 def test_a_usage_limit_alerts_once_seen_by_its_fields() -> None:
@@ -70,24 +70,23 @@ def test_a_usage_limit_alerts_once_seen_by_its_fields() -> None:
         api_error("u1", "rate_limit"),
     )
     assert t.errors == {"rate_limit": 1}
-    assert digest.alerts(t, [])[2].startswith("ALERT api-errors: usage-limit")
+    assert digest.alerts(t, [])[1].startswith("ALERT api-errors: usage-limit")
 
 
 def test_an_error_loop_alerts_whatever_its_kind() -> None:
     few = tally(
         *(api_error(f"u{n}", "invalid_request") for n in range(digest.ERROR_LOOP - 1))
     )
-    assert digest.alerts(few, [])[2].startswith("ok api-errors")
+    assert digest.alerts(few, [])[1].startswith("ok api-errors")
     many = tally(
         *(api_error(f"u{n}", "invalid_request") for n in range(digest.ERROR_LOOP))
     )
-    assert digest.alerts(many, [])[2].startswith("ALERT api-errors: 20 or more")
+    assert digest.alerts(many, [])[1].startswith("ALERT api-errors: 20 or more")
 
 
 def test_a_day_without_requests() -> None:
-    assert digest.alerts(digest.Tally(), [])[:2] == [
+    assert digest.alerts(digest.Tally(), [])[:1] == [
         "ok cache-hit: no requests",
-        "ok big-context: no requests",
     ]
 
 
@@ -105,10 +104,10 @@ def test_idle_sessions_are_alive_idle_and_quiet_for_a_day() -> None:
     ]
     assert digest.idle_sessions(sessions, NOW) == ["old"]
     assert (
-        digest.alerts(digest.Tally(), ["old"])[3]
+        digest.alerts(digest.Tally(), ["old"])[2]
         == "ALERT idle-sessions: old idle over 24 h"
     )
-    assert digest.alerts(digest.Tally(), None)[3].startswith(
+    assert digest.alerts(digest.Tally(), None)[2].startswith(
         "ALERT idle-sessions: can't list"
     )
 
