@@ -29,6 +29,15 @@ Machine presets also use `include`, for their G-code companions (`<preset> templ
 machine_start_gcode` and so on); the resolver already applies those by name, so they're copied as
 they are. Process presets have no includes.
 
+The app also starts every filament preset from that default preset, so a key no file in a chain
+sets is the default. The CLI starts from nothing: it copies into the slice only the keys each
+filament's file holds (BambuStudio.cpp, `for (opt_key : config.keys())`), and `set_at` pads a list
+with its first value (Config.hpp). So a key only some filaments' chains set (pre_start_fan_time:
+Bambu PLA Pure's 2 s) cut the slice's list short, and a filament past its end read the first
+filament's value. Each chain's root (a filament preset with no `inherits` that isn't a template;
+`fdm_filament_common` in the BBL tree) therefore carries every filament setting at its default,
+below its own keys and includes: the app's order again.
+
 Fails, rather than slicing on a guess, on: a template that isn't in the manifest, a template that
 itself inherits or includes, a template key whose default isn't known, and a value whose shape
 (list or scalar) differs from its default's.
@@ -103,6 +112,7 @@ class TemplateReport(TypedDict):
 class Report(TypedDict):
     version: str | None
     filament_presets_merged: int
+    roots_given_defaults: dict[str, list[str]]
     templates: dict[str, TemplateReport]
 
 
@@ -149,6 +159,24 @@ def filament_defaults(
             out[k] = exported[k]
     out["filament_settings_id"] = [""]
     return out
+
+
+# The default preset's keys a chain's root doesn't take: the preset's identity and compatibility.
+# When the CLI copies a filament's keys into the slice it skips the first three and reads the
+# conditions only into its compatibility groups (BambuStudio.cpp, the filament loop), so they
+# aren't settings it slices with, and a root's default would only blur what each preset declares.
+NOT_SETTINGS = BOOKKEEPING | {
+    "filament_settings_id",
+    "compatible_printers",
+    "compatible_prints",
+    "compatible_printers_condition",
+    "compatible_prints_condition",
+}
+
+
+def root_defaults(defaults: Preset) -> Preset:
+    """What a chain's root carries below its own keys: every filament setting at its default."""
+    return {k: v for k, v in defaults.items() if k not in NOT_SETTINGS}
 
 
 def _token(v: str, text: bool) -> Token:
@@ -230,15 +258,34 @@ def premerge(
 
     manifest = json.loads(manifest_file.read_text())
     files = {e["name"]: e["sub_path"] for e in manifest["filament_list"]}
+    presets: dict[str, Preset] = {
+        name: json.loads((src / sub).read_text()) for name, sub in files.items()
+    }
+    templates = {
+        t
+        for p in presets.values()
+        for t in (
+            [p["include"]]
+            if isinstance(p.get("include"), str)
+            else p.get("include") or []
+        )
+    }
+    root_keys = root_defaults(defaults)
     cache: dict[str, Contribution] = {}
     merged_presets = 0
+    roots: dict[str, list[str]] = {}
     for name, sub in files.items():
-        preset: Preset = json.loads((src / sub).read_text())
+        preset = presets[name]
         inc = preset.get("include")
-        if not inc:
+        is_root = not preset.get("inherits") and name not in templates
+        if not inc and not is_root:
             continue
-        names = [inc] if isinstance(inc, str) else inc
-        merged: Preset = {}
+        names = [] if not inc else [inc] if isinstance(inc, str) else inc
+        # A chain's root carries every filament setting at its default, at the bottom: the app
+        # starts every preset from the default preset, and the CLI copies only the keys a
+        # filament's file holds, so a key no file in a filament's chain sets took another
+        # filament's value or cut the slice's list short.
+        merged: Preset = dict(root_keys) if is_root else {}
         for t in names:
             if t not in files:
                 raise PremergeError(
@@ -250,10 +297,15 @@ def premerge(
             merged.update(cache[t].applied)
         merged.update({k: v for k, v in preset.items() if k != "include"})
         (out / VENDOR / sub).write_text(json.dumps(merged, indent=4) + "\n")
-        merged_presets += 1
+        if inc:
+            merged_presets += 1
+        if is_root:
+            covered = set(preset).union(*(cache[t].applied for t in names))
+            roots[name] = sorted(set(root_keys) - covered)
     return {
         "version": manifest.get("version"),
         "filament_presets_merged": merged_presets,
+        "roots_given_defaults": roots,
         "templates": {
             t: {
                 "applied": sorted(c.applied),

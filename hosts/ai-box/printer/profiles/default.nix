@@ -12,6 +12,11 @@
 # only touch the build). premerge-report.json lists, per template, what it applied and what it
 # left to the parent; for 02.08.00.50 that's every key, as every template value is a 2- or
 # 4-entry list and every default a 1-entry one.
+#
+# The root of the filament chains (fdm_filament_common) also gets every filament setting at that
+# default, below its own keys: the app starts each preset from the default preset, while the CLI
+# copies only the keys a filament's file holds and pads a short list with the first filament's
+# value (pre_start_fan_time, which only Bambu PLA Pure sets, spread to every filament).
 {
   lib,
   bambu-studio,
