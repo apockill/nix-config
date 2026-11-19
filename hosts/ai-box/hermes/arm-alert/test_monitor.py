@@ -14,14 +14,20 @@ def state(
     moved_ago: float = 3600.0,
     move_state: str = "done",
     gripper: str = "ok",
+    currents: list[float] | None = None,
 ) -> dict:
     return {
         "connection": "connected",
         "power": power,
-        "bus": {"state": "powered", "gripper": gripper},
+        "bus": {
+            "state": "powered",
+            "gripper": gripper,
+            "missing": [7] if gripper == "missing" else [],
+        },
         "angles": (angles or [*REST, -15.0]),
         "connected_for_s": 86400.0,
         "move": {"t": NOW - moved_ago, "state": move_state},
+        "currents": currents or [5.0, 12.0, 12.0, 10.0, 4.0, 3.0, 2.0, 1.0],
     }
 
 
@@ -80,12 +86,10 @@ def test_out_of_rest_is_stuck_only_once_still_for_stuck_s() -> None:
     assert (
         monitor.arm_line(fresh, REST, [], None, NOW) == "arm: powered out of its rest"
     )
-    still = state(
-        angles=out_of_rest(), moved_ago=monitor.STUCK_S + 10, gripper="missing"
-    )
+    still = state(angles=out_of_rest(), moved_ago=monitor.STUCK_S + 10)
     assert monitor.arm_line(still, REST, [], None, NOW) == (
         f"arm: STUCK powered out of its rest and still since {monitor.stamp(NOW - monitor.STUCK_S - 10)}"
-        " (J2, J5 away from its rest); gripper servo silent; no lab stretch held"
+        " (J2, J5 away from its rest); no lab stretch held"
     )
 
 
@@ -122,4 +126,61 @@ def test_a_disconnected_arm_is_unknown() -> None:
     st = {**state(), "power": None, "connection": "disconnected"}
     assert monitor.arm_line(st, REST, [], None, NOW) == (
         "arm: unknown, lab-arm's link to it is disconnected"
+    )
+
+
+GONE = {
+    "t": NOW - 30,
+    "msg": "gripper servo (J7) not answering: the joints keep holding",
+}
+
+
+def test_a_silent_servo_is_news_at_once_whatever_the_stretch() -> None:
+    st = state(angles=out_of_rest(), moved_ago=20, gripper="missing")
+    events = [
+        {"t": NOW - 600, "msg": "gripper servo (J7) not answering: ..."},
+        {"t": NOW - 500, "msg": "gripper servo (J7) answering again"},
+        GONE,
+    ]
+    assert monitor.arm_line(st, REST, events, "door-gate", NOW) == (
+        f"arm: SERVO SILENT J7 since {monitor.stamp(NOW - 30)}, powered out of its rest;"
+        " lab stretch held by door-gate"
+    )
+    assert monitor.arm_line(state(gripper="missing"), REST, [], None, NOW) == (
+        "arm: SERVO SILENT J7, powered at its rest; no lab stretch held"
+    )
+
+
+def test_a_silent_servo_names_the_joints_and_a_joint_pressing() -> None:
+    st = state(angles=out_of_rest(), moved_ago=monitor.PRESS_S + 60)
+    st["bus"] = {"state": "partial", "gripper": "missing", "missing": [5, 7]}
+    st["currents"] = [5.0, 12.0, 12.0, 10.0, 4.0, 3.0, 90.0, -1.0]
+    assert monitor.arm_line(st, REST, [GONE], None, NOW) == (
+        f"arm: SERVO SILENT J5, J7 since {monitor.stamp(NOW - 30)}, powered out of its rest;"
+        f" J6 drawing high current, still since {monitor.stamp(NOW - monitor.PRESS_S - 60)};"
+        " no lab stretch held"
+    )
+
+
+def test_pressing_needs_high_current_while_still_for_press_s() -> None:
+    hot = [5.0, 12.0, -75.0, 10.0, 4.0, 3.0, 90.0, 1.0]
+    st = state(angles=out_of_rest(), moved_ago=monitor.PRESS_S + 10, currents=hot)
+    assert monitor.arm_line(st, REST, [], "calibrate", NOW) == (
+        f"arm: PRESSING J2, J6 drawing high current, still since"
+        f" {monitor.stamp(NOW - monitor.PRESS_S - 10)}, powered out of its rest;"
+        " lab stretch held by calibrate"
+    )
+    fresh = state(angles=out_of_rest(), moved_ago=monitor.PRESS_S - 10, currents=hot)
+    assert (
+        monitor.arm_line(fresh, REST, [], None, NOW) == "arm: powered out of its rest"
+    )
+    moving = state(
+        angles=out_of_rest(), moved_ago=7200, move_state="running", currents=hot
+    )
+    assert (
+        monitor.arm_line(moving, REST, [], None, NOW) == "arm: powered out of its rest"
+    )
+    holding = state(angles=out_of_rest(), moved_ago=monitor.PRESS_S + 10)
+    assert (
+        monitor.arm_line(holding, REST, [], None, NOW) == "arm: powered out of its rest"
     )

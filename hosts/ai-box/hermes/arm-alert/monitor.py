@@ -3,15 +3,18 @@
 Prints two lines, for example:
 
     alert: servo_dropout at 11-19 02:10 - <the alert's message>
-    arm: released at its rest at 11-19 02:12; gripper servo silent
+    arm: SERVO SILENT J7 since 11-19 02:10, powered out of its rest; no lab stretch held
 
 `alert:` is the arm's active alert (`box lab-arm alerts`): its kind, when it was raised and
 its message, plus `(later also: <kinds>)` for other kinds folded into it while it stays
 uncleared, or `none`. `arm:` is where the arm is: `released` (motors off, which happens only
 at its rest), `powered at its rest`, `powered out of its rest`, or `STUCK` once it has been
 powered out of its rest and still for STUCK_S (STUCK_IN_STRETCH_S while a lab stretch holds
-the desk). Nothing in the output ticks on its own, so Hermes's monitor mode runs the agent
-only when the alert or the arm's place changes. If lab-arm can't be read the script exits
+the desk). Sooner, whatever the stretch: `SERVO SILENT` as soon as a servo stops answering
+while powered (the controller then ignores every move), and `PRESSING` once a joint has drawn
+over PRESS_CURRENT while still for PRESS_S (11-19: J6 pressed on the printer's handle for
+20 minutes behind a silent gripper servo, 25 -> 47 °C). Nothing in the output ticks on its
+own, so Hermes's monitor mode runs the agent only when the alert or the arm's place changes. If lab-arm can't be read the script exits
 non-zero, which skips the tick without counting as a change (a restarting lab-arm is no
 news; apps-health reports one that stays down).
 """
@@ -46,6 +49,16 @@ STUCK_IN_STRETCH_S = 1800
 # AUTO_REST_TOL_RAD).
 REST_TOL_DEG = 3.0
 MSG_CHARS = 200
+# A joint drawing more than this (lab-arm's `currents`, the firmware's units) is pushing on
+# something. Resting on its pad J2/J3 read under 20 (lab-arm's support_current_max); J6
+# pressing on the printer's handle read 75-105 (11-19), J3/J4 held at an unreachable target 125
+# (11-18).
+PRESS_CURRENT = 60.0
+# ... once the arm has been still this long: a move's own load passes within it.
+PRESS_S = 120
+# Which joint each servo of `currents` drives (J2 is a dual servo; servo 8 is the gripper, J7).
+SERVO_JOINT = [1, 2, 2, 3, 4, 5, 6, 7]
+GRIPPER_SILENT = "gripper servo (J7) not answering"
 
 
 def box_json(*args: str) -> Any:
@@ -121,6 +134,31 @@ def last_release(events: list[dict[str, Any]]) -> float | None:
     return max((t for t in times if t is not None), default=None)
 
 
+def silent_since(events: list[dict[str, Any]]) -> float | None:
+    """When the gripper servo last went silent (lab-arm's event), if it hasn't answered since."""
+    last = None
+    for e in sorted(events, key=lambda e: epoch(e) or 0.0):
+        msg = str(e.get("msg", ""))
+        if msg.startswith(GRIPPER_SILENT):
+            last = epoch(e)
+        elif msg.startswith("gripper servo (J7) answering again"):
+            last = None
+    return last
+
+
+def pressing(st: dict[str, Any], since: float | None, now: float) -> list[str]:
+    """The joints drawing over PRESS_CURRENT with the arm still for over PRESS_S."""
+    cs = st.get("currents")
+    if since is None or now - since <= PRESS_S or not isinstance(cs, list):
+        return []
+    hot = {
+        j
+        for j, c in zip(SERVO_JOINT, cs, strict=False)
+        if isinstance(c, (int, float)) and abs(c) > PRESS_CURRENT
+    }
+    return [f"J{j}" for j in sorted(hot)]
+
+
 def arm_line(
     st: dict[str, Any],
     rest_deg: list[float],
@@ -128,24 +166,40 @@ def arm_line(
     stretch: str | None,
     now: float,
 ) -> str:
-    gripper = (st.get("bus") or {}).get("gripper")
-    tail = "; gripper servo silent" if gripper == "missing" else ""
     if st.get("power") not in (0, 1):
         return f"arm: unknown, lab-arm's link to it is {st.get('connection')}"
     if st.get("power") == 0:
         released = last_release(events)
-        return f"arm: released at its rest{f' at {stamp(released)}' if released else ''}{tail}"
+        return (
+            f"arm: released at its rest{f' at {stamp(released)}' if released else ''}"
+        )
     away = away_from_rest(st.get("angles") or [], rest_deg)
-    if not away:
-        return f"arm: powered at its rest{tail}"
+    where = "powered out of its rest" if away else "powered at its rest"
+    held = f"; lab stretch held by {stretch}" if stretch else "; no lab stretch held"
     since = still_since(st, now)
+    silent = [f"J{j}" for j in (st.get("bus") or {}).get("missing") or []]
+    press = pressing(st, since, now)
+    pressed = (
+        f"{', '.join(press)} drawing high current, still since {stamp(since)}"
+        if press and since is not None
+        else ""
+    )
+    if silent:
+        t = silent_since(events) if "J7" in silent else None
+        return (
+            f"arm: SERVO SILENT {', '.join(silent)}{f' since {stamp(t)}' if t else ''},"
+            f" {where}{f'; {pressed}' if pressed else ''}{held}"
+        )
+    if pressed:
+        return f"arm: PRESSING {pressed}, {where}{held}"
+    if not away:
+        return f"arm: {where}"
     limit = STUCK_IN_STRETCH_S if stretch else STUCK_S
     if since is None or now - since < limit:
-        return f"arm: powered out of its rest{tail}"
-    held = f"; lab stretch held by {stretch}" if stretch else "; no lab stretch held"
+        return f"arm: {where}"
     return (
         f"arm: STUCK powered out of its rest and still since {stamp(since)}"
-        f" ({', '.join(away)} away from its rest){tail}{held}"
+        f" ({', '.join(away)} away from its rest){held}"
     )
 
 
