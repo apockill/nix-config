@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import canary
+import endpoint
 import pytest
 from conftest import profiles_tree
 
@@ -31,6 +32,7 @@ def endpoint_answer() -> Iterator[dict[str, object]]:
     class H(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             answer["query"] = self.path
+            answer["user_agent"] = self.headers["User-Agent"]
             self.send_response(200)
             self.end_headers()
             self.wfile.write(str(answer["body"]).encode())
@@ -97,6 +99,7 @@ def test_nothing_newer(
         == 0
     )
     assert endpoint_answer["query"] == "/resource?slicer/settings/bbl=02.08.00.00"
+    assert endpoint_answer["user_agent"] == endpoint.USER_AGENT
     assert summary(tmp_path) == (
         "OK: Bambu offers Bambu Studio 02.08.00.50 BBL profiles 02.08.00.06; "
         "the slicer service pins 02.08.00.06: nothing newer.\n"

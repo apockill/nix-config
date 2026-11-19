@@ -15,6 +15,8 @@ import urllib.request
 from dataclasses import dataclass
 
 URL = "https://api.bambulab.com/v1/iot-service/api/slicer/resource"
+# Who asks: the canary, honestly (the endpoint refuses Python's default user agent).
+USER_AGENT = "ai-box-profile-canary/1 (+https://github.com/apockill/nix-config)"
 RESOURCE = "slicer/settings/bbl"
 # The endpoint answers in well under a second; a minute means it's down.
 TIMEOUT_S = 60
@@ -69,7 +71,9 @@ def parse(body: str) -> Offer | None:
 
 
 def ask(app: Version, url: str = URL) -> Offer | None:
-    request = urllib.request.Request(f"{url}?{query(app)}")
+    request = urllib.request.Request(
+        f"{url}?{query(app)}", headers={"User-Agent": USER_AGENT}
+    )
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT_S) as r:
             return parse(r.read().decode())

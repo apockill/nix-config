@@ -67,3 +67,7 @@ def test_installs_follows_the_apps_rule(
 def test_a_bad_version_fails_loudly() -> None:
     with pytest.raises(endpoint.EndpointError):
         Version.parse("2.8")
+
+
+def test_the_canary_names_itself() -> None:
+    assert endpoint.USER_AGENT.startswith("ai-box-profile-canary/")

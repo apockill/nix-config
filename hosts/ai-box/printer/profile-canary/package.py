@@ -16,6 +16,8 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
+import endpoint
+
 # The zip is about 2.4 MB; ten minutes means the CDN is stuck.
 DOWNLOAD_TIMEOUT_S = 10 * 60
 # premerge.py takes a few seconds on the full tree.
@@ -37,9 +39,10 @@ class Premerge:
 
 
 def download(url: str, to: Path) -> None:
+    request = urllib.request.Request(url, headers={"User-Agent": endpoint.USER_AGENT})
     try:
         with (
-            urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_S) as r,
+            urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_S) as r,
             to.open("wb") as f,
         ):
             shutil.copyfileobj(r, f)
