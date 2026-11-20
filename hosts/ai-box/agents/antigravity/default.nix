@@ -65,12 +65,16 @@ in
 
     # Sessions through the runner (../runner). Over ACP agy starts in its "default" mode, whose
     # system prompt and tools differ from the TUI's; in "auto" they're the TUI's byte for byte.
-    # It ignores its settings.json permission rules over ACP (accepted for now, the spike's
-    # findings): don't rely on them.
+    # Even in "auto", agy ignores settings.json permission rules over ACP and asks before
+    # outside-workspace access or some commands; `--dangerously-skip-permissions` disables tool
+    # permission prompts for headless runner sessions (kept off the wrapped `agy` binary itself,
+    # since hermes-antigravity-subscription relies on omitting it to deny agy tools during Hermes
+    # inference turns).
     aiBox.agents.runner.agents.antigravity = {
       command = [
         "${agy}/bin/agy"
         "acp"
+        "--dangerously-skip-permissions"
       ];
       mode = "auto";
       refusedEnv = [
