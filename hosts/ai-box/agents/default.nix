@@ -34,6 +34,17 @@ in
     ./runner
   ];
 
+  options.aiBox = {
+    defaultProvider = lib.mkOption {
+      type = lib.types.enum [
+        "claude"
+        "antigravity"
+      ];
+      default = "claude";
+      description = "Default AI provider for ai-box (Hermes main chat and cron jobs, agent-runner, and any app following the runner's default).";
+    };
+  };
+
   options.aiBox.agents = {
     claude.cli = package "The claude CLI on the agent's PATH.";
     claude.acp = package "claude-agent-acp: Claude Code as an ACP server.";

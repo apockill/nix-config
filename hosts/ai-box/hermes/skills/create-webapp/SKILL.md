@@ -27,7 +27,7 @@ This skill outlines the lifecycle, delegation patterns, and verification standar
 ## Core Rules
 
 1. **Delegate Coding to a coding agent with `agent`:**
-   Hermes is an orchestrator. Delegate coding and UI creation to a coding agent: `agent start "<app>: <job>" <dir> <task-file>` (Claude Code by default; `--agent antigravity` switches, `--model` picks the model). Its agentic coding loop does a better job than Hermes's for real code changes, so prefer it for any non-trivial edit. Wait on it with `agent wait`, follow it with `agent peek`, steer with `agent send`, end it with `agent stop`.
+   Hermes is an orchestrator. Delegate coding and UI creation to a coding agent: `agent start "<app>: <job>" <dir> <task-file>` (uses the agent runner's default agent, set by `aiBox.defaultProvider`; `--agent claude|antigravity` overrides, `--model` picks the model). Its agentic coding loop does a better job than Hermes's for real code changes, so prefer it for any non-trivial edit. Wait on it with `agent wait`, follow it with `agent peek`, steer with `agent send`, end it with `agent stop`.
    The agents run on the agent's own subscriptions (flat rate, no per-token API billing); never set `ANTHROPIC_API_KEY` or a Gemini API key, which would switch to metered billing.
 2. **Start from Templates:**
    Scaffold from existing templates in `/var/lib/hermes/sites/templates/` rather than starting from scratch:

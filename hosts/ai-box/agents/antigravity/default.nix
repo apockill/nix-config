@@ -1,10 +1,10 @@
 # Antigravity (Google): everything specific to the Antigravity CLI (agy) on ai-box.
 #
-# Sign-in: the agent's own Google account (vault "AI Gmail Account"), on its free tier for now;
-# Alex may share his plan to that account later. agy keeps the sign-in in two files (a refresh
-# token in ~/.gemini, an account id in ~/.config/antigravity; no keyring on a headless user). Both
-# are kept across boots, and antigravity-login restores them from the vault when the token is
-# missing (a new box). Signing in as another account means a new vault item: set `loginItem`.
+# Sign-in: Alex's personal Google account by default (loginItem, vault ai-assistant; the agent's
+# own free-tier account is kept as a separate vault item). agy keeps the sign-in in two files (a
+# refresh token in ~/.gemini, an account id in ~/.config/antigravity; no keyring on a headless
+# user). Both are kept across boots, and antigravity-login restores them from the vault when the
+# token is missing (a new box). Signing in as another account means a new vault item: set `loginItem`.
 {
   config,
   inputs,
@@ -39,12 +39,23 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = "wrapProgram $out/bin/agy --set AGY_CLI_DISABLE_AUTO_UPDATE 1";
   };
+
+  # Hermes model-provider plugin (Nous official plugin-catalog, pure stdlib) that runs Hermes
+  # main chat and cron jobs on the Antigravity subscription through the official `agy` binary
+  # rather than metered Google AI Studio API keys.
+  hermesPlugin = pkgs.fetchFromGitHub {
+    owner = "soyelmismo";
+    repo = "hermes-antigravity-subscription";
+    rev = "f1c1a8ccc5a560b8d5926e2b7e4b544d272d2dd2"; # v1.0.29
+    hash = "sha256-0ECTK7SNo2z2wOCAvGJbf0KI2ctexue8k7/JcfqX+Iw=";
+  };
 in
 {
   options.aiBox.agents.antigravity.loginItem = lib.mkOption {
     type = lib.types.str;
-    # "Antigravity CLI login (agent Google account)": a tar of the two files, relative to $HOME.
-    default = "zznrrnya3h2a4j2fu5lf6j2pue";
+    # "Antigravity CLI login (Alex personal account)": a tar of the two files, relative to $HOME.
+    # Agent Google account (free tier) item: "zznrrnya3h2a4j2fu5lf6j2pue".
+    default = "jp5f2bnoimkmx66cnw67qfjgmm";
     description = "1Password item (vault ai-assistant) holding agy's sign-in.";
   };
 
@@ -70,10 +81,27 @@ in
     };
 
     # agy reads AGENTS.md in a repository and .agents/skills there natively; at user level it
-    # reads ~/.gemini/AGENTS.md and ~/.gemini/config/skills.
+    # reads ~/.gemini/AGENTS.md and ~/.gemini/config/skills. Hermes discovers user model-provider
+    # plugins under ~/.hermes/plugins/model-providers/<name>/.
     aiBox.agents.links = {
       "${home}/.gemini/AGENTS.md" = config.aiBox.agents.instructions;
       "${home}/.gemini/config/skills" = config.aiBox.agents.skills;
+      "${home}/.hermes/plugins/model-providers/antigravity-subscription-directsdk" = "${hermesPlugin}";
+    };
+
+    # Ensure Hermes sees the restored Antigravity sign-in, the symlinked plugin, and the wrapped
+    # `agy` binary on a fresh box or after a plugin update.
+    systemd.services.hermes-agent = {
+      wants = [
+        "antigravity-login.service"
+        "home-manager-${cfg.user}.service"
+      ];
+      after = [
+        "antigravity-login.service"
+        "home-manager-${cfg.user}.service"
+      ];
+      restartTriggers = [ hermesPlugin ];
+      environment.ANTIGRAVITY_COMMAND = "${agy}/bin/agy";
     };
 
     aiBox.state.paths = {
