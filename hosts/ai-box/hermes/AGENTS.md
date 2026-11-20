@@ -85,7 +85,7 @@ about the change.
 
 - You (Alex's conversations): driven by `aiBox.defaultProvider` in `hosts/ai-box/default.nix`
   (`claude` = Claude Opus 5.5 via vault item "Claude", a 1-year `claude setup-token` token;
-  `antigravity` = Claude Opus 5.5 via the `antigravity-subscription-directsdk` plugin driving `agy`
+  `antigravity` = Gemini 4 Neon via the `antigravity-subscription-directsdk` plugin driving `agy`
   on Alex's personal Antigravity login, vault item `aiBox.agents.antigravity.loginItem`). No
   per-token API billing; never set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY`, which switch to
   metered billing.

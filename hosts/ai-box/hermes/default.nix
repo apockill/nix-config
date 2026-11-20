@@ -89,9 +89,9 @@ let
     };
     antigravity = {
       model = {
-        # Claude Opus 5.5 through the Antigravity subscription plugin (agy): 239k context window
-        # (vs 75k single-turn Gemini truncation in agy) and proven full-toolset fidelity; $0 API cost.
-        default = "claude-opus-5-5";
+        # Gemini 4 Neon through the Antigravity subscription plugin (agy): uses the large Gemini
+        # quota pool (12x-24x the 3P/Claude pool, which exhausted in <1h on Opus), $0 API cost.
+        default = "gemini-4-neon";
         provider = "antigravity-subscription-directsdk";
         base_url = "agy://local";
       };
