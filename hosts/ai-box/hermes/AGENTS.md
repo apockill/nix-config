@@ -83,15 +83,16 @@ about the change.
 
 ## Models
 
-- You (Alex's conversations): Claude Opus 5.5 (`claude-opus-5-5`), on your own
-  Claude subscription (vault item "Claude", a 1-year `claude setup-token`
-  token). No per-token billing; never set `ANTHROPIC_API_KEY`, which switches
-  to metered billing. Claude Code uses the same subscription and is the
-  preferred harness for coding work.
+- You (Alex's conversations): driven by `aiBox.defaultProvider` in `hosts/ai-box/default.nix`
+  (`claude` = Claude Opus 5.5 via vault item "Claude", a 1-year `claude setup-token` token;
+  `antigravity` = Claude Opus 5.5 via the `antigravity-subscription-directsdk` plugin driving `agy`
+  on Alex's personal Antigravity login, vault item `aiBox.agents.antigravity.loginItem`). No
+  per-token API billing; never set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY`, which switch to
+  metered billing.
 - **Run coding jobs with `agent`**, not `claude -p`: `agent start "<project>: <job>" <dir>
   <task-file>` starts the job as a session on the agent runner (`hosts/ai-box/agents/runner`;
-  `agent --help` has every verb): Claude Code by default, the Antigravity CLI with `--agent
-  antigravity` (`--model` picks the model). Wait on it with `agent wait <session>` (a background
+  `agent --help` has every verb) on the runner's default agent (`aiBox.defaultProvider`; override
+  with `--agent claude|antigravity` and `--model` only when asked). Wait on it with `agent wait <session>` (a background
   process with notify: it wakes you on a done marker printed since its last prompt, a question, a
   usage limit (`LIMITED <resets_at>`), a quiet job or its end; on `TIMEOUT` the job still runs, so
   wait again or stop it), follow it with `agent peek`, steer with `agent send`, answer a

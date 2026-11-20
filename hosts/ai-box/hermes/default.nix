@@ -72,6 +72,37 @@ let
     fi
   '';
 
+  # Provider presets driven by `aiBox.defaultProvider` (hosts/ai-box/default.nix). Both branches
+  # set the exact same keys because `services.hermes-agent.settings` deep-merges into config.yaml
+  # (a missing key like base_url would otherwise linger on disk across switches).
+  providerPresets = {
+    claude = {
+      model = {
+        default = "claude-opus-5-5";
+        provider = "anthropic";
+        base_url = "https://api.anthropic.com";
+      };
+      cron = {
+        model = "claude-sonnet-5-5";
+        model_provider = "anthropic";
+      };
+    };
+    antigravity = {
+      model = {
+        # Claude Opus 5.5 through the Antigravity subscription plugin (agy): 239k context window
+        # (vs 75k single-turn Gemini truncation in agy) and proven full-toolset fidelity; $0 API cost.
+        default = "claude-opus-5-5";
+        provider = "antigravity-subscription-directsdk";
+        base_url = "agy://local";
+      };
+      cron = {
+        model = "gemini-3.8-flash";
+        model_provider = "antigravity-subscription-directsdk";
+      };
+    };
+  };
+  activeProvider = providerPresets.${config.aiBox.defaultProvider};
+
 in
 {
   imports = [
@@ -111,20 +142,14 @@ in
         busy_input_prompt = true;
         profile_build_offered = true;
       };
-      # Main model for conversations Alex starts: Claude Opus 5.5 via Claude Pro subscription OAuth.
-      model = {
-        default = "claude-opus-5-5";
-        provider = "anthropic";
-        # Explicit: settings are deep-merged into config.yaml, so a removed key
-        # (like the old Gemini base_url) would otherwise linger on disk.
-        base_url = "https://api.anthropic.com";
-      };
+      # Main model for conversations Alex starts, driven by `aiBox.defaultProvider`.
+      inherit (activeProvider) model;
 
-      # Claude sees images natively (no lossy text description). Set to "auto"
-      # explicitly rather than deleting the key, for the same deep-merge reason.
+      # Native vision (no lossy text description). Set to "auto" explicitly rather than
+      # deleting the key, for the same deep-merge reason.
       agent = {
         image_input_mode = "auto";
-        # Alex: always high effort for Opus (Hermes defaults to medium).
+        # Alex: always high effort for main conversations (Hermes defaults to medium).
         reasoning_effort = "high";
       };
       delegation.reasoning_effort = "high";
@@ -138,14 +163,11 @@ in
       ];
       cron = {
         allow_agent_scheduling = false;
-        # A cheaper Claude model is the default for every cron job (Alex, 11-16). Sonnet,
-        # not Haiku: desk-idle decides from the photo, the arm's events and the Claude Code
-        # jobs' transcripts whether someone is at the desk, which takes judgment, and the
-        # local Gemma twice switched the projector off mid-session. aiBox.hermesCron jobs pin
-        # this same model, so `hermes cron list` shows what each one runs.
-        model = "claude-sonnet-5-5";
-        model_provider = "anthropic";
-      };
+        # A cheaper model is the default for every cron job (Alex, 11-16): Sonnet under claude,
+        # Gemini 3.8 Flash under antigravity (the local Gemma twice switched the projector off
+        # mid-session). aiBox.hermesCron jobs pin this same model, so `hermes cron list` shows
+        # what each one runs.
+      } // activeProvider.cron;
 
       providers.local = {
         name = "local";

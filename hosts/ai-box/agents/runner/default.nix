@@ -130,7 +130,8 @@ in
     };
     default = lib.mkOption {
       type = lib.types.str;
-      default = "claude";
+      default = config.aiBox.defaultProvider;
+      defaultText = lib.literalExpression "config.aiBox.defaultProvider";
       description = "The agent a session gets when `start` names none.";
     };
     socket = lib.mkOption {

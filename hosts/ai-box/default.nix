@@ -33,6 +33,12 @@
 
   home-manager.users.alex.home.stateVersion = "26.05";
 
+  # Single switch for the box's default AI provider: Hermes main chat + cron jobs,
+  # agent-runner, and Sculpt builders (which follow agent-runner's default).
+  # After flipping this line and running `ai-box-switch`, run `agent restart` so
+  # agent-runner (which keeps old sessions alive across switches) picks up the new default.
+  aiBox.defaultProvider = "antigravity"; # "claude" | "antigravity"
+
   boot.loader.systemd-boot.enable = true;
   boot.loader.systemd-boot.configurationLimit = 10;
   boot.loader.efi.canTouchEfiVariables = true;
