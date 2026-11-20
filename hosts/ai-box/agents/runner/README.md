@@ -73,8 +73,8 @@ session (a Sculpt builder) can't start an unfenced one, or steer or stop another
   builders set it), in case the token ever changes.
 - **Folder trust:** a Claude session's folder is marked trusted at start, as accepting Claude's
   trust dialog would; otherwise Claude ignores the project's permission allow rules.
-- **Permissions:** both agents run in `auto`, so few tool calls ask (the session is `waiting` until
-  one is answered). Over ACP Antigravity ignores its `settings.json` rules (a known, accepted gap).
+- **Permissions:** Claude runs in `auto`, so few tool calls ask (the session waits for an answer);
+  Antigravity runs in `auto` with `--dangerously-skip-permissions`, so it never asks for tool permissions.
 - **Sign-in:** Claude uses the subscription token (`CLAUDE_CODE_OAUTH_TOKEN`, from the secrets
   file) and fails without it rather than use another login; Antigravity uses the Google sign-in in
   `~/.gemini` (`antigravity-login` restores it from the vault).
