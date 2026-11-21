@@ -4,6 +4,8 @@
 #   claude/       Claude Code (Anthropic)
 #   antigravity/  the Antigravity CLI, agy (Google)
 #   runner/       the agent runner: every session over ACP, with a local API (runner/README.md)
+#   drift/        the drift guards: agents-canary and agents-usage-digest (daily), and the
+#                 version skew check is claude/skew.nix
 #   AGENTS.md     machine-wide instructions for every agent session
 #
 # Shared by every vendor, in ~/.agents (vendors link their own file names to these):
@@ -32,6 +34,7 @@ in
     ./claude
     ./antigravity
     ./runner
+    ./drift
   ];
 
   options.aiBox = {

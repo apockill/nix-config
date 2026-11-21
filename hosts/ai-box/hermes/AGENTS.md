@@ -48,6 +48,11 @@
    `nix build .#nixosConfigurations.ai-box.config.system.build.toplevel`
    You can test changes live on the machine with `ai-box-test` (runs `nixos-rebuild test`;
    ephemeral — autoUpgrade or reboot reverts to master).
+   A PR that changes `flake.lock`, `hosts/ai-box/agents/claude/acp.nix` or
+   `hosts/ai-box/agents/antigravity` also runs the branch's canary, and puts its
+   output in the PR: `nix build .#nixosConfigurations.ai-box.config.aiBox.agents.drift.canary
+   -o /tmp/canary && /tmp/canary/bin/agents-canary` (a short Haiku session; every
+   line `ok` or `skip`, else say which assumption broke).
 3. Open a PR with `gh pr create`.
 4. Alex reviews on GitHub; reply to each review comment there with what you
    did (pushing back is fine).
