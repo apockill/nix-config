@@ -37,7 +37,7 @@
   # agent-runner, and Sculpt builders (which follow agent-runner's default).
   # After flipping this line and running `ai-box-switch`, run `agent restart` so
   # agent-runner (which keeps old sessions alive across switches) picks up the new default.
-  aiBox.defaultProvider = "antigravity"; # "claude" | "antigravity"
+  aiBox.defaultProvider = "claude"; # "claude" | "antigravity"
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.systemd-boot.configurationLimit = 10;
