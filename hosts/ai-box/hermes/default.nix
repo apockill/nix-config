@@ -164,11 +164,6 @@ in
       # bounded.
       sessions.auto_prune = true;
 
-      # The gateway serves the default profile alone, with the secrets in its environment, and a
-      # profile created while it runs doesn't switch it to serving several.
-      gateway.multiplex_profiles = false;
-      gateway.auto_multiplex_migration = false;
-
       # Scheduled jobs only read, check, summarize, and report back: no
       # terminal, files, browser (which carries the vault), or delegation.
       platform_toolsets.cron = [
