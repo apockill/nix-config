@@ -234,8 +234,8 @@ def parser(prog: str) -> Parser:
         if name == "stop":
             s.add_argument("--reason")
     s = verb(
-        "kanban-worker",
-        "work the Hermes kanban card in the environment as a job (hermes_board.py)",
+        "kanban-lane",
+        "work Hermes kanban cards assigned to coder as jobs (hermes_board.py)",
     )
     s.add_argument("--agent", help="the agent (default: the runner's)")
     s.add_argument("--model", help="the agent's model (default: its own)")
@@ -326,10 +326,8 @@ class Cli:
                 show(c.cancel(args.name))
             case "transcript":
                 print(c.status(args.name).transcript or "")
-            case "kanban-worker":
-                return hermes_board.main(
-                    c, environ, args.agent, args.model, args.hermes
-                )
+            case "kanban-lane":
+                hermes_board.Lane(c, args.hermes, args.agent, args.model).run()
             case "list":
                 return self.list(args.json)
             case "events":

@@ -29,14 +29,17 @@ read. A failure to tell him is in the session's `notify_error` and the journal.
 
 ## Kanban cards
 
-A Hermes kanban card assigned to `coder` runs as a job here, waited on without a model: Hermes's
-dispatcher spawns `agent kanban-worker` (`agent_runner/hermes_board.py`, the runner's one coupling
-to Hermes; the plugin and its contract check are nix-config's `hosts/ai-box/hermes/card-worker`).
-It starts session `card-<id>` on `aiBox.agents.cardWorker`'s agent with the card's context, or on
-a retry sends the same session the latest context, waits on it and heartbeats the card on each
-wake. `CARD-DONE: <summary>` completes the card; a question, a permission or `CARD-NEED-LIVE`
-blocks it; a usage limit exits 75 (Hermes requeues it without a failure); going quiet without a
-marker, ending or a refusal exits 1 (a crash: Hermes retries, and blocks after 2 in a row).
+Hermes kanban cards assigned to `coder` run as jobs here, waited on without a model. `coder` is
+no Hermes profile but a lane: Hermes's dispatcher starts no worker for it, and `agent kanban-lane`
+(`agent_runner/hermes_board.py`, the runner's one coupling to Hermes; nix-config's
+`hosts/ai-box/hermes/card-worker` runs it as the user service card-lane) claims each ready card.
+It starts session `card-<id>` on `aiBox.agents.cardWorker`'s agent with the card's context, or
+sends the same session the latest context when the card comes back, waits on it and heartbeats
+the card on each wake. `CARD-DONE: <summary>` completes the card; a question, a permission or
+`CARD-NEED-LIVE` blocks it (needs_input); a usage limit is waited out, the card kept; going
+quiet without a marker, ending or a refusal blocks it (transient). A card whose lane is gone
+goes back to ready when its claim runs out (a day), and the lane takes back its running cards
+when it starts.
 
 ## Transport
 

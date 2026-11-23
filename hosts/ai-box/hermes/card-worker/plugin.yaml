@@ -1,6 +1,0 @@
-name: card-worker
-version: "1"
-description: "Kanban cards assigned to coder are worked by the agent runner (nix-config hosts/ai-box/hermes/card-worker)."
-author: ai-box
-kind: standalone
-requires_hermes: ">=0.22.3"
