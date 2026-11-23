@@ -18,9 +18,8 @@ let
   tokenFile = "${home}/.gemini/antigravity-cli/antigravity-oauth-token";
 
   # The package alex's desktop uses (users/alex/home/desktop/antigravity.nix), from the
-  # antigravity-nix flake. Keep it at 1.5.10 or later: over ACP, 1.5.9 drops what agy says after
-  # a turn has ended (a subagent's result arriving), which 1.5.10 streams (tested on ai-box,
-  # 2026-11-17).
+  # antigravity-nix flake. It needs 1.5.10 or later, which streams over ACP what agy says after a
+  # turn has ended (a subagent's result arriving).
   cli = inputs.antigravity-nix.packages.${pkgs.stdenv.hostPlatform.system}.google-antigravity-cli;
 
   # agy updates itself unless told not to: in the read-only store that only fails and logs, and
@@ -83,10 +82,9 @@ in
       "${home}/.gemini/config/skills" = config.aiBox.agents.skills;
     };
 
-    # Hermes discovers user model-provider plugins under ~/.hermes/plugins/model-providers/<name>/.
-    # It loads a copy of each (providers/plugin_reload.py), and a copy of a store path keeps the
-    # store's read-only modes, so moving it into place fails and the provider doesn't load. So the
-    # plugin is a writable copy, made afresh on each activation.
+    # Hermes discovers user model-provider plugins under ~/.hermes/plugins/model-providers/<name>/
+    # and loads a copy of each (providers/plugin_reload.py), which needs a writable plugin: a copy
+    # made afresh on each activation.
     home-manager.users.${cfg.user} =
       { lib, ... }:
       {

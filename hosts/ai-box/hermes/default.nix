@@ -65,12 +65,10 @@ let
   # This wrapper injects `--vault ai-assistant` on `item get` calls when omitted.
   # Remove this part once upstream hermes-agent merges support for service accounts.
   #
-  # It's also the agent's terminal `op` (AGENTS.md: Hermes creates vault items). Hermes passes
-  # OP_SERVICE_ACCOUNT_TOKEN to no child, terminal.env_passthrough included (GHSA-rhgp-j443-p4rf:
-  # the token that unlocks every other secret goes only to its own CLI). So op reads it itself,
-  # from the secrets file the gateway names in AIBOX_OP_SIGNIN, and nothing else in the terminal
-  # holds it. A caller that brings its own token (the vault backend) keeps it; coding agents'
-  # sessions don't carry the mark, so their op has no sign-in.
+  # It's also the terminal's `op`. Hermes gives OP_SERVICE_ACCOUNT_TOKEN to no child process
+  # (GHSA-rhgp-j443-p4rf), so op reads it from the file AIBOX_OP_SIGNIN names, and nothing else
+  # in the terminal holds it. A caller with its own token keeps it; coding agents' sessions have
+  # no AIBOX_OP_SIGNIN, so their op is signed out.
   opVaultWrapper = pkgs.writeShellScriptBin "op" ''
     if [ -z "''${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -r "''${AIBOX_OP_SIGNIN:-}" ]; then
       OP_SERVICE_ACCOUNT_TOKEN=$(${pkgs.gnugrep}/bin/grep -m1 '^OP_SERVICE_ACCOUNT_TOKEN=' "$AIBOX_OP_SIGNIN" | ${pkgs.coreutils}/bin/cut -d= -f2-)
@@ -208,8 +206,7 @@ in
       };
       # Lets `claude` in the agent's terminal reach Claude, and gives curl access to
       # the Cloudflare Access service token. Cron has no terminal, so it never gets
-      # these. Hermes refuses OP_SERVICE_ACCOUNT_TOKEN here; `op` reads it itself
-      # (opVaultWrapper). The list replaces the one on disk.
+      # these. The list replaces the one on disk.
       terminal.env_passthrough = [
         "CF_ACCESS_CLIENT_ID"
         "CF_ACCESS_CLIENT_SECRET"
@@ -308,11 +305,8 @@ in
     };
   };
 
-  # Hermes refuses a group-writable home when its group has other members (caddy, which
-  # serves the sites): another user could swap the gateway's control socket, so kanban workers
-  # can't reach it ("unsafe_control_permissions"). The module sets 2770 on activation and in
-  # tmpfiles; take group write off the home itself (its subdirectories keep theirs; caddy needs
-  # none of it).
+  # The gateway's control socket needs a home its group can't write, as the group has other
+  # members (caddy). The module makes the home 2770; this takes group write off the home alone.
   system.activationScripts.hermes-home-mode = lib.stringAfter [ "hermes-agent-setup" ] ''
     chmod g-w ${hermesHome}
   '';
