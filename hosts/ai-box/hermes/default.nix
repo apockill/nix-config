@@ -115,7 +115,7 @@ in
     ./home.nix # home-manager: git, gh (the coding agents: ../agents)
     ./arm-alert # the desk arm's alerts and an arm stuck out of its rest: Discord report
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
-    ./github # GitHub as the ailex-bot App: gh, git identity, gh-app-token
+    ./github # GitHub as ailex-agent: gh, git identity
     {
       # More `op inject` lines for the secrets file from feature modules (e.g.
       # ./email.nix): vault references only, never secrets.
@@ -195,7 +195,7 @@ in
         "CF_ACCESS_CLIENT_SECRET"
         "CLAUDE_CODE_OAUTH_TOKEN"
         # Not GH_TOKEN or ANTHROPIC_TOKEN: Hermes refuses provider credentials
-        # here. gh mints its own token (./github).
+        # here. gh reads its own token (./github).
       ];
     };
 
