@@ -77,15 +77,30 @@ in
     };
 
     # agy reads AGENTS.md in a repository and .agents/skills there natively; at user level it
-    # reads ~/.gemini/AGENTS.md and ~/.gemini/config/skills. Hermes discovers user model-provider
-    # plugins under ~/.hermes/plugins/model-providers/<name>/.
+    # reads ~/.gemini/AGENTS.md and ~/.gemini/config/skills.
     aiBox.agents.links = {
       "${home}/.gemini/AGENTS.md" = config.aiBox.agents.instructions;
       "${home}/.gemini/config/skills" = config.aiBox.agents.skills;
-      "${home}/.hermes/plugins/model-providers/antigravity-subscription-directsdk" = "${hermesPlugin}";
     };
 
-    # Ensure Hermes sees the restored Antigravity sign-in, the symlinked plugin, and the wrapped
+    # Hermes discovers user model-provider plugins under ~/.hermes/plugins/model-providers/<name>/.
+    # Since v0.23 it loads a copy (providers/plugin_reload.py), which it can't make of a store path:
+    # the copy keeps the store's read-only modes, so moving it into place fails and the provider
+    # doesn't load. So this is a writable copy, made afresh on each activation.
+    home-manager.users.${cfg.user} =
+      { lib, ... }:
+      {
+        home.activation.antigravityHermesPlugin = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+          dir="$HOME/.hermes/plugins/model-providers/antigravity-subscription-directsdk"
+          run rm -rf "$dir"
+          run mkdir -p "$(dirname "$dir")"
+          run cp -r --no-preserve=mode ${hermesPlugin} "$dir"
+        '';
+      };
+    # ~/.hermes is a bind mount (state/persist.nix): copy into it, not under it.
+    systemd.services."home-manager-${cfg.user}".unitConfig.RequiresMountsFor = [ "${home}/.hermes" ];
+
+    # Ensure Hermes sees the restored Antigravity sign-in, the plugin's copy, and the wrapped
     # `agy` binary on a fresh box or after a plugin update.
     systemd.services.hermes-agent = {
       wants = [
