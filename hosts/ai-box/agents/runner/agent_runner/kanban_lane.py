@@ -77,6 +77,10 @@ class BoardError(Exception):
     """`hermes kanban` refused or failed; the message has its output."""
 
 
+class Blocked(Exception):
+    """The lane blocked the card: its run is over."""
+
+
 def kanban(hermes: str, *args: str, env: dict[str, str] | None = None) -> str:
     done = subprocess.run(
         [hermes, "kanban", *args],
@@ -103,6 +107,8 @@ class Board:
     card: str
     run: str
     workspace: str
+    # When the claim runs out (Unix seconds); a heartbeat doesn't move it.
+    expires: float
 
     def call(self, *args: str) -> str:
         scope = {"HERMES_KANBAN_TASK": self.card, "HERMES_KANBAN_RUN_ID": self.run}
@@ -132,9 +138,10 @@ def take(hermes: str, card: str, claim: bool = True) -> Board:
     runs = [r for r in shown["runs"] if r["status"] == "running"]
     if not runs:
         raise BoardError(f"{card} has no running run")
-    return Board(
-        hermes, card, str(runs[-1]["id"]), str(shown["task"]["workspace_path"])
-    )
+    run = runs[-1]
+    workspace = str(shown["task"]["workspace_path"])
+    expires = float(run["started_at"]) + CLAIM_SECONDS
+    return Board(hermes, card, str(run["id"]), workspace, expires)
 
 
 def begin(
@@ -184,7 +191,13 @@ def waiting_out(board: Board, call: Callable[[], object]) -> None:
 
 
 def pause(board: Board, said: str, resets_at: float | None) -> None:
+    """Wait out a usage limit with the card claimed, or block the card (Blocked) when the limit
+    resets after the claim runs out."""
     until = resets_at or time.time() + LIMIT_SECONDS
+    if until >= board.expires:
+        at = time.strftime("%Y-%m-%d %H:%M", time.localtime(until))
+        board.block("transient", f"usage limit until {at}: {said}")
+        raise Blocked
     at = time.strftime("%H:%M", time.localtime(until))
     board.comment(f"usage limit, carrying on at {at}: {said}")
     sleep(max(0.0, until - time.time()))
@@ -234,6 +247,8 @@ def work(
             board.heartbeat(woken.outcome)
             if settle(client, board, name, woken):
                 return
+    except Blocked:
+        return
     except (ClientError, BoardError, JobError) as e:
         print(f"agent kanban-lane: card {board.card}: {e}", file=sys.stderr, flush=True)
         with contextlib.suppress(BoardError):

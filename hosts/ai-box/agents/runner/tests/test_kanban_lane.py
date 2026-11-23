@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import re
@@ -14,7 +15,7 @@ from typing import Any
 
 import pytest
 from agent_runner import kanban_lane
-from agent_runner.kanban_lane import MARKER, Board, Lane, kanban, work
+from agent_runner.kanban_lane import CLAIM_SECONDS, MARKER, Board, Lane, kanban, work
 from agent_runner.wait import Waiting
 from conftest import Service
 
@@ -42,7 +43,8 @@ class Card:
         command = self.dir / "hermes"
         command.write_text(f'#!/bin/sh\nexec {sys.executable} {script} "$@"\n')
         command.chmod(0o755)
-        self.board = Board(str(command), "t_42", "7", str(tmp))
+        expires = time.time() + CLAIM_SECONDS
+        self.board = Board(str(command), "t_42", "7", str(tmp), expires)
 
     def says(self, script: str) -> None:
         (self.dir / "context.txt").write_text(f"# Fix the thing\n\nfake: {script}")
@@ -122,6 +124,22 @@ def test_the_usage_limit_is_waited_out(
     calls = card.calls()
     assert calls[1][:2] == ["comment", "t_42"] and "usage limit" in calls[1][3]
     assert calls[-1] == ["complete", "t_42", "--summary=after the limit"]
+
+
+def test_a_usage_limit_past_the_claim_blocks_the_card(
+    service: Service, card: Card, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    card.board = dataclasses.replace(card.board, expires=time.time() + 60)
+    card.says(f"limit {int(time.time()) + 3600}")
+
+    def sleep(seconds: float) -> None:
+        raise AssertionError("the claim runs out before the reset: nothing to wait for")
+
+    monkeypatch.setattr(kanban_lane, "sleep", sleep)
+    card.work(service)
+    block = card.calls()[-1]
+    assert block[:5] == ["block", "t_42", "--kind", "transient", "--"]
+    assert block[5].startswith("usage limit until ")
 
 
 def test_quiet_without_a_marker_blocks(service: Service, card: Card) -> None:
