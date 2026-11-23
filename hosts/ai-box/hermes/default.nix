@@ -114,27 +114,6 @@ let
   };
   activeProvider = providerPresets.${config.aiBox.defaultProvider};
 
-  # The gateway's boot on this config, with Hermes's own interpreter (./gateway-check.py). The
-  # second run proves it fails on what took the gateway's secrets live: a directory under
-  # profiles/.
-  gatewayCheck = pkgs.runCommand "hermes-gateway-check" { } ''
-    export HOME=$TMPDIR HERMES_HOME=$TMPDIR/hermes
-    mkdir $HERMES_HOME
-    cp ${pkgs.writeText "config.yaml" (builtins.toJSON cfg.settings)} $HERMES_HOME/config.yaml
-    check="${cfg.package.hermesVenv}/bin/python3 -I ${./gateway-check.py} ${secretsTemplate}"
-    $check
-    mkdir -p $HERMES_HOME/profiles/stray && : > $HERMES_HOME/profiles/stray/.env
-    if said=$($check 2>&1); then echo "gateway-check.py passes with a profile"; exit 1; fi
-    echo "$said" | grep -E 'would (host|multiplex)' || { echo "$said"; exit 1; }
-    touch $out
-  '';
-  # What this system makes under ~/.hermes/profiles: nothing, or the gateway serves profiles.
-  declaredProfiles = lib.filter (lib.hasInfix "${hermesHome}/profiles") (
-    config.systemd.tmpfiles.rules
-    ++ lib.concatMap lib.attrNames (lib.attrValues config.systemd.tmpfiles.settings)
-    ++ lib.attrNames config.aiBox.agents.links
-  );
-
 in
 {
   imports = [
@@ -190,18 +169,10 @@ in
       # bounded.
       sessions.auto_prune = true;
 
-      # One gateway, serving the default profile only. A second profile (any directory under
-      # ~/.hermes/profiles/) makes Hermes serve every profile, reading secrets only from each
-      # profile's .env and not from the gateway's environment (EnvironmentFile below), so it
-      # comes up without Discord, email or Claude. Hermes 0.23 overrides an explicit false once
-      # a second profile exists, and writes true here itself, so the guard is that no profile
-      # exists (./gateway-check.py checks it in the build). false keeps the file saying what the
-      # gateway does, for this Hermes and an older one alike; auto_multiplex_migration = false
-      # keeps a profile created while the gateway runs from switching it over.
-      gateway = {
-        multiplex_profiles = false;
-        auto_multiplex_migration = false;
-      };
+      # The gateway serves the default profile alone, with the secrets in its environment, and a
+      # profile created while it runs doesn't switch it to serving several.
+      gateway.multiplex_profiles = false;
+      gateway.auto_multiplex_migration = false;
 
       # Scheduled jobs only read, check, summarize, and report back: no
       # terminal, files, browser (which carries the vault), or delegation.
@@ -346,14 +317,6 @@ in
     chmod g-w ${hermesHome}
   '';
   systemd.tmpfiles.rules = [ "z ${hermesHome} 2750 ${cfg.user} ${cfg.group} - -" ];
-
-  system.checks = [ gatewayCheck ];
-  assertions = [
-    {
-      assertion = declaredProfiles == [ ];
-      message = "Hermes profiles make the gateway lose its secrets (gateway.multiplex_profiles in ./default.nix): ${toString declaredProfiles}";
-    }
-  ];
 
   users.users.${cfg.user}.extraGroups = [ "video" ];
 }

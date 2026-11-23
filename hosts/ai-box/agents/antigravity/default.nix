@@ -41,7 +41,6 @@ let
     rev = "f1c1a8ccc5a560b8d5926e2b7e4b544d272d2dd2"; # v1.0.29
     hash = "sha256-0ECTK7SNo2z2wOCAvGJbf0KI2ctexue8k7/JcfqX+Iw=";
   };
-  pluginDir = "${home}/.hermes/plugins/model-providers/antigravity-subscription-directsdk";
 in
 {
   options.aiBox.agents.antigravity.loginItem = lib.mkOption {
@@ -87,41 +86,29 @@ in
     # Hermes discovers user model-provider plugins under ~/.hermes/plugins/model-providers/<name>/.
     # It loads a copy of each (providers/plugin_reload.py), and a copy of a store path keeps the
     # store's read-only modes, so moving it into place fails and the provider doesn't load. So the
-    # plugin is a writable copy, owned by this unit: starting it makes the copy afresh, stopping it
-    # removes the copy and any `.backup` home-manager made of it. A system that links the plugin
-    # instead stops this unit on the switch, before its home-manager runs, which then finds the
-    # path free.
-    systemd.services.hermes-antigravity-plugin = {
-      description = "The Antigravity provider plugin for Hermes, as a writable copy";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "home-manager-${cfg.user}.service" ];
-      # ~/.hermes is a bind mount (state/persist.nix): copy into it, not under it.
-      unitConfig.RequiresMountsFor = [ "${home}/.hermes" ];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-        User = cfg.user;
-        Group = cfg.group;
-        ExecStop = "${pkgs.coreutils}/bin/rm -rf ${pluginDir} ${pluginDir}.backup";
+    # plugin is a writable copy, made afresh on each activation.
+    home-manager.users.${cfg.user} =
+      { lib, ... }:
+      {
+        home.activation.antigravityHermesPlugin = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+          dir="$HOME/.hermes/plugins/model-providers/antigravity-subscription-directsdk"
+          run rm -rf "$dir"
+          run mkdir -p "$(dirname "$dir")"
+          run cp -r --no-preserve=mode ${hermesPlugin} "$dir"
+        '';
       };
-      script = ''
-        rm -rf ${pluginDir} ${pluginDir}.backup
-        mkdir -p ${dirOf pluginDir}
-        cp -r --no-preserve=mode ${hermesPlugin} ${pluginDir}
-      '';
-    };
+    # ~/.hermes is a bind mount (state/persist.nix): copy into it, not under it.
+    systemd.services."home-manager-${cfg.user}".unitConfig.RequiresMountsFor = [ "${home}/.hermes" ];
 
     # Ensure Hermes sees the restored Antigravity sign-in, the plugin's copy, and the wrapped
     # `agy` binary on a fresh box or after a plugin update.
     systemd.services.hermes-agent = {
       wants = [
         "antigravity-login.service"
-        "hermes-antigravity-plugin.service"
         "home-manager-${cfg.user}.service"
       ];
       after = [
         "antigravity-login.service"
-        "hermes-antigravity-plugin.service"
         "home-manager-${cfg.user}.service"
       ];
       restartTriggers = [ hermesPlugin ];
