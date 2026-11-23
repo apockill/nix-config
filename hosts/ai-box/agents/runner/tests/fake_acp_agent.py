@@ -11,7 +11,8 @@ Turns that fail as claude-agent-acp 0.108 fails them (v2/outcome.js, result-end.
 with a usage limit resetting at <t> (Unix seconds), "limit-unknown" with one that gives no reset time,
 "fail" with a server error. "call <socket> <path>" has a tool's process (a grandchild) GET the
 runner's API and say the answer's status line; "call-escaped" does it from a process that left
-the agent's tree (double fork). "umask" says the agent's umask.
+the agent's tree (double fork). "umask" says the agent's umask. A prompt with lines starting
+"fake: " (a kanban card's brief) does what its last one says.
 """
 
 from __future__ import annotations
@@ -115,6 +116,9 @@ def turn(rid: Any, session: str, text: str) -> None:
     def done(reason: str = "end_turn") -> None:
         send({"jsonrpc": "2.0", "id": rid, "result": {"stopReason": reason}})
 
+    # A longer prompt (a kanban card's brief) is scripted by its last `fake: ` line.
+    scripted = [line[6:] for line in text.splitlines() if line.startswith("fake: ")]
+    text = scripted[-1] if scripted else text
     if text.startswith("limit"):
         data: dict[str, Any] = {"errorKind": "rate_limit"}
         if text != "limit-unknown":

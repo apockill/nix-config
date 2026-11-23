@@ -26,4 +26,5 @@ The modules, from the bottom up:
   runner      every session, by name; peers: who calls (from inside a session or not)
   api_types, api, server   the API (FastAPI) and the service (uvicorn)
   client, render, jobs, wait, cli   the CLI
+  hermes_board  `agent kanban-worker`: a Hermes kanban card as a job (the one Hermes coupling)
 """

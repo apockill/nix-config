@@ -27,6 +27,17 @@ each: at a usage limit (once per reset), after 3 failed turns in a row, when a p
 question waits 30 minutes, when a stop or restart cuts turns (named), and when a record can't be
 read. A failure to tell him is in the session's `notify_error` and the journal.
 
+## Kanban cards
+
+A Hermes kanban card assigned to `coder` runs as a job here, with no model watching it: Hermes's
+dispatcher spawns `agent kanban-worker` (`agent_runner/hermes_board.py`, the runner's one coupling
+to Hermes; the plugin and its contract check are nix-config's `hosts/ai-box/hermes/card-worker`).
+It starts session `card-<id>` on `aiBox.agents.cardWorker`'s agent with the card's context, or on
+a retry sends the same session the latest context, waits on it and heartbeats the card on each
+wake. `CARD-DONE: <summary>` completes the card; a question, a permission or `CARD-NEED-LIVE`
+blocks it; a usage limit exits 75 (Hermes requeues it without a failure); going quiet without a
+marker, ending or a refusal exits 1 (a crash: Hermes retries, and blocks after 2 in a row).
+
 ## Transport
 
 HTTP/1.1 on the unix socket `/var/lib/hermes/agent-runner/sock`, mode `0600`: the agent's user
