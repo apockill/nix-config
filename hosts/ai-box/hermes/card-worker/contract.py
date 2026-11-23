@@ -10,6 +10,7 @@ Usage: contract.py <the plugin, as installed> <stub> <hermes> <hermes_board.py>
 """
 
 import ast
+import importlib.util
 import json
 import os
 import shutil
@@ -17,6 +18,14 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+# The supported hook (NousResearch/hermes-agent#146543) is the place for card-worker once Hermes
+# ships it.
+if importlib.util.find_spec("hermes_cli.kanban_worker_lanes") is not None:
+    sys.exit(
+        "Hermes now has a supported kanban worker-lane hook (register_kanban_worker_lane): move "
+        "card-worker to it and delete plugin.py's _worker_argv replacement."
+    )
 
 installed, stub, hermes, board_source = sys.argv[1:5]
 home = Path(os.environ["HERMES_HOME"])
