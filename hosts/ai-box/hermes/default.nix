@@ -287,5 +287,15 @@ in
     };
   };
 
+  # Hermes v0.23 refuses a group-writable home when its group has other members (caddy, which
+  # serves the sites): another user could swap the gateway's control socket, so kanban workers
+  # can't reach it ("unsafe_control_permissions"). The module sets 2770 on activation and in
+  # tmpfiles; take group write off the home itself (its subdirectories keep theirs; caddy needs
+  # none of it).
+  system.activationScripts.hermes-home-mode = lib.stringAfter [ "hermes-agent-setup" ] ''
+    chmod g-w ${hermesHome}
+  '';
+  systemd.tmpfiles.rules = [ "z ${hermesHome} 2750 ${cfg.user} ${cfg.group} - -" ];
+
   users.users.${cfg.user}.extraGroups = [ "video" ];
 }
