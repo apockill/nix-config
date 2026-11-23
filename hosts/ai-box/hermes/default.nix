@@ -65,14 +65,11 @@ let
   # This wrapper injects `--vault ai-assistant` on `item get` calls when omitted.
   # Remove this part once upstream hermes-agent merges support for service accounts.
   #
-  # It's also the terminal's `op`. Hermes gives OP_SERVICE_ACCOUNT_TOKEN to no child process
-  # (GHSA-rhgp-j443-p4rf), so op reads it from the file AIBOX_OP_SIGNIN names, and nothing else
-  # in the terminal holds it. A caller with its own token keeps it; coding agents' sessions have
-  # no AIBOX_OP_SIGNIN, so their op is signed out.
+  # It's also the terminal's `op`: Hermes gives OP_SERVICE_ACCOUNT_TOKEN to no child process
+  # (GHSA-rhgp-j443-p4rf), so op reads it from the secrets file when its caller has none.
   opVaultWrapper = pkgs.writeShellScriptBin "op" ''
-    if [ -z "''${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -r "''${AIBOX_OP_SIGNIN:-}" ]; then
-      OP_SERVICE_ACCOUNT_TOKEN=$(${pkgs.gnugrep}/bin/grep -m1 '^OP_SERVICE_ACCOUNT_TOKEN=' "$AIBOX_OP_SIGNIN" | ${pkgs.coreutils}/bin/cut -d= -f2-)
-      export OP_SERVICE_ACCOUNT_TOKEN
+    if [ -z "''${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -r ${secretsDir}/env ]; then
+      export OP_SERVICE_ACCOUNT_TOKEN=$(${pkgs.gnused}/bin/sed -n 's/^OP_SERVICE_ACCOUNT_TOKEN=//p' ${secretsDir}/env)
     fi
     if [[ "$*" == *"item get"* && "$*" != *"--vault"* ]]; then
       exec ${pkgs._1password-cli}/bin/op "$@" --vault ai-assistant
@@ -292,12 +289,8 @@ in
   systemd.services.hermes-agent = {
     wants = [ "hermes-secrets.service" ];
     after = [ "hermes-secrets.service" ];
-    environment = {
-      # Claude Code's .claude.json in ~/.claude, as for every claude on its PATH (agents/claude).
-      CLAUDE_CONFIG_DIR = "${cfg.stateDir}/.claude";
-      # Where the terminal's `op` reads its sign-in (opVaultWrapper).
-      AIBOX_OP_SIGNIN = "${secretsDir}/env";
-    };
+    # Claude Code's .claude.json in ~/.claude, as for every claude on its PATH (agents/claude).
+    environment.CLAUDE_CONFIG_DIR = "${cfg.stateDir}/.claude";
     serviceConfig = {
       EnvironmentFile = [ "${secretsDir}/env" ];
       NoNewPrivileges = lib.mkForce false;
