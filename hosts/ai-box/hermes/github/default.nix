@@ -2,7 +2,7 @@
 # Alex's repos.
 #
 # - gh reads the account's token from the secrets file: Hermes passes GH_TOKEN to no
-#   process it starts (GHSA-rhgp-j443-p4rf). git gets it through gh's credential helper.
+#   process it starts (GHSA-rhgp-j443-p4rf).
 # - git: commits are authored as ailex-agent.
 { config, pkgs, ... }:
 let

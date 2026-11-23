@@ -194,8 +194,6 @@ in
         "CF_ACCESS_CLIENT_ID"
         "CF_ACCESS_CLIENT_SECRET"
         "CLAUDE_CODE_OAUTH_TOKEN"
-        # Not GH_TOKEN or ANTHROPIC_TOKEN: Hermes refuses provider credentials
-        # here. gh reads its own token (./github).
       ];
     };
 
