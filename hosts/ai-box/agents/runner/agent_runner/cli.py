@@ -238,7 +238,6 @@ def parser(prog: str) -> Parser:
         "work Hermes kanban cards assigned to coder as jobs (kanban_lane.py)",
     )
     s.add_argument("--agent", help="the agent (default: the runner's)")
-    s.add_argument("--model", help="the agent's model (default: its own)")
     s.add_argument("--hermes", default="hermes", help="the hermes command")
     s = verb("list", "the sessions, oldest first")
     s.add_argument("--json", action="store_true")
@@ -327,7 +326,7 @@ class Cli:
             case "transcript":
                 print(c.status(args.name).transcript or "")
             case "kanban-lane":
-                kanban_lane.Lane(c, args.hermes, args.agent, args.model).run()
+                kanban_lane.Lane(c, args.hermes, args.agent).run()
             case "list":
                 return self.list(args.json)
             case "events":

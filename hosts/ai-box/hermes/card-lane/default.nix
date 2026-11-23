@@ -7,7 +7,7 @@
 #   - the `hermes kanban` CLI: list, claim, show, context, heartbeat, comment, complete, block
 # Homegrown:
 #   - card-lane, a user service beside the runner's: `agent kanban-lane`
-#   - aiBox.agents.cardLane: the agent and model for coder cards
+#   - aiBox.agents.cardLane.agent: the agent for coder cards
 #   - the check: kanban_lane.py's tests, the last of them on Hermes's own board (the dispatcher's
 #     tick included), so a Hermes release that changes what the lane relies on fails the build
 {
@@ -28,10 +28,6 @@ let
     hermes
     "--agent"
     lane.agent
-  ]
-  ++ lib.optionals (lane.model != null) [
-    "--model"
-    lane.model
   ];
 
   check = runner.overridePythonAttrs {
@@ -51,11 +47,6 @@ in
       default = config.aiBox.defaultProvider;
       defaultText = lib.literalExpression "config.aiBox.defaultProvider";
       description = "The agent that works coder cards (the chat keeps aiBox.defaultProvider).";
-    };
-    model = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      description = "The model for coder cards; null keeps the agent's own default.";
     };
   };
 

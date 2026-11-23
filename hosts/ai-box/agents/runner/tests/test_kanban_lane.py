@@ -54,7 +54,7 @@ class Card:
         return [call[1:] for call in calls]
 
     def work(self, service: Service) -> None:
-        work(service.client, self.board, None, None, how=QUICK)
+        work(service.client, self.board, None, how=QUICK)
 
 
 def prompts(service: Service) -> list[str]:
@@ -162,7 +162,7 @@ def test_on_hermes_s_own_board(
     assert tick["spawned"] == [] and card in tick["skipped_nonspawnable"], tick
     assert tick["reclaimed"] == 1, tick
     # The lane claims both and works them.
-    lane = Lane(service.client, HERMES, None, None, QUICK)
+    lane = Lane(service.client, HERMES, None, QUICK)
     for thread in lane.tick():
         thread.join(30)
     done, blocked = board("show", card), board("show", lost)

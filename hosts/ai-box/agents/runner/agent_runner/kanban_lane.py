@@ -142,7 +142,6 @@ def begin(
     board: Board,
     name: str,
     agent: str | None,
-    model: str | None,
     adopted: bool,
 ) -> None:
     """Start the card's session, or hand the same one the card's latest context. A card the
@@ -159,7 +158,6 @@ def begin(
             dir=board.workspace,
             task=BRIEF.format(card=board.card, context=board.context()),
             agent=agent,
-            model=model,
             origin=f"kanban card {board.card}",
         )
         client.start(start_request(spec, os.environ))
@@ -223,7 +221,6 @@ def work(
     client: Client,
     board: Board,
     agent: str | None,
-    model: str | None,
     adopted: bool = False,
     how: Waiting | None = None,
 ) -> None:
@@ -231,7 +228,7 @@ def work(
     how = how or Waiting(marker=re.compile(MARKER), timeout=HEARTBEAT_SECONDS)
     name = slug(f"card {board.card}")
     try:
-        waiting_out(board, lambda: begin(client, board, name, agent, model, adopted))
+        waiting_out(board, lambda: begin(client, board, name, agent, adopted))
         while True:
             woken = wait(client, name, how)
             board.heartbeat(woken.outcome)
@@ -248,7 +245,6 @@ class Lane:
     client: Client
     hermes: str
     agent: str | None
-    model: str | None
     how: Waiting | None = None
     working: dict[str, threading.Thread] = field(default_factory=dict)
 
@@ -264,7 +260,7 @@ class Lane:
                 print(f"agent kanban-lane: {e}", file=sys.stderr, flush=True)
                 continue
             client = Client(self.client.socket_path)  # the thread's own connections
-            args = (client, board, self.agent, self.model, status != "ready", self.how)
+            args = (client, board, self.agent, status != "ready", self.how)
             t = threading.Thread(target=work, args=args, name=card, daemon=True)
             t.start()
             started.append(t)
