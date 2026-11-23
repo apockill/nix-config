@@ -60,12 +60,25 @@ let
   stub = pkgs.writeShellScript "card-worker-stub" ''
     ${lib.getExe pkgs.jq} -n env > "$HERMES_HOME/recorded.tmp" && mv "$HERMES_HOME/recorded.tmp" "$HERMES_HOME/recorded.json"
   '';
-  contract = pkgs.runCommand "hermes-card-worker-contract" { } ''
-    export HOME=$TMPDIR HERMES_HOME=$TMPDIR/hermes
-    ${cfg.package.hermesVenv}/bin/python3 ${./contract.py} ${plugin} ${stub} \
-      ${cfg.package}/bin/hermes ${../../agents/runner/agent_runner/hermes_board.py}
-    touch $out
-  '';
+  contract =
+    pkgs.runCommand "hermes-card-worker-contract"
+      {
+        nativeBuildInputs = [
+          pkgs.mypy
+          pkgs.ruff
+        ];
+      }
+      ''
+        export HOME=$TMPDIR HERMES_HOME=$TMPDIR/hermes
+        # The repository's lint settings; both tools read them only under this name.
+        cp ${../../../../pyproject.toml} $TMPDIR/pyproject.toml
+        ruff check --no-cache --config $TMPDIR/pyproject.toml ${./plugin.py} ${./contract.py}
+        mypy --strict --warn-unused-ignores --cache-dir=$TMPDIR/mypy \
+          --config-file $TMPDIR/pyproject.toml ${./plugin.py} ${./contract.py}
+        ${cfg.package.hermesVenv}/bin/python3 ${./contract.py} ${plugin} ${stub} \
+          ${cfg.package}/bin/hermes ${../../agents/runner/agent_runner/hermes_board.py}
+        touch $out
+      '';
 in
 {
   options.aiBox.agents.cardWorker = {
