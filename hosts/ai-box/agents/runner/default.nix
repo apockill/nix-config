@@ -217,8 +217,8 @@ in
           # Its cgroup is its own: a caller in it is one of its agents' processes (peers.py).
           "AGENT_RUNNER_OWN_CGROUP=1"
         ];
-        # Its socket, records and event logs (tool outputs, file contents) are its user's only;
-        # the user's group has other members (caddy). Agents get 0022 back (agents file).
+        # Its socket, records and event logs (tool outputs, file contents) are its user's only.
+        # Agents get 0022 back (agents file).
         UMask = "0077";
         WorkingDirectory = cfg.stateDir;
         Restart = "on-failure";

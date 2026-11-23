@@ -12,6 +12,17 @@
 #               runs when its output changes, i.e. when an app needs Alex.
 { pkgs, ... }:
 let
+  # apps/ in group sites, its directories setgid so every file made there (a checkout, an agent's
+  # edit) is in the group from the start; this sets both on whatever came in another way.
+  appsGroup = pkgs.writeShellScript "sites-apps-group" ''
+    apps=/var/lib/hermes/sites/apps
+    [ -d "$apps" ] || exit 0
+    ${pkgs.findutils}/bin/find "$apps" -ignore_readdir_race ! -group sites \
+      -exec ${pkgs.coreutils}/bin/chgrp -h sites {} +
+    ${pkgs.findutils}/bin/find "$apps" -ignore_readdir_race -type d ! -perm -2000 \
+      -exec ${pkgs.coreutils}/bin/chmod g+s {} +
+  '';
+
   cronPrompt = ''
     You watch the web apps on ai-box (Alex's home server). The monitor block
     above shows what changed in their health summary. Write a short Discord
@@ -56,12 +67,18 @@ in
     };
     serviceConfig = {
       User = "hermes";
-      Group = "hermes";
+      # The group of what Caddy serves (./caddy.nix): the runtime directory below, the sockets
+      # the instances make in it, and apps/. systemd gives such a unit only the groups that list
+      # its user, so hermes is named here to stay one of them.
+      Group = "sites";
+      SupplementaryGroups = [ "hermes" ];
       WorkingDirectory = "/var/lib/hermes/sites";
+      # "-": the apps start even where a file in apps/ can't be regrouped.
+      ExecStartPre = "-${appsGroup}";
       ExecStart = "/var/lib/hermes/sites/tools/runner/run serve";
       StateDirectory = "apps-health";
       StateDirectoryMode = "0755";
-      # /run/sites: each instance's runtime directory and socket; Caddy reads it. Preserved
+      # /run/sites: each instance's runtime directory and socket; Caddy connects to them. Preserved
       # across restarts of the unit (a crash, a switch): it holds each instance's .runner.failed
       # marker, which keeps a failed instance failed until re-armed (LAUNCH-15), and its app.log.
       RuntimeDirectory = "sites";

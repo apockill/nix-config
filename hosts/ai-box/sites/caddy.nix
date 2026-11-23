@@ -7,6 +7,11 @@
 #   alexthiele.io             the portal instance
 #
 # A backend app whose instance isn't running answers 502, never its files.
+#
+# Caddy reaches what it serves through the group `sites`, of which it is the one member: the
+# static apps' files in apps/ and the instances' sockets in /run/sites (both kept in the group
+# by the apps runner, ./runner.nix). Of the agent's home it sees only apps/, read-only, so the
+# group's write bits there give it no writes.
 { ... }:
 let
   sites = "/var/lib/hermes/sites";
@@ -56,7 +61,18 @@ in
     '';
   };
 
-  users.users.caddy.extraGroups = [ "hermes" ];
+  users.groups.sites.members = [ "caddy" ];
+
+  systemd.services.caddy = {
+    serviceConfig = {
+      TemporaryFileSystem = "/var/lib/hermes:ro";
+      # "-": Caddy starts without apps/ on a box whose checkout isn't there yet.
+      BindReadOnlyPaths = [ "-${sites}/apps" ];
+    };
+    # The runner puts apps/ in group sites when it starts; the Escape Pod cert Caddy loads at
+    # its own start is there (../vector.nix).
+    after = [ "ai-box-apps-runner.service" ];
+  };
 
   systemd.tmpfiles.rules = [
     "d ${sites} 0755 hermes hermes -"
