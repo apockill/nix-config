@@ -9,24 +9,24 @@ card's command is ours, from command.json beside this file. The system build's c
 """
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 from hermes_cli import kanban_db_dispatch
 
 ASSIGNEE = "coder"
-COMMAND = json.loads(Path(__file__).with_name("command.json").read_text())
+COMMAND: list[str] = json.loads(Path(__file__).with_name("command.json").read_text())
+# Hermes's own, saved once, at import: every card but a coder card still gets it.
+hermes_worker_argv: Callable[[object, str, str | None], list[str]] = (
+    kanban_db_dispatch._worker_argv
+)
+
+
+def worker_argv(task: object, profile_arg: str, hermes_home: str | None) -> list[str]:
+    if profile_arg == ASSIGNEE:
+        return list(COMMAND)
+    return hermes_worker_argv(task, profile_arg, hermes_home)
 
 
 def register(ctx: object) -> None:
-    dispatch = kanban_db_dispatch
-    hermes_argv = getattr(dispatch._worker_argv, "hermes_argv", dispatch._worker_argv)
-
-    def worker_argv(
-        task: object, profile_arg: str, hermes_home: str | None
-    ) -> list[str]:
-        if profile_arg == ASSIGNEE:
-            return list(COMMAND)
-        return hermes_argv(task, profile_arg, hermes_home)
-
-    worker_argv.hermes_argv = hermes_argv  # type: ignore[attr-defined]
-    dispatch._worker_argv = worker_argv
+    kanban_db_dispatch._worker_argv = worker_argv
