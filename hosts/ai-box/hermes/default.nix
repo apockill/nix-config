@@ -154,6 +154,9 @@ in
       };
       delegation.reasoning_effort = "high";
 
+      # Ended sessions are deleted after 90 days, as before v0.23 made pruning opt-in (#139762).
+      sessions.auto_prune = true;
+
       # Scheduled jobs only read, check, summarize, and report back: no
       # terminal, files, browser (which carries the vault), or delegation.
       platform_toolsets.cron = [
