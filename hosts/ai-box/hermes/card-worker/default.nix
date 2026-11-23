@@ -1,17 +1,22 @@
 # Coding cards on the agent runner: a kanban card assigned to `coder` is worked by
-# `agent kanban-worker` (agents/runner/agent_runner/hermes_board.py), not by a Hermes agent
-# babysitting a job. Hermes's dispatcher still claims it, heartbeats, reclaims, retries and
-# notifies; the job is a runner session (card-<id>) on aiBox.agents.cardWorker's agent, with
-# vendor defaults; nothing runs a model just to watch it. Every other card is Hermes's as before.
+# `agent kanban-worker` instead of a Hermes agent babysitting a job, with no model watching it.
 #
-# All of the Hermes coupling is here and in hermes_board.py:
-#   ./plugin.py, ./plugin.yaml     the plugin (installed as its __init__.py): gives a coder card
-#                                  our command (command.json)
-#   ./contract.py                  the system build's check that Hermes still honours that seam
-#   profiles/coder/.env            an empty profile, so the dispatcher counts `coder` as spawnable.
-#                                  Only the empty .env: a profile with a config would turn the
-#                                  gateway into a multi-profile host (credentials scoped per profile)
-#                                  for a profile that never runs a Hermes agent.
+# Standard Hermes, used as documented:
+#   - the board and its dispatcher: claims, heartbeats, reclaim, retries, the block after 2
+#     failures, notify
+#   - the plugin system: ~/.hermes/plugins, plugin.yaml, register(ctx), plugins.enabled
+#   - profiles as assignees
+#   - the `hermes kanban` CLI and the worker's env vars (HERMES_KANBAN_*)
+#   - the worker exit codes, 75 (rate-limited) included
+# Homegrown:
+#   - ./plugin.py: replaces the private kanban_db_dispatch._worker_argv for coder cards only. The
+#     one unsupported seam, until NousResearch/hermes-agent#146543 (plugin worker lanes) lands.
+#   - the empty coder profile (profiles/coder/.env only): spawnable, but no second servable
+#     profile, which would turn the gateway into a multi-profile host
+#   - agents/runner/agent_runner/hermes_board.py: `agent kanban-worker`, the bridge
+#   - aiBox.agents.cardWorker: the agent and model for coder cards
+#   - ./contract.py: the build's check that Hermes still honours the seam (plus mypy --strict
+#     and ruff on this folder)
 # Only the gateway's dispatcher loads plugins: a hand-run `hermes kanban dispatch` gives a coder
 # card a Hermes worker, so leave dispatching to the gateway.
 {
