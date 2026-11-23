@@ -63,8 +63,19 @@ let
   # requires an explicit `--vault` flag. Upstream Hermes omits `--vault` in
   # agent/vault_backends/onepassword.py, causing `browser_vault_fill` to fail.
   # This wrapper injects `--vault ai-assistant` on `item get` calls when omitted.
-  # Remove this wrapper once upstream hermes-agent merges support for service accounts.
+  # Remove this part once upstream hermes-agent merges support for service accounts.
+  #
+  # It's also the agent's terminal `op` (AGENTS.md: Hermes creates vault items). Since v0.23 Hermes
+  # won't pass OP_SERVICE_ACCOUNT_TOKEN to any child, terminal.env_passthrough included
+  # (GHSA-rhgp-j443-p4rf: the token that unlocks every other secret goes only to its own CLI). So
+  # op reads it itself, from the secrets file the gateway names in AIBOX_OP_SIGNIN, and nothing else
+  # in the terminal ever holds it. A caller that brings its own token (the vault backend) keeps it;
+  # coding agents' sessions don't carry the mark, so their op has no sign-in, as before.
   opVaultWrapper = pkgs.writeShellScriptBin "op" ''
+    if [ -z "''${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -r "''${AIBOX_OP_SIGNIN:-}" ]; then
+      OP_SERVICE_ACCOUNT_TOKEN=$(${pkgs.gnugrep}/bin/grep -m1 '^OP_SERVICE_ACCOUNT_TOKEN=' "$AIBOX_OP_SIGNIN" | ${pkgs.coreutils}/bin/cut -d= -f2-)
+      export OP_SERVICE_ACCOUNT_TOKEN
+    fi
     if [[ "$*" == *"item get"* && "$*" != *"--vault"* ]]; then
       exec ${pkgs._1password-cli}/bin/op "$@" --vault ai-assistant
     else
@@ -189,11 +200,11 @@ in
         service_account_token_env = "OP_SERVICE_ACCOUNT_TOKEN";
         binary_path = "${opVaultWrapper}/bin/op";
       };
-      # Lets `op` and `claude` in the agent's terminal reach the vault and Claude,
-      # and gives curl access to the Cloudflare Access service token.
-      # Cron has no terminal, so it never gets these.
+      # Lets `claude` in the agent's terminal reach Claude, and gives curl access to
+      # the Cloudflare Access service token. Cron has no terminal, so it never gets
+      # these. Not OP_SERVICE_ACCOUNT_TOKEN: Hermes refuses it since v0.23, and `op`
+      # reads it itself (opVaultWrapper). The list replaces the one on disk.
       terminal.env_passthrough = [
-        "OP_SERVICE_ACCOUNT_TOKEN"
         "CF_ACCESS_CLIENT_ID"
         "CF_ACCESS_CLIENT_SECRET"
         "CLAUDE_CODE_OAUTH_TOKEN"
@@ -278,8 +289,12 @@ in
   systemd.services.hermes-agent = {
     wants = [ "hermes-secrets.service" ];
     after = [ "hermes-secrets.service" ];
-    # Claude Code's .claude.json in ~/.claude, as for every claude on its PATH (agents/claude).
-    environment.CLAUDE_CONFIG_DIR = "${cfg.stateDir}/.claude";
+    environment = {
+      # Claude Code's .claude.json in ~/.claude, as for every claude on its PATH (agents/claude).
+      CLAUDE_CONFIG_DIR = "${cfg.stateDir}/.claude";
+      # Where the terminal's `op` reads its sign-in (opVaultWrapper).
+      AIBOX_OP_SIGNIN = "${secretsDir}/env";
+    };
     serviceConfig = {
       EnvironmentFile = [ "${secretsDir}/env" ];
       NoNewPrivileges = lib.mkForce false;
