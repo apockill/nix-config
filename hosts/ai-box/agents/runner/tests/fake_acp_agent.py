@@ -116,7 +116,6 @@ def turn(rid: Any, session: str, text: str) -> None:
     def done(reason: str = "end_turn") -> None:
         send({"jsonrpc": "2.0", "id": rid, "result": {"stopReason": reason}})
 
-    # A longer prompt (a kanban card's brief) is scripted by its last `fake: ` line.
     scripted = [line[6:] for line in text.splitlines() if line.startswith("fake: ")]
     text = scripted[-1] if scripted else text
     if text.startswith("limit"):

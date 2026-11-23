@@ -1,20 +1,15 @@
-# Coding cards on the agent runner: a kanban card assigned to `coder` is worked by the lane
-# `agent kanban-lane` (agents/runner/agent_runner/hermes_board.py), which runs it as a runner job
-# and waits on it without a model.
+# Coding cards on the agent runner: `agent kanban-lane` (agents/runner/agent_runner/hermes_board.py)
+# works each kanban card assigned to `coder` as a runner job and waits on it without a model.
 #
 # Standard Hermes, used as documented:
-#   - the board and its dispatcher: a card whose assignee names no profile is a lane's to claim
-#     (`skipped_nonspawnable`: no worker is started for it); runs, reclaiming a claim that ran
-#     out (a failure booked), notify-subscribe
+#   - the board and its dispatcher: it starts no worker for a `coder` card (`skipped_nonspawnable`);
+#     runs, taking back a claim that ran out (a failure booked), notify-subscribe
 #   - the `hermes kanban` CLI: list, claim, show, context, heartbeat, comment, complete, block
 # Homegrown:
 #   - card-lane, a user service beside the runner's: `agent kanban-lane`
 #   - aiBox.agents.cardWorker: the agent and model for coder cards
-#   - the check: hermes_board.py's tests with Hermes, the last of them on Hermes's own board (the
-#     dispatcher's tick included), so a Hermes release that changes what the lane relies on fails
-#     the system build
-# `coder` is no Hermes profile: a profile makes the gateway serve several and lose its secrets
-# (gateway.multiplex_profiles in ../default.nix).
+#   - the check: hermes_board.py's tests, the last of them on Hermes's own board (the dispatcher's
+#     tick included), so a Hermes release that changes what the lane relies on fails the build
 {
   config,
   lib,

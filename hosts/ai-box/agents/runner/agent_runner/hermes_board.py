@@ -1,16 +1,15 @@
 """`agent kanban-lane`: the Hermes kanban cards assigned to `coder`, worked as runner jobs.
 
 The runner's one coupling to Hermes; nix-config's hosts/ai-box/hermes/card-worker runs it as a
-service, and its build runs this module's tests against Hermes's own CLI. `coder` is no Hermes
-profile but a lane: Hermes's dispatcher leaves a card whose assignee names no profile to whoever
-claims it (`skipped_nonspawnable`), and keeps the rest of the board: runs, comments, reclaiming a
-claim that ran out, notifications. The lane talks to the board only through the public
-`hermes kanban` CLI. Every POLL_SECONDS it claims each ready `coder` card and works it in a
-thread; when it starts, it also takes back the `coder` cards still running (after a restart of
-the lane or the box). Each change it makes names the card's run, so a run the board has taken
-back can't be changed. Working a card: start its session (card-<id>) on the configured agent
-with the card's context, or hand that session the latest context (an answer, a retry), then wait
-on it (wait.py), heartbeating the card on each wake:
+service, and its build runs this module's tests against Hermes's own CLI. Hermes's dispatcher
+starts no worker for a `coder` card (`skipped_nonspawnable`) and keeps the rest of the board:
+runs, comments, taking back a claim that ran out, notifications. The lane talks to the board only
+through the `hermes kanban` CLI. Every POLL_SECONDS it claims each ready `coder` card and works it
+in a thread; when it starts, it takes back the `coder` cards still running. Each change it makes
+names the card's run, so a run the board has taken back can't be changed. Working a card: start
+its session (card-<id>) on the configured agent with the card's context, or hand that session the
+latest context (an answer, a retry), then wait on it (wait.py), heartbeating the card on each
+wake:
 
   the job prints CARD-DONE: <summary>        -> complete with the summary, stop the session
   it asks (a question, a permission) or prints CARD-NEED-LIVE / -RESTART-PLEASE

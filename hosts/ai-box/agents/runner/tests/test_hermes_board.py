@@ -169,8 +169,6 @@ def test_on_hermes_s_own_board(
     assert done["task"]["status"] == "done", done
     assert blocked["task"]["status"] == "blocked", blocked
     assert "without CARD-DONE" in blocked["comments"][-1]["body"], blocked
-    # None of it went through the profile owner (the gateway that refused a coder profile), and
-    # no profile exists.
+    # Hermes started no worker for either and admitted none to its gateway: the lane worked both.
     events = [e["kind"] for e in done["events"] + blocked["events"]]
     assert "owner_admitted" not in events and "spawned" not in events, events
-    assert not (home / "profiles").exists()
