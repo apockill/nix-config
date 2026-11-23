@@ -84,9 +84,9 @@ in
     };
 
     # Hermes discovers user model-provider plugins under ~/.hermes/plugins/model-providers/<name>/.
-    # Since v0.23 it loads a copy (providers/plugin_reload.py), which it can't make of a store path:
-    # the copy keeps the store's read-only modes, so moving it into place fails and the provider
-    # doesn't load. So this is a writable copy, made afresh on each activation.
+    # It loads a copy of each (providers/plugin_reload.py), and a copy of a store path keeps the
+    # store's read-only modes, so moving it into place fails and the provider doesn't load. So the
+    # plugin is a writable copy, made afresh on each activation.
     home-manager.users.${cfg.user} =
       { lib, ... }:
       {

@@ -65,12 +65,12 @@ let
   # This wrapper injects `--vault ai-assistant` on `item get` calls when omitted.
   # Remove this part once upstream hermes-agent merges support for service accounts.
   #
-  # It's also the agent's terminal `op` (AGENTS.md: Hermes creates vault items). Since v0.23 Hermes
-  # won't pass OP_SERVICE_ACCOUNT_TOKEN to any child, terminal.env_passthrough included
-  # (GHSA-rhgp-j443-p4rf: the token that unlocks every other secret goes only to its own CLI). So
-  # op reads it itself, from the secrets file the gateway names in AIBOX_OP_SIGNIN, and nothing else
-  # in the terminal ever holds it. A caller that brings its own token (the vault backend) keeps it;
-  # coding agents' sessions don't carry the mark, so their op has no sign-in, as before.
+  # It's also the agent's terminal `op` (AGENTS.md: Hermes creates vault items). Hermes passes
+  # OP_SERVICE_ACCOUNT_TOKEN to no child, terminal.env_passthrough included (GHSA-rhgp-j443-p4rf:
+  # the token that unlocks every other secret goes only to its own CLI). So op reads it itself,
+  # from the secrets file the gateway names in AIBOX_OP_SIGNIN, and nothing else in the terminal
+  # holds it. A caller that brings its own token (the vault backend) keeps it; coding agents'
+  # sessions don't carry the mark, so their op has no sign-in.
   opVaultWrapper = pkgs.writeShellScriptBin "op" ''
     if [ -z "''${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -r "''${AIBOX_OP_SIGNIN:-}" ]; then
       OP_SERVICE_ACCOUNT_TOKEN=$(${pkgs.gnugrep}/bin/grep -m1 '^OP_SERVICE_ACCOUNT_TOKEN=' "$AIBOX_OP_SIGNIN" | ${pkgs.coreutils}/bin/cut -d= -f2-)
@@ -165,7 +165,8 @@ in
       };
       delegation.reasoning_effort = "high";
 
-      # Ended sessions are deleted after 90 days, as before v0.23 made pruning opt-in (#139762).
+      # Ended sessions are deleted after 90 days (pruning is opt-in, #139762), so state.db stays
+      # bounded.
       sessions.auto_prune = true;
 
       # Scheduled jobs only read, check, summarize, and report back: no
@@ -202,8 +203,8 @@ in
       };
       # Lets `claude` in the agent's terminal reach Claude, and gives curl access to
       # the Cloudflare Access service token. Cron has no terminal, so it never gets
-      # these. Not OP_SERVICE_ACCOUNT_TOKEN: Hermes refuses it since v0.23, and `op`
-      # reads it itself (opVaultWrapper). The list replaces the one on disk.
+      # these. Hermes refuses OP_SERVICE_ACCOUNT_TOKEN here; `op` reads it itself
+      # (opVaultWrapper). The list replaces the one on disk.
       terminal.env_passthrough = [
         "CF_ACCESS_CLIENT_ID"
         "CF_ACCESS_CLIENT_SECRET"
@@ -302,7 +303,7 @@ in
     };
   };
 
-  # Hermes v0.23 refuses a group-writable home when its group has other members (caddy, which
+  # Hermes refuses a group-writable home when its group has other members (caddy, which
   # serves the sites): another user could swap the gateway's control socket, so kanban workers
   # can't reach it ("unsafe_control_permissions"). The module sets 2770 on activation and in
   # tmpfiles; take group write off the home itself (its subdirectories keep theirs; caddy needs
