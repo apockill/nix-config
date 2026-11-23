@@ -58,24 +58,14 @@ let
 
   '';
 
-  # Upstream Hermes bug (NousResearch/hermes-agent issue #108335 / PR #129628):
-  # When using 1Password Service Accounts (OP_SERVICE_ACCOUNT_TOKEN), `op item get`
-  # requires an explicit `--vault` flag. Upstream Hermes omits `--vault` in
-  # agent/vault_backends/onepassword.py, causing `browser_vault_fill` to fail.
-  # This wrapper injects `--vault ai-assistant` on `item get` calls when omitted.
-  # Remove this part once upstream hermes-agent merges support for service accounts.
-  #
-  # It's also the terminal's `op`: Hermes gives OP_SERVICE_ACCOUNT_TOKEN to no child process
-  # (GHSA-rhgp-j443-p4rf), so op reads it from the secrets file when its caller has none.
-  opVaultWrapper = pkgs.writeShellScriptBin "op" ''
+  # `op` for the vault backend and the terminal. Hermes passes OP_SERVICE_ACCOUNT_TOKEN to no
+  # process it starts (GHSA-rhgp-j443-p4rf), so op reads it from the secrets file when its caller
+  # has none. Anything running as hermes can read the secrets file.
+  opWrapper = pkgs.writeShellScriptBin "op" ''
     if [ -z "''${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -r ${secretsDir}/env ]; then
       export OP_SERVICE_ACCOUNT_TOKEN=$(${pkgs.gnused}/bin/sed -n 's/^OP_SERVICE_ACCOUNT_TOKEN=//p' ${secretsDir}/env)
     fi
-    if [[ "$*" == *"item get"* && "$*" != *"--vault"* ]]; then
-      exec ${pkgs._1password-cli}/bin/op "$@" --vault ai-assistant
-    else
-      exec ${pkgs._1password-cli}/bin/op "$@"
-    fi
+    exec ${pkgs._1password-cli}/bin/op "$@"
   '';
 
   # Provider presets driven by `aiBox.defaultProvider` (hosts/ai-box/default.nix). Both branches
@@ -194,7 +184,7 @@ in
       vault.onepassword = {
         enabled = true;
         service_account_token_env = "OP_SERVICE_ACCOUNT_TOKEN";
-        binary_path = "${opVaultWrapper}/bin/op";
+        binary_path = "${opWrapper}/bin/op";
       };
       # Lets `claude` in the agent's terminal reach Claude, and gives curl access to
       # the Cloudflare Access service token. Cron has no terminal, so it never gets
@@ -211,7 +201,7 @@ in
     workingDirectory = workspace;
 
     extraPackages = with pkgs; [
-      opVaultWrapper
+      opWrapper
       git
       jq
       just
