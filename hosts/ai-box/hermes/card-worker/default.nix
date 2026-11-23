@@ -103,6 +103,12 @@ in
     aiBox.agents.links."${hermesHome}/plugins/card-worker" = "${plugin}";
     systemd.services.hermes-agent.restartTriggers = [ plugin ];
     systemd.tmpfiles.settings.card-worker = {
+      # The profiles directory is the service user's: tmpfiles refuses to create the profile under a
+      # root-owned parent inside the user's HERMES_HOME (an unsafe path transition).
+      "${hermesHome}/profiles".d = {
+        inherit (cfg) user group;
+        mode = "0755";
+      };
       "${hermesHome}/profiles/coder".d = {
         inherit (cfg) user group;
         mode = "0700";
