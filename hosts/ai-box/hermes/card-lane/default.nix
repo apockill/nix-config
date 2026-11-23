@@ -1,4 +1,4 @@
-# Coding cards on the agent runner: `agent kanban-lane` (agents/runner/agent_runner/hermes_board.py)
+# Coding cards on the agent runner: `agent kanban-lane` (agents/runner/agent_runner/kanban_lane.py)
 # works each kanban card assigned to `coder` as a runner job and waits on it without a model.
 #
 # Standard Hermes, used as documented:
@@ -7,8 +7,8 @@
 #   - the `hermes kanban` CLI: list, claim, show, context, heartbeat, comment, complete, block
 # Homegrown:
 #   - card-lane, a user service beside the runner's: `agent kanban-lane`
-#   - aiBox.agents.cardWorker: the agent and model for coder cards
-#   - the check: hermes_board.py's tests, the last of them on Hermes's own board (the dispatcher's
+#   - aiBox.agents.cardLane: the agent and model for coder cards
+#   - the check: kanban_lane.py's tests, the last of them on Hermes's own board (the dispatcher's
 #     tick included), so a Hermes release that changes what the lane relies on fails the build
 {
   config,
@@ -17,7 +17,7 @@
 }:
 let
   cfg = config.services.hermes-agent;
-  worker = config.aiBox.agents.cardWorker;
+  lane = config.aiBox.agents.cardLane;
   runner = config.aiBox.agents.runner.package;
   hermes = "${cfg.package}/bin/hermes";
 
@@ -27,22 +27,22 @@ let
     "--hermes"
     hermes
     "--agent"
-    worker.agent
+    lane.agent
   ]
-  ++ lib.optionals (worker.model != null) [
+  ++ lib.optionals (lane.model != null) [
     "--model"
-    worker.model
+    lane.model
   ];
 
   check = runner.overridePythonAttrs {
     pname = "card-lane-check";
     checkPhase = ''
-      AGENT_RUNNER_HERMES=${hermes} pytest -q -p no:cacheprovider tests/test_hermes_board.py
+      AGENT_RUNNER_HERMES=${hermes} pytest -q -p no:cacheprovider tests/test_kanban_lane.py
     '';
   };
 in
 {
-  options.aiBox.agents.cardWorker = {
+  options.aiBox.agents.cardLane = {
     agent = lib.mkOption {
       type = lib.types.enum [
         "claude"

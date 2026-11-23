@@ -1,6 +1,6 @@
 """`agent kanban-lane`: the Hermes kanban cards assigned to `coder`, worked as runner jobs.
 
-The runner's one coupling to Hermes; nix-config's hosts/ai-box/hermes/card-worker runs it as a
+The runner's one coupling to Hermes; nix-config's hosts/ai-box/hermes/card-lane runs it as a
 service, and its build runs this module's tests against Hermes's own CLI. Hermes's dispatcher
 starts no worker for a `coder` card (`skipped_nonspawnable`) and keeps the rest of the board:
 runs, comments, taking back a claim that ran out, notifications. The lane talks to the board only

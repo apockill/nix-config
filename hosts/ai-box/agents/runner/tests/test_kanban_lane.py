@@ -1,6 +1,6 @@
-"""hermes_board.py: kanban cards worked as jobs, against the stand-in agent and a stand-in
+"""kanban_lane.py: kanban cards worked as jobs, against the stand-in agent and a stand-in
 `hermes` that records its calls and prints the card's context from a file; and, given Hermes
-(AGENT_RUNNER_HERMES: nix-config's card-worker check), against Hermes's own board."""
+(AGENT_RUNNER_HERMES: nix-config's card-lane check), against Hermes's own board."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from agent_runner import hermes_board
-from agent_runner.hermes_board import MARKER, Board, Lane, kanban, work
+from agent_runner import kanban_lane
+from agent_runner.kanban_lane import MARKER, Board, Lane, kanban, work
 from agent_runner.wait import Waiting
 from conftest import Service
 
@@ -117,7 +117,7 @@ def test_the_usage_limit_is_waited_out(
         card.says("say CARD-DONE: after the limit")
         time.sleep(seconds)
 
-    monkeypatch.setattr(hermes_board, "sleep", sleep)
+    monkeypatch.setattr(kanban_lane, "sleep", sleep)
     card.work(service)
     calls = card.calls()
     assert calls[1][:2] == ["comment", "t_42"] and "usage limit" in calls[1][3]
@@ -139,7 +139,7 @@ def test_a_board_refusal_ends_the_run(service: Service, card: Card) -> None:
     assert card.calls()[-1][:4] == ["block", "t_42", "--kind", "transient"]
 
 
-@pytest.mark.skipif(HERMES is None, reason="needs Hermes: card-worker's build check")
+@pytest.mark.skipif(HERMES is None, reason="needs Hermes: card-lane's build check")
 def test_on_hermes_s_own_board(
     service: Service, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

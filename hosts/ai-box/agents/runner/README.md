@@ -29,10 +29,10 @@ read. A failure to tell him is in the session's `notify_error` and the journal.
 
 ## Kanban cards
 
-`agent kanban-lane` (`agent_runner/hermes_board.py`; nix-config's `hosts/ai-box/hermes/card-worker`
+`agent kanban-lane` (`agent_runner/kanban_lane.py`; nix-config's `hosts/ai-box/hermes/card-lane`
 runs it as the user service card-lane) works the Hermes kanban cards assigned to `coder` as jobs,
 waited on without a model. It claims each ready card and starts session `card-<id>` on
-`aiBox.agents.cardWorker`'s agent with the card's context, or sends that session the latest
+`aiBox.agents.cardLane`'s agent with the card's context, or sends that session the latest
 context when the card comes back, and heartbeats the card on each wake. `CARD-DONE: <summary>`
 completes the card; a question, a permission or `CARD-NEED-LIVE` blocks it (needs_input); a usage
 limit is waited out, the card kept; going quiet without a marker, ending or a refusal blocks it

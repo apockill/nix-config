@@ -108,7 +108,7 @@ about the change.
   runner refuses them) unless it was started with `--allow-runner`; give that only to a job that
   must start jobs itself.
 - **Coding cards:** assign the card to `coder`; the card lane (`agent kanban-lane`,
-  hosts/ai-box/hermes/card-worker) works it as session `card-<id>` on `aiBox.agents.cardWorker`
+  hosts/ai-box/hermes/card-lane) works it as session `card-<id>` on `aiBox.agents.cardLane`
   (`aiBox.defaultProvider` by default). `CARD-DONE: <summary>` completes the card; a question or
   `CARD-NEED-LIVE` blocks it (answer in a comment and unblock it: the same session carries on); a
   usage limit is waited out; anything else blocks it with the job's last words. Follow or steer
