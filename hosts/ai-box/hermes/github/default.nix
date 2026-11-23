@@ -1,56 +1,32 @@
-# GitHub for Hermes: everything in one place.
+# GitHub for Hermes: the ailex-agent account (vault item "GitHub"), a collaborator on
+# Alex's repos.
 #
-# Hermes acts on GitHub as "ailex-bot", a GitHub App that Alex owns and
-# installed on the repos it may touch (apockill/nix-config,
-# apockill/ai-box-apps). The app's private key is the vault item "GitHub App";
-# no account password or long-lived token exists. (The ailex-agent machine
-# account this replaced was suspended on 2026-11-08.)
-#
-# - gh-app-token: signs a JWT with the app key, read from 1Password through a
-#   pipe (never on disk, argv or the environment), and prints a 1-hour
-#   installation token.
-# - gh: mints a token per call when GH_TOKEN isn't set. Hermes won't pass
-#   GH_TOKEN into the agent's terminal (it treats it as a provider credential,
-#   GHSA-rhgp-j443-p4rf), so gh fetches its own and only gh (and git, through
-#   gh's credential helper) ever sees it.
-# - git: commits are authored as the app's bot user.
+# - gh reads the account's token from the secrets file: Hermes passes GH_TOKEN to no
+#   process it starts (GHSA-rhgp-j443-p4rf).
+# - git: commits are authored as ailex-agent.
 { config, pkgs, ... }:
 let
   cfg = config.services.hermes-agent;
 
-  ghAppToken = pkgs.writeShellApplication {
-    name = "gh-app-token";
-    runtimeInputs = [
-      pkgs._1password-cli
-      pkgs.openssl
-      pkgs.jq
-      pkgs.curl
-      pkgs.gnused
-      pkgs.coreutils
-    ];
-    text = builtins.readFile ./gh-app-token.sh;
-  };
-
   ghWrapper = pkgs.writeShellScriptBin "gh" ''
-    # No token where 1Password isn't reachable (gh-app-token fails at once): gh then runs
-    # unauthenticated rather than hanging.
-    if [ -z "''${GH_TOKEN:-}" ] && GH_TOKEN=$(${ghAppToken}/bin/gh-app-token); then
-      export GH_TOKEN
+    if [ -z "''${GH_TOKEN:-}" ] && [ -r /run/hermes-secrets/env ]; then
+      export GH_TOKEN=$(${pkgs.gnused}/bin/sed -n 's/^GH_TOKEN=//p' /run/hermes-secrets/env)
     fi
     exec ${pkgs.gh}/bin/gh "$@"
   '';
 in
 {
-  services.hermes-agent.extraPackages = [
-    ghWrapper
-    ghAppToken
-  ];
+  aiBox.hermesSecrets = ''
+    # "GitHub": the ailex-agent account's token (./github)
+    GH_TOKEN={{ op://ai-assistant/kb6xnh67wvh2hu7gtl3cgzxu4u/token }}
+  '';
+
+  services.hermes-agent.extraPackages = [ ghWrapper ];
 
   home-manager.users.${cfg.user} = {
     programs.git.settings.user = {
-      name = "ailex-bot[bot]";
-      # the app's bot user id (api.github.com/users/ailex-bot%5Bbot%5D)
-      email = "354606656+ailex-bot[bot]@users.noreply.github.com";
+      name = "ailex-agent";
+      email = "341263899+ailex-agent@users.noreply.github.com";
     };
     # Also makes gh git's credential helper for github.com.
     programs.gh = {
