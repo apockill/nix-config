@@ -1,4 +1,4 @@
-"""`agent kanban-worker`: a Hermes kanban card worked as a runner job, no model watching it.
+"""`agent kanban-worker`: a Hermes kanban card worked as a runner job.
 
 The runner's one coupling to Hermes; the plugin that spawns it is nix-config's
 hosts/ai-box/hermes/card-worker, whose contract check fails the build when a Hermes release
@@ -52,7 +52,7 @@ When you're done, print one line `CARD-DONE: <what you did, for the card>`. If y
 decision, hardware, a restart), ask him, or print `CARD-NEED-LIVE: <what you need>`: the card \
 waits for him."""
 RETRY = """\
-Hermes retried card {card}. Its context now, comments included:
+Hermes retried card {card}. Its current context, comments included:
 
 {context}
 
@@ -107,7 +107,7 @@ def begin(
     if s is None or s.state == "stopped":
         client.start(start_request(spec, env))
         return
-    # Its open questions were the block; the answer is in the comments now.
+    # Its open questions blocked the card; their answers are in the card's comments.
     for event in s.pending:
         request_id, _ = asked(event)
         client.answer(name, request_id, answer_body(request_id, None, False, True))

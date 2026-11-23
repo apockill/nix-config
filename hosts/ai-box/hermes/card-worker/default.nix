@@ -1,5 +1,5 @@
 # Coding cards on the agent runner: a kanban card assigned to `coder` is worked by
-# `agent kanban-worker` instead of a Hermes agent babysitting a job, with no model watching it.
+# `agent kanban-worker`, which runs it as a runner job and waits on it without a model.
 #
 # Standard Hermes, used as documented:
 #   - the board and its dispatcher: claims, heartbeats, reclaim, retries, the block after 2
@@ -15,7 +15,7 @@
 #     profile, which would turn the gateway into a multi-profile host
 #   - agents/runner/agent_runner/hermes_board.py: `agent kanban-worker`, the bridge
 #   - aiBox.agents.cardWorker: the agent and model for coder cards
-#   - ./contract.py: the build's check that Hermes still honours the seam (plus mypy --strict
+#   - ./contract.py: the build's check that Hermes honours the seam (plus mypy --strict
 #     and ruff on this folder)
 # Only the gateway's dispatcher loads plugins: a hand-run `hermes kanban dispatch` gives a coder
 # card a Hermes worker, so leave dispatching to the gateway.

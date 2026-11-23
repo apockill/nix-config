@@ -1,9 +1,9 @@
 """The card-worker plugin's contract with Hermes, run by the system build (./default.nix) with
 Hermes's own interpreter: in a throwaway HERMES_HOME, one `coder` card and one `default` card,
 plugins loaded as the gateway loads them, one dispatcher tick. The coder card must reach our
-command (a stub that records its environment) with the run's grant; the default card must still
-get Hermes's own worker; the `hermes kanban` verbs the bridge calls must accept that grant; and
-Hermes's exit contract must still be what agent_runner/hermes_board.py says. Anything else fails
+command (a stub that records its environment) with the run's grant; the default card must get
+Hermes's own worker; the `hermes kanban` verbs the bridge calls must accept that grant; and
+Hermes's exit contract must be what agent_runner/hermes_board.py says. Anything else fails
 the build, so a Hermes update that moves the seam is caught when its PR builds.
 
 Usage: contract.py <the plugin, as installed> <stub> <hermes> <hermes_board.py>

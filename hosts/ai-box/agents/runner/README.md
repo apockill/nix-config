@@ -29,7 +29,7 @@ read. A failure to tell him is in the session's `notify_error` and the journal.
 
 ## Kanban cards
 
-A Hermes kanban card assigned to `coder` runs as a job here, with no model watching it: Hermes's
+A Hermes kanban card assigned to `coder` runs as a job here, waited on without a model: Hermes's
 dispatcher spawns `agent kanban-worker` (`agent_runner/hermes_board.py`, the runner's one coupling
 to Hermes; the plugin and its contract check are nix-config's `hosts/ai-box/hermes/card-worker`).
 It starts session `card-<id>` on `aiBox.agents.cardWorker`'s agent with the card's context, or on

@@ -107,15 +107,14 @@ about the change.
   agent quality goes to Alex for review first. A job's own processes can't use `agent` (the
   runner refuses them) unless it was started with `--allow-runner`; give that only to a job that
   must start jobs itself.
-- **Coding cards:** for coding work on the board, assign the card to `coder` instead of starting
-  a job and watching it. The dispatcher hands a `coder` card to the runner (`agent
-  kanban-worker`, hosts/ai-box/hermes/card-worker): session `card-<id>` on
-  `aiBox.agents.cardWorker` (agent and model, `aiBox.defaultProvider` by default), with no model
-  watching it. `CARD-DONE: <summary>` completes the card; a question or `CARD-NEED-LIVE` blocks it
-  (answer in a comment and unblock it: the retry resumes the same session); a usage limit
-  requeues it; anything else is a crash the board retries. Follow or steer it with `agent peek` /
-  `agent send card-<id>`. Leave dispatching to the gateway: a hand-run `hermes kanban dispatch`
-  gives a `coder` card a Hermes worker.
+- **Coding cards:** for coding work on the board, assign the card to `coder`. The dispatcher hands
+  a `coder` card to the runner (`agent kanban-worker`, hosts/ai-box/hermes/card-worker), which runs
+  it as session `card-<id>` on `aiBox.agents.cardWorker` (agent and model, `aiBox.defaultProvider`
+  by default) and waits on it without a model. `CARD-DONE: <summary>` completes the card; a
+  question or `CARD-NEED-LIVE` blocks it (answer in a comment and unblock it: the retry resumes the
+  same session); a usage limit requeues it; anything else is a crash the board retries. Follow or
+  steer it with `agent peek` / `agent send card-<id>`. Leave dispatching to the gateway: a hand-run
+  `hermes kanban dispatch` gives a `coder` card a Hermes worker.
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions by default. They can't use the terminal, files, or browser unless
   Alex explicitly asks for that job (then create it with its own tool list and
