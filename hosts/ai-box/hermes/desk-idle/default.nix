@@ -19,8 +19,8 @@
       - one line saying what you switched off, e.g. `desk-idle: switched off Projector,
         Desk-light`, quoting any error on that same line.
 
-      In use - answer exactly [SILENT] - if any of these, or anything else that tells you
-      someone or something is using it:
+      It is in use if any of these, or anything else that tells you someone or something is
+      using it:
       - a lab instance (lab-motion, lab-arm, lab-calibration, lab-scanner, lab-world,
         lab-projector) is running a goal or holds a lease (`box <inst> health --json`)
       - the arm took a command in the last 60 minutes (`box lab-arm events --json`)
