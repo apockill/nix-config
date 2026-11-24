@@ -27,6 +27,11 @@ each: at a usage limit (once per reset), after 3 failed turns in a row, when a p
 question waits 30 minutes, when a stop or restart cuts turns (named), and when a record can't be
 read. A failure to tell him is in the session's `notify_error` and the journal.
 
+## Kanban cards
+
+`agent kanban-lane` works the Hermes kanban cards assigned to `coder` as jobs; what it does with
+each card is in `agent_runner/kanban_lane.py`'s docstring.
+
 ## Transport
 
 HTTP/1.1 on the unix socket `/var/lib/hermes/agent-runner/sock`, mode `0600`: the agent's user

@@ -15,6 +15,7 @@ import time
 from collections.abc import Sequence
 from typing import NoReturn
 
+from . import kanban_lane
 from . import wait as wait_module
 from .api_types import SessionStatus
 from .base import JsonObject
@@ -232,6 +233,12 @@ def parser(prog: str) -> Parser:
             s.add_argument("--json", action="store_true")
         if name == "stop":
             s.add_argument("--reason")
+    s = verb(
+        "kanban-lane",
+        "work Hermes kanban cards assigned to coder as jobs (kanban_lane.py)",
+    )
+    s.add_argument("--agent", help="the agent (default: the runner's)")
+    s.add_argument("--hermes", default="hermes", help="the hermes command")
     s = verb("list", "the sessions, oldest first")
     s.add_argument("--json", action="store_true")
     s = verb("events", "events as JSON lines (agent_runner/events.py)")
@@ -318,6 +325,8 @@ class Cli:
                 show(c.cancel(args.name))
             case "transcript":
                 print(c.status(args.name).transcript or "")
+            case "kanban-lane":
+                kanban_lane.Lane(c, args.hermes, args.agent).run()
             case "list":
                 return self.list(args.json)
             case "events":

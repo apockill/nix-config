@@ -112,6 +112,7 @@ in
     ./arm-alert # the desk arm's alerts and an arm stuck out of its rest: Discord report
     ./email.nix # the agent's Gmail: email gateway, notify-alex, himalaya
     ./github # GitHub as ailex-agent: gh, git identity
+    ./card-lane # kanban cards assigned to coder run on the agent runner (aiBox.agents.cardLane)
     {
       # More `op inject` lines for the secrets file from feature modules (e.g.
       # ./email.nix): vault references only, never secrets.
