@@ -25,7 +25,8 @@ Anything that could cost agent quality needs Alex's review first.
 the session with the reason, fails the call, and tells Alex (`notify-alex`). He is also told, once
 each: at a usage limit (once per reset), after 3 failed turns in a row, when a permission or
 question waits 30 minutes, when a stop or restart cuts turns (named), and when a record can't be
-read. A failure to tell him is in the session's `notify_error` and the journal.
+read. A failure to tell him is in the session's `notify_error`, the journal and the daily
+usage digest (`../drift`).
 
 ## Kanban cards
 
