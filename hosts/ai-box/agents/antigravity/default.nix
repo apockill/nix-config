@@ -18,18 +18,9 @@ let
   tokenFile = "${home}/.gemini/antigravity-cli/antigravity-oauth-token";
 
   # The package alex's desktop uses (users/alex/home/desktop/antigravity.nix), from the
-  # antigravity-nix flake, but at 1.5.10 instead of the input's 1.5.9: over ACP, 1.5.9 drops what
-  # agy says after a turn has ended (a subagent's result arriving), which 1.5.10 streams (both
-  # tested on ai-box, 2026-11-17). Drop the override once the input has 1.5.10 or later.
-  cli =
-    inputs.antigravity-nix.packages.${pkgs.stdenv.hostPlatform.system}.google-antigravity-cli.overrideAttrs
-      {
-        version = "1.5.10-5253791805734912";
-        src = pkgs.fetchurl {
-          url = "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.10-5253791805734912/linux-arm/cli_linux_arm64.tar.gz";
-          sha512 = "f9f5c7ebc47a8b8de536acca8116b1f5a43dca614cde94008fe5a510517b23535fb281d85416930d76e76478858bf3dc66ea6d1b0c9b6eeadcfabe4d8ef2a807";
-        };
-      };
+  # antigravity-nix flake. It needs 1.5.10 or later, which streams over ACP what agy says after a
+  # turn has ended (a subagent's result arriving).
+  cli = inputs.antigravity-nix.packages.${pkgs.stdenv.hostPlatform.system}.google-antigravity-cli;
 
   # agy updates itself unless told not to: in the read-only store that only fails and logs, and
   # versions come from here anyway.
@@ -85,15 +76,29 @@ in
     };
 
     # agy reads AGENTS.md in a repository and .agents/skills there natively; at user level it
-    # reads ~/.gemini/AGENTS.md and ~/.gemini/config/skills. Hermes discovers user model-provider
-    # plugins under ~/.hermes/plugins/model-providers/<name>/.
+    # reads ~/.gemini/AGENTS.md and ~/.gemini/config/skills.
     aiBox.agents.links = {
       "${home}/.gemini/AGENTS.md" = config.aiBox.agents.instructions;
       "${home}/.gemini/config/skills" = config.aiBox.agents.skills;
-      "${home}/.hermes/plugins/model-providers/antigravity-subscription-directsdk" = "${hermesPlugin}";
     };
 
-    # Ensure Hermes sees the restored Antigravity sign-in, the symlinked plugin, and the wrapped
+    # Hermes discovers user model-provider plugins under ~/.hermes/plugins/model-providers/<name>/
+    # and loads a copy of each (providers/plugin_reload.py), which needs a writable plugin: a copy
+    # made afresh on each activation.
+    home-manager.users.${cfg.user} =
+      { lib, ... }:
+      {
+        home.activation.antigravityHermesPlugin = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+          dir="$HOME/.hermes/plugins/model-providers/antigravity-subscription-directsdk"
+          run rm -rf "$dir"
+          run mkdir -p "$(dirname "$dir")"
+          run cp -r --no-preserve=mode ${hermesPlugin} "$dir"
+        '';
+      };
+    # ~/.hermes is a bind mount (state/persist.nix): copy into it, not under it.
+    systemd.services."home-manager-${cfg.user}".unitConfig.RequiresMountsFor = [ "${home}/.hermes" ];
+
+    # Ensure Hermes sees the restored Antigravity sign-in, the plugin's copy, and the wrapped
     # `agy` binary on a fresh box or after a plugin update.
     systemd.services.hermes-agent = {
       wants = [

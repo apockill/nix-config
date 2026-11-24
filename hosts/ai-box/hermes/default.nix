@@ -58,18 +58,14 @@ let
 
   '';
 
-  # Upstream Hermes bug (NousResearch/hermes-agent issue #108335 / PR #129628):
-  # When using 1Password Service Accounts (OP_SERVICE_ACCOUNT_TOKEN), `op item get`
-  # requires an explicit `--vault` flag. Upstream Hermes omits `--vault` in
-  # agent/vault_backends/onepassword.py, causing `browser_vault_fill` to fail.
-  # This wrapper injects `--vault ai-assistant` on `item get` calls when omitted.
-  # Remove this wrapper once upstream hermes-agent merges support for service accounts.
-  opVaultWrapper = pkgs.writeShellScriptBin "op" ''
-    if [[ "$*" == *"item get"* && "$*" != *"--vault"* ]]; then
-      exec ${pkgs._1password-cli}/bin/op "$@" --vault ai-assistant
-    else
-      exec ${pkgs._1password-cli}/bin/op "$@"
+  # `op` for the vault backend and the terminal. Hermes passes OP_SERVICE_ACCOUNT_TOKEN to no
+  # process it starts (GHSA-rhgp-j443-p4rf), so op reads it from the secrets file when its caller
+  # has none. Anything running as hermes can read the secrets file.
+  opWrapper = pkgs.writeShellScriptBin "op" ''
+    if [ -z "''${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -r ${secretsDir}/env ]; then
+      export OP_SERVICE_ACCOUNT_TOKEN=$(${pkgs.gnused}/bin/sed -n 's/^OP_SERVICE_ACCOUNT_TOKEN=//p' ${secretsDir}/env)
     fi
+    exec ${pkgs._1password-cli}/bin/op "$@"
   '';
 
   # Provider presets driven by `aiBox.defaultProvider` (hosts/ai-box/default.nix). Both branches
@@ -154,6 +150,10 @@ in
       };
       delegation.reasoning_effort = "high";
 
+      # Ended sessions are deleted after 90 days (pruning is opt-in, #139762), so state.db stays
+      # bounded.
+      sessions.auto_prune = true;
+
       # Scheduled jobs only read, check, summarize, and report back: no
       # terminal, files, browser (which carries the vault), or delegation.
       platform_toolsets.cron = [
@@ -184,13 +184,12 @@ in
       vault.onepassword = {
         enabled = true;
         service_account_token_env = "OP_SERVICE_ACCOUNT_TOKEN";
-        binary_path = "${opVaultWrapper}/bin/op";
+        binary_path = "${opWrapper}/bin/op";
       };
-      # Lets `op` and `claude` in the agent's terminal reach the vault and Claude,
-      # and gives curl access to the Cloudflare Access service token.
-      # Cron has no terminal, so it never gets these.
+      # Lets `claude` in the agent's terminal reach Claude, and gives curl access to
+      # the Cloudflare Access service token. Cron has no terminal, so it never gets
+      # these. The list replaces the one on disk.
       terminal.env_passthrough = [
-        "OP_SERVICE_ACCOUNT_TOKEN"
         "CF_ACCESS_CLIENT_ID"
         "CF_ACCESS_CLIENT_SECRET"
         "CLAUDE_CODE_OAUTH_TOKEN"
@@ -202,7 +201,7 @@ in
     workingDirectory = workspace;
 
     extraPackages = with pkgs; [
-      opVaultWrapper
+      opWrapper
       git
       jq
       just
@@ -283,6 +282,13 @@ in
       ProtectSystem = lib.mkForce false;
     };
   };
+
+  # The gateway's control socket needs a home its group can't write, as the group has other
+  # members (caddy). The module makes the home 2770; this takes group write off the home alone.
+  system.activationScripts.hermes-home-mode = lib.stringAfter [ "hermes-agent-setup" ] ''
+    chmod g-w ${hermesHome}
+  '';
+  systemd.tmpfiles.rules = [ "z ${hermesHome} 2750 ${cfg.user} ${cfg.group} - -" ];
 
   users.users.${cfg.user}.extraGroups = [ "video" ];
 }

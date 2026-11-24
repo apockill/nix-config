@@ -5,33 +5,19 @@
   lib,
   buildNpmPackage,
   fetchFromGitHub,
-  fetchpatch,
   makeWrapper,
   nodejs_22,
 }:
 buildNpmPackage {
   pname = "orca-slicer-api";
-  version = "1.0.0-unstable-2026-11-13";
+  version = "1.0.0-unstable-2026-11-22";
 
   src = fetchFromGitHub {
     owner = "maziggy";
     repo = "orca-slicer-api";
-    rev = "0bb2332e44d2454df4d643424cbb0d19b4883581";
-    hash = "sha256-yYtPfKWDr+8g6jm/eOM5ZtviCgvXuZ/utYeMNr8q98o=";
+    rev = "6ba12014216e39325e2f87fe51d728fa798d9118";
+    hash = "sha256-A1k6/ebUFFcaaDRx6Pq7kf0tHngz9WyV/1As3aWz8dY=";
   };
-  patches = [
-    # An optional `filamentMap` on POST /slice, passed to the CLI as --filament-map in
-    # Manual mode: the one place Bambu Studio reads which nozzle each filament prints from.
-    # Bambuddy's half is maziggy/bambuddy#3270 (./default.nix).
-    # https://github.com/drkostas/orca-slicer-api/commit/be9957c8cadefe46d8e7dd440cc106d6cf7defac
-    # (branch dual-nozzle-filament-map, based 4 commits behind the rev above).
-    # Remove once it merges into bambuddy/profile-resolver and the rev above includes it.
-    (fetchpatch {
-      name = "orca-slicer-api-filament-map.patch";
-      url = "https://github.com/drkostas/orca-slicer-api/commit/be9957c8cadefe46d8e7dd440cc106d6cf7defac.patch";
-      hash = "sha256-SvSOP0O7wadNy0M9ZBw9F89YKM1UCX5AxPWHmpI0omc=";
-    })
-  ];
   npmDepsHash = "sha256-M2WWAID4WbD/N+Tyc+AiIjC4Fsdo/SD/9paghwRcmN4=";
   nodejs = nodejs_22;
 
@@ -44,7 +30,8 @@ buildNpmPackage {
       --replace-fail "app.listen(port, () => {" "app.listen(Number(port), process.env.HOST ?? \"0.0.0.0\", () => {"
   '';
 
-  # The patch's own unit test; vitest is already a dev dependency.
+  # The filament map's unit test (Bambuddy's half is maziggy/bambuddy#3270, ./default.nix);
+  # vitest is already a dev dependency.
   doCheck = true;
   checkPhase = ''
     runHook preCheck
