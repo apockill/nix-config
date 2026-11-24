@@ -13,20 +13,21 @@
     prompt = ''
       The text above is board-keeper's snapshot of Hermes's open work for Alex: kanban cards,
       the lab lock and queue (~/workspace/lab-stretch.queue), open pull requests, and the
-      running Claude Code jobs (`cc list`/`cc peek <job> 60`, or `agent list`/`agent peek`
-      once the agent runner is live). IDLE: answer exactly [SILENT]. If a line says
-      `unreadable: ...`, report that to Alex in one line and stop.
+      running agent jobs (`agent list`, `agent peek <job> 60`; a `coder` card runs as the job
+      `card-<id>`). IDLE: answer exactly [SILENT]. If a line says `unreadable: ...`, report
+      that to Alex in one line and stop.
 
       Find work that is stuck or forgotten, and get it moving again:
       - A blocked card whose blocker is gone (`hermes kanban show <id>` gives the reason; e.g.
-        the lab it waited for is free, the PR it waited for merged): `hermes kanban unblock <id>`
-        and tell its job, with `cc send <job> "..."`, what changed and to carry on.
+        the lab it waited for is free, the PR it waited for merged): comment what changed, then
+        `hermes kanban unblock <id>`; a `coder` card's job carries on with that context.
       - The lab is free (lab-stretch status says free) and the queue names a job: tell that
-        job it may take the lab now (`lab-stretch acquire <name>`).
-      - A job that has been idle at its prompt for over an hour with its card still open, and
-        it isn't waiting for Alex: ask it what it needs to finish, and to carry on.
-      - An open PR or running job with no card: create one (`hermes kanban create`) naming it,
-        assigned to default.
+        job, with `agent send <job> "..."`, it may take the lab now (`lab-stretch acquire
+        <name>`).
+      - A job outside the board (not `card-<id>`) that has been idle for over an hour with its
+        work unfinished, and isn't waiting for Alex: ask it, with `agent send`, what it needs
+        to finish, and to carry on.
+      - An open PR with no card: create one naming it (`hermes kanban create`), unassigned.
       Comment on each card you act on (`hermes kanban comment <id> "board-keeper: ..."`).
 
       Never merge, push, approve, switch the system, move the arm, or stop a job. Never

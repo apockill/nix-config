@@ -54,12 +54,12 @@ for repo in ("apockill/ai-box-apps", "apockill/nix-config"):
         prs += [f"{repo.split('/')[1]}#{line}" for line in got.splitlines()]
 out += ["## pull requests"] + sorted(prs)
 
-jobs = run("agent", "list") or run("cc", "list")
+jobs = run("agent", "list")
 if jobs is None:
     unreadable.append("agent jobs")
 else:
     running = sorted({ln.split()[0] for ln in jobs.splitlines()
-                      if "running" in ln.lower() and ln.split() and not ln.startswith("resume-")})
+                      if "running" in ln.lower() and ln.split()})
     out += ["## running jobs"] + running
 
 if unreadable:

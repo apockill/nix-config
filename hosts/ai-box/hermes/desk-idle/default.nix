@@ -24,8 +24,8 @@
       - a lab instance (lab-motion, lab-arm, lab-calibration, lab-scanner, lab-world,
         lab-projector) is running a goal or holds a lease (`box <inst> health --json`)
       - the arm took a command in the last 60 minutes (`box lab-arm events --json`)
-      - a Claude Code job is working or wrote to its transcript in the last 60 minutes
-        (`agent list`, `agent peek <job> 40`; resume-* helpers don't count)
+      - an agent job is working or wrote to its transcript in the last 60 minutes
+        (`agent list`, `agent peek <job> 40`)
       - the overhead photo shows a person, a hand or a human arm
         (`box lab-cam-top snapshot -o /var/lib/hermes/.hermes/cache/desk-idle.jpg`, then the
         vision tool; the robot arm, cameras, blocks and paper are always there)

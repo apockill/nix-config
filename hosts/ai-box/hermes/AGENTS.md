@@ -89,7 +89,7 @@ about the change.
   on Alex's personal Antigravity login, vault item `aiBox.agents.antigravity.loginItem`). No
   per-token API billing; never set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY`, which switch to
   metered billing.
-- **Run coding jobs with `agent`**, not `claude -p`: `agent start "<project>: <job>" <dir>
+- **Run coding jobs with `agent`:** `agent start "<project>: <job>" <dir>
   <task-file>` starts the job as a session on the agent runner (`hosts/ai-box/agents/runner`;
   `agent --help` has every verb) on the runner's default agent (`aiBox.defaultProvider`; override
   with `--agent claude|antigravity` and `--model` only when asked). Wait on it with `agent wait <session>` (a background
@@ -110,7 +110,8 @@ about the change.
 - **Coding cards:** assign the card to `coder`; it runs as the job `card-<id>` (follow or steer it
   with `agent peek` / `agent send card-<id>`). `CARD-DONE` completes the card. A question or
   `CARD-NEED-LIVE` blocks it: answer in a comment and unblock it, and the same job carries on. Any
-  other block says why.
+  other block says why. Cards for `default` get a Hermes worker, for non-coding work (checks,
+  research, maintenance).
 - Scheduled jobs are limited to web lookups, vision, and searching past
   sessions by default. They can't use the terminal, files, or browser unless
   Alex explicitly asks for that job (then create it with its own tool list and
