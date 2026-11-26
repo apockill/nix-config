@@ -20,6 +20,7 @@
     ./printer # the Bambu X2D: Bambuddy, its slicer, the printer itself
     ./display.nix
     ./gpu-power.nix # the GPU stays out of runtime suspend, where it hung twice
+    ./nvme-io-timeout.nix # a lost NVMe interrupt stalls I/O for 2 s, not 30 s
     ./watchdog.nix # a hung restart resets itself (Tegra WDT); system logs for the agent
     ./robotics
     ./projects
